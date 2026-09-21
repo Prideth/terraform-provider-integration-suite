@@ -67,7 +67,7 @@ func TestClient_Do_SetsUserAgent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Do() error: %v", err)
 	}
-	resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if gotUserAgent != "test-agent/1.0" {
 		t.Errorf("User-Agent = %q, want test-agent/1.0", gotUserAgent)
@@ -98,7 +98,7 @@ func TestClient_RetriesTransientStatusCodes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Do returned error: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected final status 200, got %d", resp.StatusCode)
@@ -128,7 +128,7 @@ func TestClient_DoesNotRetryClientErrors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Do returned error: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("expected status 404, got %d", resp.StatusCode)
@@ -164,7 +164,7 @@ func TestClient_HonorsRetryAfterHeader(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Do returned error: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if elapsed := time.Since(start); elapsed < time.Second {
 		t.Fatalf("expected the client to wait at least the Retry-After duration, waited %s", elapsed)
@@ -187,9 +187,12 @@ func TestClient_StopsRetryingWhenContextCancelled(t *testing.T) {
 		t.Fatalf("building request: %v", err)
 	}
 
-	_, err = client.Do(req)
+	resp, err := client.Do(req) //nolint:bodyclose // err != nil below means resp is always nil here
 	if err == nil {
 		t.Fatal("expected an error once the context was cancelled")
+	}
+	if resp != nil {
+		_ = resp.Body.Close()
 	}
 }
 
@@ -230,7 +233,7 @@ func TestClient_RetriesNetworkLevelErrors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Do() error: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	if transport.attempts != 3 {
 		t.Errorf("expected 3 attempts, got %d", transport.attempts)

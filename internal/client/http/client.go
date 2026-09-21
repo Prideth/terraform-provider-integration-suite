@@ -213,7 +213,7 @@ func parseRetryAfter(value string) time.Duration {
 // ReadLimited reads up to MaxResponseBytes from r and closes it, returning an
 // error if the body was truncated.
 func ReadLimited(r io.ReadCloser) ([]byte, error) {
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	limited := io.LimitReader(r, MaxResponseBytes+1)
 	data, err := io.ReadAll(limited)

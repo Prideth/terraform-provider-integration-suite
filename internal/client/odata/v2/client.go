@@ -74,7 +74,7 @@ func (c *Client) do(ctx context.Context, method, path string, body []byte) ([]by
 	}
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := c.http.Do(req)
+	resp, err := c.http.Do(req) //nolint:bodyclose // resp.Body is always closed inside sapthttp.ReadLimited below
 	if err != nil {
 		return nil, fmt.Errorf("odata: request failed: %w", err)
 	}

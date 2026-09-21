@@ -260,6 +260,7 @@ func (r *integrationFlowDeploymentResource) waitForDeployment(ctx context.Contex
 // polling, capped at deploymentPollMax.
 func pollBackoff(attempt int) time.Duration {
 	capped := math.Min(float64(deploymentPollMax), float64(deploymentPollInterval)*math.Pow(1.5, float64(attempt)))
+	//nolint:gosec // G404: jitter timing does not need a cryptographically secure random source
 	return time.Duration(rand.Int63n(int64(capped))) + deploymentPollInterval/2
 }
 

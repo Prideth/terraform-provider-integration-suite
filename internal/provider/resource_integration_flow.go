@@ -232,13 +232,15 @@ func flowToModel(packageID string, flow *cloudintegration.IntegrationFlow, previ
 }
 
 // readBoundedFile reads path, refusing to read more than maxBytes+1 (so an
-// oversized file is detected rather than silently truncated).
+// oversized file is detected rather than silently truncated). path is a
+// Terraform practitioner's own "content" attribute value, not externally
+// controlled input, so opening it directly is intentional.
 func readBoundedFile(path string, maxBytes int64) ([]byte, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // G304: path is an operator-supplied Terraform attribute, not external input
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	info, err := f.Stat()
 	if err != nil {

@@ -44,7 +44,7 @@ func TestConfig_HTTPClient_AcquiresAndCachesToken(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Get() error: %v", err)
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 
 	if got := atomic.LoadInt32(&tokenRequests); got != 1 {
