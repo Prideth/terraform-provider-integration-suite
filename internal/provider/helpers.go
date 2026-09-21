@@ -1,0 +1,73 @@
+package provider
+
+import (
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/apierror"
+)
+
+// diagnosticDetail renders an error for a Terraform diagnostic detail
+// string. For a SAP API error it surfaces the status code, SAP error code,
+// and message so the user sees what SAP actually reported rather than a bare
+// Go error string; for any other error it falls back to err.Error().
+//
+// Credential material never reaches this path: the HTTP client never logs
+// or returns Authorization headers, tokens, or client secrets as part of an
+// error.
+func diagnosticDetail(err error) string {
+	var apiErr *apierror.Error
+	if errors.As(err, &apiErr) {
+		detail := apiErr.Error()
+		for _, d := range apiErr.Details {
+			detail += "\n  - " + d.Code + ": " + d.Message
+		}
+		return detail
+	}
+
+	return err.Error()
+}
+
+// pathRootID returns path.Root("id"), used by ImportStatePassthroughID
+// implementations for resources whose Terraform ID is a single SAP-assigned
+// or user-assigned key.
+func pathRootID() path.Path {
+	return path.Root("id")
+}
+
+// pathRoot is a short alias for path.Root, used when setting individual
+// attributes during ImportState for resources with a composite ID.
+func pathRoot(name string) path.Path {
+	return path.Root(name)
+}
+
+// splitCompositeID splits a "<a>/<b>" import ID into its two parts.
+func splitCompositeID(id string) (string, string, error) {
+	parts := strings.SplitN(id, "/", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", fmt.Errorf("expected an import ID in the form \"<package_id>/<flow_id>\", got %q", id)
+	}
+	return parts[0], parts[1], nil
+}
+
+func errFileTooLarge(path string, size, max int64) error {
+	return fmt.Errorf("file %q is %d bytes, which exceeds the %d byte limit", path, size, max)
+}
+
+func errHashMismatch(expected, actual string) error {
+	return fmt.Errorf("content_hash %q does not match the actual file content hash %q", expected, actual)
+}
+
+// stringOrNull converts an empty string (SAP's way of saying "no value") to
+// a null Terraform string, so optional attributes do not show perpetual
+// drift against an unset configuration value.
+func stringOrNull(s string) types.String {
+	if s == "" {
+		return types.StringNull()
+	}
+	return types.StringValue(s)
+}
