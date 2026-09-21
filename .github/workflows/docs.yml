@@ -1,0 +1,33 @@
+name: Docs
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check-docs:
+    name: Generated documentation is up to date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Regenerate documentation
+        run: make docs
+
+      - name: Fail if documentation is out of date
+        run: |
+          git diff --exit-code -- docs/ \
+            || (echo "::error::Generated documentation is out of date. Run 'go generate ./...' and commit the result." && exit 1)
