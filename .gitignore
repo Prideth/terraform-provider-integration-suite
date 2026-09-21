@@ -1,0 +1,26 @@
+# Go build artifacts
+/terraform-provider-sap-integration-suite
+*.exe
+*.test
+*.out
+/dist/
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
