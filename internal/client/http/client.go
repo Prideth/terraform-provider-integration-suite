@@ -61,6 +61,7 @@ type Client struct {
 	baseDelay       time.Duration
 	maxDelay        time.Duration
 	invalidateToken func()
+	csrf            *csrfCache
 }
 
 // New builds a retrying HTTP client from cfg.
@@ -90,6 +91,7 @@ func New(cfg Config) *Client {
 		baseDelay:       baseDelay,
 		maxDelay:        maxDelay,
 		invalidateToken: cfg.InvalidateToken,
+		csrf:            &csrfCache{},
 	}
 }
 
@@ -108,8 +110,11 @@ func isRetryable(statusCode int) bool {
 }
 
 // Do executes req, retrying transient failures with exponential backoff and
-// jitter, honoring a Retry-After header when the server supplies one, and
-// refreshing the OAuth token for at most one retry on a 401. The caller owns
+// jitter, honoring a Retry-After header when the server supplies one,
+// refreshing the OAuth token for at most one retry on a 401, and — for a
+// modifying method (POST/PUT/PATCH/DELETE) — attaching and, if necessary,
+// fetching and retrying with a CSRF token, since SAP's OData V2 services
+// protect writes with both independently of one another. The caller owns
 // req.Body: for retries to work with a body, req must have been built with
 // GetBody set (as http.NewRequestWithContext does for common body types).
 func (c *Client) Do(req *http.Request) (*http.Response, error) {
@@ -117,6 +122,17 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 		req.Header.Set("User-Agent", c.userAgent)
 	}
 
+	if needsCSRFToken(req.Method) {
+		return c.doWriteWithCSRF(req)
+	}
+
+	return c.doAuthenticated(req)
+}
+
+// doAuthenticated performs the retry-with-backoff request and, on a 401,
+// forces a fresh OAuth token and retries exactly once. It never itself
+// handles CSRF; see doWriteWithCSRF for that layer.
+func (c *Client) doAuthenticated(req *http.Request) (*http.Response, error) {
 	resp, err := c.doWithRetries(req)
 	if err != nil || c.invalidateToken == nil || resp.StatusCode != http.StatusUnauthorized {
 		return resp, err
