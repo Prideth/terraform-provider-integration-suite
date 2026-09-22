@@ -1,4 +1,4 @@
-﻿# Feature Support
+# Feature Support
 
 Generated from `internal/features/catalog.go` by `go run ./cmd/gendocs`. Do not edit by hand — regenerate it instead, and see `CONTRIBUTING.md` for when this is required.
 

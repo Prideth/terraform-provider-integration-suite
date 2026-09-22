@@ -1,0 +1,22 @@
+# Force LF line endings for every text file this repository tracks,
+# regardless of a contributor's local core.autocrlf setting. Without this,
+# a Windows checkout with core.autocrlf=true silently rewrites every
+# checked-out file to CRLF while the repository itself still stores LF,
+# which makes gofmt, golangci-lint, and "git diff" all report spurious
+# differences that do not exist in what is actually committed or what CI
+# (which runs on Linux) actually sees.
+* text=auto eol=lf
+
+# Keep Windows-only script files consuming their own working-directory
+# checkout in the native line ending Windows expects, since existing
+# tooling on Windows generally requires it.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary/opaque fixture and archive content must never be line-ending
+# normalized.
+*.esa binary
+*.zip binary
+*.jar binary
+*.png binary
+*.gif binary

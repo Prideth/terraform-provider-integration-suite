@@ -8,11 +8,20 @@
 //
 // Usage:
 //
-//	go run ./cmd/gendocs > docs/feature-support.md
+//	go run ./cmd/gendocs
 //	go run ./cmd/gendocs -readme
 //
-// The second form rewrites the generated block of README.md in place
-// (everything between the "<!-- BEGIN GENERATED FEATURE SUPPORT -->" and
+// The first form writes docs/feature-support.md directly (it no longer
+// relies on the caller redirecting stdout with a shell "> docs/feature-support.md":
+// that redirection is not portable — a Windows shell's ">" operator can
+// prepend a UTF-8 byte-order mark that a POSIX shell's ">" never does,
+// which made the committed file's bytes depend on which shell last
+// regenerated it, and made "git diff" report a change on every platform
+// switch. Writing the file directly with os.WriteFile is deterministic on
+// every platform, which is the whole point of a generator whose output is
+// meant to be diffed in CI). The second form rewrites the generated block
+// of README.md in place (everything between the
+// "<!-- BEGIN GENERATED FEATURE SUPPORT -->" and
 // "<!-- END GENERATED FEATURE SUPPORT -->" markers); it does not touch any
 // other part of README.md.
 package main
@@ -66,24 +75,37 @@ var domainOrder = []struct {
 const (
 	readmeMarkerBegin = "<!-- BEGIN GENERATED FEATURE SUPPORT -->"
 	readmeMarkerEnd   = "<!-- END GENERATED FEATURE SUPPORT -->"
+
+	featureSupportPath = "docs/feature-support.md"
+	readmePath         = "README.md"
 )
 
 func main() {
-	readme := flag.Bool("readme", false, "rewrite the generated feature table in README.md in place, instead of printing docs/feature-support.md to stdout")
+	readme := flag.Bool("readme", false, "rewrite the generated feature table in README.md in place, instead of regenerating docs/feature-support.md")
 	flag.Parse()
 
 	if *readme {
-		if err := regenerateReadme("README.md"); err != nil {
+		if err := regenerateReadme(readmePath); err != nil {
 			fmt.Fprintln(os.Stderr, "gendocs:", err)
 			os.Exit(1)
 		}
 		return
 	}
 
-	if _, err := os.Stdout.WriteString(featureSupportDoc()); err != nil {
+	if err := writeGeneratedFile(featureSupportPath, featureSupportDoc()); err != nil {
 		fmt.Fprintln(os.Stderr, "gendocs:", err)
 		os.Exit(1)
 	}
+}
+
+// writeGeneratedFile writes content to path as plain UTF-8 with no
+// byte-order mark, overwriting whatever was there. Every path this
+// generator writes is one of the two constants above — never derived from
+// user input, an environment variable, or a command-line argument — so
+// there is no path-traversal concern despite the variable parameter this
+// function takes to stay reusable between the two call sites.
+func writeGeneratedFile(path, content string) error {
+	return os.WriteFile(path, []byte(content), 0o600) //nolint:gosec // G703: path is always featureSupportPath or readmePath, compile-time constants in this same file, never external input
 }
 
 func sortedCatalog() []features.Feature {
@@ -375,7 +397,10 @@ func readmeFeatureOverview() string {
 // either marker is missing or out of order, rather than silently doing
 // nothing or corrupting the file.
 func regenerateReadme(path string) error {
-	original, err := os.ReadFile(path)
+	// path is always the readmePath constant declared above, never
+	// external input, despite the parameter — see writeGeneratedFile's
+	// doc comment for why that does not make this a path-traversal risk.
+	original, err := os.ReadFile(path) //nolint:gosec // G304: path is always readmePath, a compile-time constant
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", path, err)
 	}
@@ -391,5 +416,5 @@ func regenerateReadme(path string) error {
 
 	updated := before + "\n\n" + readmeFeatureOverview() + "\n" + after
 
-	return os.WriteFile(path, []byte(updated), 0o644)
+	return writeGeneratedFile(path, updated)
 }
