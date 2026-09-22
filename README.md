@@ -16,18 +16,13 @@ Pre-release, under active development toward `v0.1.0`. Schemas may still
 change. See `ROADMAP.md` for what is planned and `CHANGELOG.md` for what
 has landed.
 
-**Repository naming**: the Go module, provider binary name, registry
-manifest, and every path in this repository already use the final naming
+**Repository naming**: the GitHub repository, Go module, provider binary
+name, and registry manifest all use the final naming
 (`github.com/Prideth/terraform-provider-sap-integration-suite`,
-`Prideth/sap-integration-suite`, `sapintegrationsuite`). The GitHub
-repository itself is still hosted at
-`Prideth/terraform-provider-integration-suite`; renaming it to
-`Prideth/terraform-provider-sap-integration-suite` is the one remaining
-step (GitHub repository rename tooling was not available in the
-environment this codebase was developed in). GitHub automatically
-redirects the old URL after a rename, so this is a safe, low-risk,
-purely administrative step — Settings → repository name, in the GitHub UI
-or `gh repo rename terraform-provider-sap-integration-suite`.
+`Prideth/sap-integration-suite`, `sapintegrationsuite`). One administrative
+step remains: the repository's default branch is still `master`; `main` is
+already fully up to date and should be switched to default (Settings →
+Branches → default branch), after which `master` can be retired.
 
 ## Provider scope
 
