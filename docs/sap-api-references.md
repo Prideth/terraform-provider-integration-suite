@@ -156,6 +156,47 @@ API. This document is that trace.
   this provider does not add automatic-deployment behavior SAP itself does not provide, and does
   not scan or modify integration flow content to manage that reference.
 
+## `sapintegrationsuite_script_collection` / `..._deployment`
+
+- **SAP product area**: Integration Suite / Cloud Integration
+- **Official API**: Integration Content API
+- **Entity sets / actions**: `ScriptCollectionDesigntimeArtifacts`,
+  `IntegrationRuntimeArtifacts` (the same shared runtime-artifacts entity every other
+  `*_deployment` resource in this provider uses), `DeployScriptCollectionDesigntimeArtifact`
+  (action; singular form, matching every other design-time artifact type's deploy action)
+- **Protocol**: OData V2
+- **Operations**: GET, POST (create), PUT (update), DELETE, plus the `Deploy` action (POST)
+- **Required roles**: `WorkspacePackagesConfigure`, `WorkspacePackagesEdit`,
+  `WorkspaceArtifactsDeploy`
+- **Sources used**: SAP Help Portal content read via the `SAP-docs` GitHub organization's
+  markdown mirror (the same primary-source path used for Message Mapping), plus the same
+  independent third-party OData client (`github.com/lemaiwo/ci-mcp-server`) used as
+  corroborating evidence for Message Mapping's Update model.
+- **Documented constraints**: a script collection's technical ID must be unique across the
+  entire tenant (not just the containing package), and its description is capped at 120
+  characters — both confirmed via SAP's own documentation, neither enforced client-side by this
+  provider.
+- **Content format**: a ZIP archive of Groovy/JavaScript script files, transported opaquely as
+  base64-encoded `ArtifactContent`, the same convention as every other file-based design-time
+  resource in this provider. This provider does not parse, validate, or execute the scripts.
+- **Update — resolved as `PUT`, same grounds as Message Mapping**: `ScriptCollectionDesigntimeArtifacts`
+  shares `IntegrationDesigntimeArtifacts`' `(Id, Version)` key shape and confirmed `PUT`
+  behavior; the same third-party OData client that disables generic update for
+  `ValueMappingDesigntimeArtifacts` explicitly enables it here too, matching
+  `IntegrationDesigntimeArtifacts` and `MessageMappingDesigntimeArtifacts`; no SAP KBA or other
+  evidence of a documented `PUT` problem for this entity set was found. See
+  `docs/resource-design.md` for the full reasoning.
+- **Delete — unverified scope**: same open item as every other design-time artifact type in
+  this provider — whether Delete removes only the active version or every version is
+  unconfirmed against a primary source.
+- **Deployment**: fire-and-poll through the shared `IntegrationRuntimeArtifacts` entity, the
+  same model already confirmed for integration flows, value mappings, and message mappings —
+  script collections are documented as existing as runtime artifacts inside the same deployed
+  runtime packages.
+- **No hidden coupling to referencing integration flows**: this provider does not scan or
+  modify integration flow content to manage a reference to a script collection, the same
+  ownership boundary already established for message mapping.
+
 ## `sapintegrationsuite_access_policy` / `..._reference`
 
 - **SAP product area**: Integration Suite / Security

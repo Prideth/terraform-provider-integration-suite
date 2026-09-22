@@ -543,13 +543,112 @@ Terraform itself never treats a version-string mismatch as configuration drift.
   `sapintegrationsuite_value_mapping`'s — not added merely for symmetry with every resource
   having a matching data source.
 
+## Script Collection API model
+
+A Script Collection is a bundle of reusable Groovy/JavaScript scripts, created within an
+integration package so the same scripts can be shared across any number of integration flows,
+mirroring the same reusable-artifact pattern already implemented for Message Mapping. Confirmed
+via SAP's own documentation (again read through the `SAP-docs` GitHub organization's markdown
+mirror, a legitimate primary source despite `help.sap.com` itself being blocked): a script
+collection's technical ID must be unique for the entire tenant (not just the package), and its
+description is capped at 120 characters — both are documented constraints, not this provider's
+own invention, and neither is enforced client-side, consistent with this project's rule against
+inventing constraints SAP does not document.
+
+**Confirmed operations** (Integration Content API, OData V2, `CloudIntegrationAPI` package):
+
+| Operation | Method | Purpose |
+|---|---|---|
+| `ScriptCollectionDesigntimeArtifacts` | GET | Read artifact metadata (`Id`, `Version`, `Name`, `PackageId`) |
+| `ScriptCollectionDesigntimeArtifacts` | POST | Create a new script collection artifact from uploaded content |
+| `ScriptCollectionDesigntimeArtifacts(Id=…,Version=…)` | PUT | Update an existing artifact's content, creating a new design-time version |
+| `ScriptCollectionDesigntimeArtifacts(Id=…,Version=…)` | DELETE | Delete the artifact — scope unconfirmed, same open item as every other design-time artifact in this family |
+| `DeployScriptCollectionDesigntimeArtifact?Id='…'&Version='…'` | POST | Deploy a specific version to the runtime (singular action name, confirmed via SAP's own documentation, matching the sibling actions for every other design-time artifact type) |
+| `IntegrationRuntimeArtifacts(Id=…)` | GET / DELETE | Read deployment status / undeploy — the same shared runtime-artifacts entity already used by every other `*_deployment` resource in this provider; script collections are documented as existing as runtime artifacts alongside integration flows, value mappings, and message mappings inside the same deployed runtime packages |
+| Required roles | — | `WorkspacePackagesConfigure`, `WorkspacePackagesEdit`, `WorkspaceArtifactsDeploy` (same Integration Content API roles already required for every other design-time artifact type) |
+
+**Update — implemented via `PUT`, same grounds as Message Mapping.** `ScriptCollectionDesigntimeArtifacts`
+shares the exact `(Id, Version)` composite-key shape as `IntegrationDesigntimeArtifacts` and
+`MessageMappingDesigntimeArtifacts`, both of which have confirmed, version-creating `PUT`
+behavior. The same independent third-party OData client (`github.com/lemaiwo/ci-mcp-server`)
+referenced when Message Mapping's Update model was decided explicitly enables generic update for
+`ScriptCollectionDesigntimeArtifacts` too — the same as `IntegrationDesigntimeArtifacts` and
+`MessageMappingDesigntimeArtifacts`, and unlike `ValueMappingDesigntimeArtifacts`, where it is
+disabled. No SAP Knowledge Base Article or other evidence of a documented `PUT` problem for this
+entity set was found. `PUT` here is therefore treated as a normal Terraform Update (no replace),
+identical to `sapintegrationsuite_message_mapping` and `sapintegrationsuite_integration_flow`.
+
+**Content format**: transported opaquely as a ZIP archive (base64-encoded `ArtifactContent`),
+the same convention already confirmed for every other file-based design-time resource in this
+provider (Integration Flow, Value Mapping, Message Mapping) — SAP's own Web IDE export/import
+mechanism for design-time artifacts uses this ZIP+`ArtifactContent` shape uniformly across the
+whole `CloudIntegrationAPI` package, not something inferred solely from Integration Flow. This
+provider does not parse, validate, or execute the Groovy/JavaScript scripts inside the archive —
+only transports and manages the artifact as a unit, the same boundary already established for
+the other file-based resources.
+
+## `sapintegrationsuite_script_collection`
+
+- **Purpose**: manage the design-time content of a reusable Cloud Integration script collection,
+  uploaded from a local content file, the same way `sapintegrationsuite_message_mapping` manages
+  a message mapping artifact's ZIP content.
+- **SAP object**: `ScriptCollectionDesigntimeArtifacts`.
+- **Identity**: composite `<package_id>/<script_collection_id>`, mirroring every other
+  file-based design-time resource in this provider. SAP additionally documents the technical ID
+  as unique across the whole tenant, not just the package — this provider does not need to
+  enforce that itself, since a duplicate ID is something SAP's own Create call would reject.
+- **Create**: `POST ScriptCollectionDesigntimeArtifacts` with `Id`, `Name`, `PackageId`, and
+  base64-encoded `ArtifactContent`. No SAP-documented minimum-content precondition was found
+  (unlike value mapping's confirmed "at least one entry" requirement).
+- **Read**: `GET ScriptCollectionDesigntimeArtifacts(Id='{script_collection_id}',Version='active')`,
+  the same `Version='active'` alias already confirmed for every other entity in this family.
+- **Update**: `PUT` against the keyed `(Id, Version)` entity — see the Update entry in the API
+  model above for the full reasoning. Treated as a normal Terraform update (no replace), since
+  identity does not change.
+- **Delete**: `DELETE ScriptCollectionDesigntimeArtifacts(Id='{script_collection_id}',Version='active')`.
+  Whether this removes only the active version or every version of the artifact is unconfirmed
+  against a primary source, the same open item already flagged for every sibling resource.
+- **Version**: Computed only. SAP assigns it on every `PUT`; an unchanged `terraform apply` does
+  not produce a new version, for the same reason already established for the other file-based
+  resources (content-hash comparison decides whether Update is even called).
+- **Import**: `terraform import sapintegrationsuite_script_collection.example UTILITIES/shared-scripts`.
+- **Drift detection**: `Read` re-fetches metadata on every refresh; `content`/`content_hash`
+  follow the same explicit, user-supplied pattern already documented and re-evaluated for
+  `sapintegrationsuite_value_mapping` and `sapintegrationsuite_message_mapping` — see those
+  resources' entries for the content-hash design reasoning, which applies here unchanged.
+
+## `sapintegrationsuite_script_collection_deployment`
+
+- **Purpose**: express the desired runtime deployment state of a script collection, independent
+  of its design-time content, mirroring `sapintegrationsuite_message_mapping_deployment` exactly.
+- **SAP object**: the `DeployScriptCollectionDesigntimeArtifact` action plus the shared
+  `IntegrationRuntimeArtifacts` entity for status/undeploy.
+- **Schema and lifecycle**: identical shape to `sapintegrationsuite_message_mapping_deployment`
+  — a required `script_collection_version` input that both triggers redeployment when the
+  design-time version changes and, once `Read` writes the actually-deployed version back into
+  it, surfaces drift from an out-of-band redeploy or undeploy. Uses the same context-aware
+  polling with exponential backoff and jitter, never a fixed sleep. `runtime_artifact.go` and
+  `runtime_deployment.go` are reused unmodified, since script collections are documented as
+  sharing the same runtime-artifact model as every other design-time artifact type here.
+- **No hidden coupling to referencing integration flows**: a script collection's deployment is
+  a resource in its own right that a configuration must explicitly create; this provider does
+  not scan or modify integration flow content to manage that reference, the same ownership
+  boundary already established for message mapping.
+- **Import**: `terraform import sapintegrationsuite_script_collection_deployment.example UTILITIES/shared-scripts`.
+
+## `data.sapintegrationsuite_script_collection`
+
+- **Purpose**: read-only lookup of an existing script collection's metadata, mirroring
+  `data.sapintegrationsuite_message_mapping` exactly.
+- **SAP object**: `GET ScriptCollectionDesigntimeArtifacts(Id='{script_collection_id}',Version='active')`.
+
 ## Deferred to v0.2.x and later
 
 `sapintegrationsuite_capability`, `sapintegrationsuite_api_artifact`,
-`sapintegrationsuite_api_artifact_deployment`, script collection resources, message mapping
-entry-level or dependent-resource management (schema files referenced by a mapping are managed
-as part of the opaque content archive, not as separate Terraform resources), value mapping
-entry-level management (see above), security material resources (user credentials, OAuth
-credentials, keystore), and Partner Directory resources are designed at the API level in
-`api-capability-matrix.md` but intentionally not implemented yet, to keep each release small and
-high quality (see `ROADMAP.md`).
+`sapintegrationsuite_api_artifact_deployment`, message mapping entry-level or dependent-resource
+management (schema files referenced by a mapping are managed as part of the opaque content
+archive, not as separate Terraform resources), value mapping entry-level management (see above),
+security material resources (user credentials, OAuth credentials, keystore), and Partner
+Directory resources are designed at the API level in `api-capability-matrix.md` but
+intentionally not implemented yet, to keep each release small and high quality (see
+`ROADMAP.md`).
