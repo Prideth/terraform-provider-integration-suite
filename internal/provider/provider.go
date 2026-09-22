@@ -168,6 +168,11 @@ func (p *sapIntegrationSuiteProvider) Resources(_ context.Context) []func() reso
 		NewMessageMappingDeploymentResource,
 		NewScriptCollectionResource,
 		NewScriptCollectionDeploymentResource,
+		NewPartnerStringParameterResource,
+		NewPartnerBinaryParameterResource,
+		NewAlternativePartnerResource,
+		NewPartnerAuthorizedUserResource,
+		NewPartnerUserCredentialParameterResource,
 	}
 }
 
@@ -179,6 +184,13 @@ func (p *sapIntegrationSuiteProvider) DataSources(_ context.Context) []func() da
 		NewScriptCollectionDataSource,
 		NewAccessPolicyDataSource,
 		NewAccessPolicyReferenceDataSource,
+		NewPartnerDataSource,
+		NewPartnersDataSource,
+		NewPartnerStringParameterDataSource,
+		NewPartnerStringParametersDataSource,
+		NewPartnerBinaryParameterDataSource,
+		NewAlternativePartnerDataSource,
+		NewPartnerAuthorizedUserDataSource,
 		NewProviderFeaturesDataSource,
 		NewProviderFeatureDataSource,
 	}

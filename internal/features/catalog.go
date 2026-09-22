@@ -360,14 +360,135 @@ var Catalog = []Feature{
 
 	// --- Partner Directory ---
 	{
-		Key:           "partner_directory.entry",
+		Key:           "partner_directory.partner",
 		Domain:        "partner_directory",
-		Name:          "Partner Directory Entry",
-		Description:   "A trading-partner-style directory entry used by B2B-oriented integration flows.",
-		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonNotImplemented,
+		Name:          "Partner",
+		Description:   "A Partner ID (Pid) known to the tenant's Partner Directory.",
+		SupportStatus: StatusReadOnly,
+		SupportReason: ReasonUnsafeTerraformLifecycle,
+		DataSourceTypes: []string{
+			"sapintegrationsuite_partner",
+			"sapintegrationsuite_partners",
+		},
+		PublicAPI:   true,
+		APIProtocol: "OData V2",
+		Limitations: []string{
+			"No resource: SAP documents no confirmed create operation for Partners — a Pid comes " +
+				"into existence implicitly the first time a StringParameter, BinaryParameter, " +
+				"AlternativePartner, AuthorizedUser, or UserCredentialParameter references it.",
+			"Deleting a Pid is documented as cascading to every entity belonging to it, which is " +
+				"the other reason this stays read-only: a Partner resource's Destroy could erase " +
+				"content owned by an entirely different Terraform module.",
+		},
+		Operations: Operations{Read: true},
+	},
+	{
+		Key:           "partner_directory.string_parameter",
+		Domain:        "partner_directory",
+		Name:          "Partner Directory String Parameter",
+		Description:   "A named text value scoped to a Partner ID (Pid).",
+		SupportStatus: StatusSupported,
+		ResourceTypes: []string{"sapintegrationsuite_partner_string_parameter"},
+		DataSourceTypes: []string{
+			"sapintegrationsuite_partner_string_parameter",
+			"sapintegrationsuite_partner_string_parameters",
+		},
+		PublicAPI:   true,
+		APIProtocol: "OData V2",
+		Limitations: []string{
+			"Partner Directory data is stored unencrypted; do not store passwords, secrets, or " +
+				"other sensitive values in a string parameter — see " +
+				"docs/guides/partner-directory.md.",
+		},
+		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},
+	},
+	{
+		Key:           "partner_directory.binary_parameter",
+		Domain:        "partner_directory",
+		Name:          "Partner Directory Binary Parameter",
+		Description:   "A named binary value (for example an XSD schema or certificate) scoped to a Partner ID (Pid).",
+		SupportStatus: StatusSupported,
+		ResourceTypes: []string{"sapintegrationsuite_partner_binary_parameter"},
+		DataSourceTypes: []string{
+			"sapintegrationsuite_partner_binary_parameter",
+		},
+		PublicAPI:   true,
+		APIProtocol: "OData V2",
+		Limitations: []string{
+			"Partner Directory data is stored unencrypted; do not store secrets, private keys, or " +
+				"other sensitive content — see docs/guides/partner-directory.md.",
+			"SAP documents a 260 KB maximum decoded value size; this provider validates it before " +
+				"upload rather than letting an oversized payload fail against the live API.",
+		},
+		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},
+	},
+	{
+		Key:           "partner_directory.alternative_partner",
+		Domain:        "partner_directory",
+		Name:          "Alternative Partner",
+		Description:   "A mapping from an external identity tuple (agency, scheme, external_id) to an internal Partner ID (Pid).",
+		SupportStatus: StatusSupported,
+		ResourceTypes: []string{"sapintegrationsuite_alternative_partner"},
+		DataSourceTypes: []string{
+			"sapintegrationsuite_alternative_partner",
+		},
+		PublicAPI:   true,
+		APIProtocol: "OData V2",
+		Limitations: []string{
+			"SAP's actual OData key is a hex encoding of agency/scheme/external_id, not the plain " +
+				"strings; this provider computes and hides that transform, and uses the three hex " +
+				"segments as the Terraform import ID so any character combination round-trips " +
+				"unambiguously — see docs/guides/partner-directory.md.",
+		},
+		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},
+	},
+	{
+		Key:           "partner_directory.authorized_user",
+		Domain:        "partner_directory",
+		Name:          "Partner Directory Authorized User",
+		Description:   "A mapping from a communication user to the Partner ID (Pid) that user is authorized to act as.",
+		SupportStatus: StatusSupported,
+		ResourceTypes: []string{"sapintegrationsuite_partner_authorized_user"},
+		DataSourceTypes: []string{
+			"sapintegrationsuite_partner_authorized_user",
+		},
+		PublicAPI:   true,
+		APIProtocol: "OData V2",
+		Limitations: []string{
+			"Whether SAP normalizes the User value's case internally was not confirmed against a " +
+				"primary source; this provider passes it through exactly as configured, without " +
+				"normalizing it.",
+			"Manages only the Partner Directory mapping, never the underlying BTP user, OAuth " +
+				"client, or communication user credential itself.",
+		},
+		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},
+	},
+	{
+		Key:           "partner_directory.user_credential_parameter",
+		Domain:        "partner_directory",
+		Name:          "Partner Directory User Credential Parameter",
+		Description:   "A communication username/password credential scoped to a Partner ID (Pid).",
+		SupportStatus: StatusPartial,
+		SupportReason: ReasonUnsafeTerraformLifecycle,
+		ResourceTypes: []string{"sapintegrationsuite_partner_user_credential_parameter"},
 		PublicAPI:     true,
 		APIProtocol:   "OData V2",
+		Limitations: []string{
+			"The password is a write-only attribute (password_wo): Terraform never stores it in " +
+				"plan or state, and this provider never requests or reads a password back from " +
+				"SAP, which does not document returning one. Requires Terraform CLI 1.11 or later.",
+			"No in-place update: no public API for changing an existing credential's password was " +
+				"confirmed, so rotating it (via the paired password_wo_version attribute) replaces " +
+				"the resource — delete the old credential, then create a new one.",
+			"UserCredentialParameter cannot be combined with other Partner Directory entity types " +
+				"in a single OData batch (ChangeSet) request; this provider always issues it " +
+				"standalone.",
+			"Import recovers partner_id, parameter_id, and user, but never the password: a " +
+				"configuration applied right after import must still supply password_wo and a " +
+				"password_wo_version, which plans as a replacement even though nothing server-side " +
+				"has actually changed.",
+		},
+		Operations: Operations{Create: true, Read: true, Update: false, Delete: true, Import: true},
 	},
 
 	// --- Classic API Management ---
