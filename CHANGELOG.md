@@ -18,4 +18,17 @@ Initial development toward v0.1.0. See `ROADMAP.md` for what is planned and
   context-aware polling instead of fixed sleeps.
 - `sapintegrationsuite_access_policy` and
   `sapintegrationsuite_access_policy_reference` resources.
+- `sapintegrationsuite_value_mapping` resource and data source (file-based
+  content), and `sapintegrationsuite_value_mapping_deployment`, sharing the
+  runtime-artifact polling and status model already proven for integration
+  flow deployments.
 - Provider scope, boundary, architecture, and API discovery documentation.
+
+### Known limitations
+
+- `sapintegrationsuite_value_mapping`'s content update uses `PUT`, by
+  analogy with `sapintegrationsuite_integration_flow`; SAP separately
+  documents a `ValueMappingDesigntimeArtifactSaveAsVersion` action whose
+  relationship to `PUT` has not been confirmed against a live tenant.
+- Individual value mapping entries are not yet manageable through this
+  provider — see `docs/resource-design.md`.

@@ -90,3 +90,18 @@ resource "sapintegrationsuite_integration_flow_deployment" "metering" {
   flow_id      = sapintegrationsuite_integration_flow.metering.flow_id
   flow_version = sapintegrationsuite_integration_flow.metering.version
 }
+
+resource "sapintegrationsuite_value_mapping" "company_codes" {
+  package_id = sapintegrationsuite_integration_package.utilities.id
+  mapping_id = "company-codes"
+  name       = "Company Codes"
+
+  content      = "${path.module}/value-mappings/company-codes.zip"
+  content_hash = filesha256("${path.module}/value-mappings/company-codes.zip")
+}
+
+resource "sapintegrationsuite_value_mapping_deployment" "company_codes" {
+  package_id      = sapintegrationsuite_integration_package.utilities.id
+  mapping_id      = sapintegrationsuite_value_mapping.company_codes.mapping_id
+  mapping_version = sapintegrationsuite_value_mapping.company_codes.version
+}

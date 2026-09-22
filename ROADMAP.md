@@ -17,6 +17,9 @@ favors a small, high-quality resource set over broad but shallow coverage.
 - Access Policies:
   - `sapintegrationsuite_access_policy`
   - `sapintegrationsuite_access_policy_reference`
+- Value Mappings:
+  - `sapintegrationsuite_value_mapping`
+  - `sapintegrationsuite_value_mapping_deployment`
 - Import support and drift detection for every resource above
 - Unit test suite (`httptest`-based) for auth, HTTP retry, OData v2, and domain mapping
 - Acceptance test framework (gated on `TF_ACC=1`)
@@ -25,8 +28,11 @@ favors a small, high-quality resource set over broad but shallow coverage.
 
 ## v0.2.x
 
-- Value mappings, script collections, message mappings (same design-time/runtime split as
-  integration flows)
+- Value mapping entry-level management (`UpsertValMaps`, `UpdateDefaultValMap`,
+  `DeleteValMaps`), once the exact payload/path shapes and delete granularity are confirmed
+  against a reachable primary source or a live tenant — see `docs/resource-design.md`
+- Script collections, message mappings (same design-time/runtime split as integration flows
+  and value mappings)
 - Classic API Management resources, once the required scopes and object model are fully
   mapped
 - New API Gateway / API Artifact model, once its public API surface is confirmed in enough

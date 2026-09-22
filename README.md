@@ -54,6 +54,8 @@ SAP/btp                              Prideth/sap-integration-suite
 | `sapintegrationsuite_integration_flow_deployment` | Integration flow runtime deployment |
 | `sapintegrationsuite_access_policy` | Access policy |
 | `sapintegrationsuite_access_policy_reference` | A single artifact reference on an access policy |
+| `sapintegrationsuite_value_mapping` | Value mapping design-time content (file-based) |
+| `sapintegrationsuite_value_mapping_deployment` | Value mapping runtime deployment |
 
 Every resource here is backed by a currently documented, SAP-supported
 public API — see [`docs/sap-api-references.md`](docs/sap-api-references.md)
@@ -182,10 +184,19 @@ See [`ROADMAP.md`](ROADMAP.md).
   Integration, API Management, Integration Cell, Edge Integration Cell) was
   found; activation stays a manual, one-time bootstrap step. See
   `docs/provisioning-capability-matrix.md`.
-- `sapintegrationsuite_integration_flow`'s `content`/`content_hash` cannot
-  be populated by `terraform import`, since SAP does not return a local
-  file path for an existing design-time artifact; apply a matching
-  configuration after import to bring content under management.
+- `sapintegrationsuite_integration_flow` and `sapintegrationsuite_value_mapping`'s
+  `content`/`content_hash` cannot be populated by `terraform import`, since
+  SAP does not return a local file path for an existing design-time
+  artifact; apply a matching configuration after import to bring content
+  under management.
+- `sapintegrationsuite_value_mapping`'s `Update` uses the same `PUT`
+  convention already proven for `sapintegrationsuite_integration_flow`, but
+  SAP separately documents a distinct `ValueMappingDesigntimeArtifactSaveAsVersion`
+  action this provider does not yet use; this needs verification against a
+  live tenant. See `docs/sap-api-references.md`.
+- Individual value mapping entries (`UpsertValMaps`, `UpdateDefaultValMap`,
+  `DeleteValMaps`) are not yet manageable through this provider — only the
+  design-time artifact as a whole. See `docs/resource-design.md` for why.
 - API Gateway / API Artifacts, classic API Management, Integration Cell,
   and Edge Integration Cell resources are not yet implemented — see
   `ROADMAP.md`.

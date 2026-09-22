@@ -1,0 +1,1 @@
+terraform import sapintegrationsuite_value_mapping_deployment.company_codes UTILITIES/company-codes

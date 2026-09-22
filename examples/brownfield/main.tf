@@ -6,6 +6,8 @@
 #   terraform import sapintegrationsuite_integration_package.utilities UTILITIES
 #   terraform import sapintegrationsuite_integration_flow.metering UTILITIES/metering
 #   terraform import sapintegrationsuite_integration_flow_deployment.metering UTILITIES/metering
+#   terraform import sapintegrationsuite_value_mapping.company_codes UTILITIES/company-codes
+#   terraform import sapintegrationsuite_value_mapping_deployment.company_codes UTILITIES/company-codes
 #   terraform import sapintegrationsuite_access_policy.utilities <existing-access-policy-id>
 #   terraform import sapintegrationsuite_access_policy_reference.utilities_flows <existing-access-policy-id>/<existing-reference-id>
 
@@ -42,6 +44,20 @@ resource "sapintegrationsuite_integration_flow_deployment" "metering" {
   package_id   = sapintegrationsuite_integration_package.utilities.id
   flow_id      = sapintegrationsuite_integration_flow.metering.flow_id
   flow_version = sapintegrationsuite_integration_flow.metering.version
+}
+
+# content/content_hash are left unset until the first `terraform apply`
+# after import, for the same reason as the integration flow above.
+resource "sapintegrationsuite_value_mapping" "company_codes" {
+  package_id = sapintegrationsuite_integration_package.utilities.id
+  mapping_id = "company-codes"
+  name       = "Company Codes"
+}
+
+resource "sapintegrationsuite_value_mapping_deployment" "company_codes" {
+  package_id      = sapintegrationsuite_integration_package.utilities.id
+  mapping_id      = sapintegrationsuite_value_mapping.company_codes.mapping_id
+  mapping_version = sapintegrationsuite_value_mapping.company_codes.version
 }
 
 resource "sapintegrationsuite_access_policy" "utilities" {
