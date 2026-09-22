@@ -15,23 +15,32 @@ matrix.
 
 Development branches from `dev`, in this order, until superseded by an explicit reprioritization:
 
-1. **Security Content** — **Next.** User Credentials, OAuth Credentials, Certificates, Keystore
-   material. Only resources where secrets and read-back semantics are safe for Terraform.
-2. **Message Queues / Data Stores / Variables / Number Ranges** — Research required per object;
+1. **Security Content** — **Partial.** User Credentials and OAuth2 Client Credentials are
+   implemented (write-only secrets, in-place redeploy via `PUT`). Keystore entries, certificates,
+   key pairs, SSH keys, and certificate chains remain Research required — existence is
+   corroborated but exact `$metadata` field casing is not; see
+   `docs/guides/security-content.md`. Certificate-to-user mapping is Blocked by API for this
+   provider's Cloud Foundry target (Neo environment only). OAuth2 Authorization Code is Out of
+   scope (requires interactive human authorization). Secure Parameter and Known Hosts are
+   Research required.
+2. **Cloud Integration Service Endpoints** — **Next.** A confirmed public OData API
+   (`ServiceEndpoints`) already exists; a read-only `data.sapintegrationsuite_service_endpoints`
+   data source is a strong, low-risk next step. See `docs/api-capability-matrix.md`.
+3. **Message Queues / Data Stores / Variables / Number Ranges** — Research required per object;
    do not treat operational/monitoring APIs automatically as Terraform resources.
-3. **Classic API Management** — Planned, after Cloud Integration core support is mature.
-4. **New API Gateway / API Artifacts** — Blocked by API: existence confirmed via UI/feature
+4. **Classic API Management** — Planned, after Cloud Integration core support is mature.
+5. **New API Gateway / API Artifacts** — Blocked by API: existence confirmed via UI/feature
    documentation, but no public design-time API confirmed in enough detail for a stable
    schema. API Artifacts, API Artifact Deployment, API Policies, Runtime Profiles.
-5. **Integration Cell** — Blocked by API for SAP-side lifecycle/configuration; no public
+6. **Integration Cell** — Blocked by API for SAP-side lifecycle/configuration; no public
    activation or status API found yet. Access policy replication/reconciliation to Integration
    Cell is a documented Integration Suite UI capability, but no public API surface for it was
    confirmed during the access-policy completion pass — see
    `docs/sap-api-references.md`.
-6. **Edge Integration Cell** — Blocked by API for SAP control-plane/runtime-specific
+7. **Edge Integration Cell** — Blocked by API for SAP control-plane/runtime-specific
    configuration; never a Kubernetes/Helm replacement. Same access-policy-replication caveat
    as Integration Cell above.
-7. **Additional Integration Suite capabilities** — Research required: Integration Advisor,
+8. **Additional Integration Suite capabilities** — Research required: Integration Advisor,
    Trading Partner Management, Integration Assessment, Migration Assessment, and others, only
    where public APIs justify Terraform management.
 
@@ -89,6 +98,13 @@ already shipped (see "Implemented" below).
   - `data.sapintegrationsuite_partner_binary_parameter`
   - `data.sapintegrationsuite_alternative_partner`
   - `data.sapintegrationsuite_partner_authorized_user`
+- Security Content credentials (write-only secrets, in-place redeploy via `PUT` — see
+  `docs/guides/security-content.md`; most other Security Content artifact types remain
+  unimplemented, see "Current development priority" above):
+  - `sapintegrationsuite_user_credential`
+  - `data.sapintegrationsuite_user_credential`
+  - `sapintegrationsuite_oauth2_client_credential`
+  - `data.sapintegrationsuite_oauth2_client_credential`
 - A shared, CSRF-aware HTTP client: every modifying (POST/PUT/PATCH/DELETE) request now
   transparently fetches and retries with an `X-CSRF-Token` if SAP's API asks for one,
   independently of OAuth authentication — see `docs/sap-api-references.md`

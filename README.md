@@ -69,6 +69,10 @@ SAP/btp                              Prideth/sap-integration-suite
 | `sapintegrationsuite_alternative_partner` | Partner Directory alternative partner mapping |
 | `sapintegrationsuite_partner_authorized_user` | Partner Directory authorized user mapping |
 | `sapintegrationsuite_partner_user_credential_parameter` | Partner Directory user credential (write-only password) |
+| `sapintegrationsuite_user_credential` | Security Content user credential (write-only password) |
+| `data.sapintegrationsuite_user_credential` | Read-only lookup of an existing user credential (no password) |
+| `sapintegrationsuite_oauth2_client_credential` | Security Content OAuth2 client credential (write-only client secret) |
+| `data.sapintegrationsuite_oauth2_client_credential` | Read-only lookup of an existing OAuth2 client credential (no secret) |
 | `data.sapintegrationsuite_partner` | Confirms whether a Partner ID exists |
 | `data.sapintegrationsuite_partners` | Lists every Partner ID in the tenant |
 | `data.sapintegrationsuite_partner_string_parameter` | Read-only lookup of an existing string parameter |
@@ -107,7 +111,13 @@ partial, or not implemented, and why.
 
 ## Requirements
 
-- [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.5
+- [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.5,
+  or >= 1.11 if you use any resource with a write-only (`_wo`) secret
+  attribute — currently `sapintegrationsuite_partner_user_credential_parameter`,
+  `sapintegrationsuite_user_credential`, and
+  `sapintegrationsuite_oauth2_client_credential`. This provider does not
+  enforce a `required_version` constraint itself; set one in your own
+  configuration if you rely on write-only attributes.
 - An SAP Integration Suite tenant with Cloud Integration activated
 - An OAuth 2.0 client credentials service key with the Integration Content /
   Security Content API scopes; Partner Directory resources additionally
@@ -265,6 +275,22 @@ See [`ROADMAP.md`](ROADMAP.md).
 - `sapintegrationsuite_partner_user_credential_parameter` has no in-place
   update and never reads a password back from SAP — a permanent property
   of its security model. See `docs/guides/partner-directory.md`.
+- `sapintegrationsuite_user_credential` and
+  `sapintegrationsuite_oauth2_client_credential` never read a password or
+  client secret back from SAP — the same permanent property, though unlike
+  the Partner Directory credential these two do have a confirmed in-place
+  update (a full redeploy). Only a handful of fields are exposed for
+  `sapintegrationsuite_oauth2_client_credential` (grant type placement,
+  client authentication mode, resource, audience, and custom parameters are
+  not yet implemented). See `docs/guides/security-content.md`.
+- Most Security Content artifact types remain unimplemented: keystore
+  entries, certificates, key pairs, SSH keys, certificate chains, secure
+  parameters, and known hosts are deferred pending confirmation of their
+  exact OData `$metadata`. Certificate-to-user mapping has no public API
+  for the Cloud Foundry environment this provider targets (Neo-only). OAuth2
+  Authorization Code is out of scope on safety grounds (requires
+  interactive human authorization). See `docs/guides/security-content.md`
+  and `docs/feature-support.md`.
 - Partner Directory data (string and binary parameters) is stored
   unencrypted by SAP; do not store secrets there.
 
