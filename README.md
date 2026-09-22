@@ -19,9 +19,20 @@ has landed.
 **Repository naming**: the GitHub repository, Go module, provider binary
 name, and registry manifest all use the final naming
 (`github.com/Prideth/terraform-provider-sap-integration-suite`,
-`Prideth/sap-integration-suite`, `sapintegrationsuite`). `master` is this
-repository's permanent stable/default branch; feature work happens on
-short-lived branches off `master` (for example `provider-hardening`).
+`Prideth/sap-integration-suite`, `sapintegrationsuite`).
+
+**Branch model**: `master` is this repository's permanent stable/default
+branch, and `dev` is the permanent integration/development branch. All
+feature work starts from `dev` on a short-lived `feature/<name>` branch
+and merges back into `dev`:
+
+```
+dev → feature/<name> → dev
+```
+
+`dev` is only promoted to `master` as an explicit, separate
+stabilization/release step — never automatically as part of merging a
+feature. See `CONTRIBUTING.md` for the full workflow.
 
 ## Provider scope
 
