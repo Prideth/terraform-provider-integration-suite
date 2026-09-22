@@ -8,6 +8,8 @@
 #   terraform import sapintegrationsuite_integration_flow_deployment.metering UTILITIES/metering
 #   terraform import sapintegrationsuite_value_mapping.company_codes UTILITIES/company-codes
 #   terraform import sapintegrationsuite_value_mapping_deployment.company_codes UTILITIES/company-codes
+#   terraform import sapintegrationsuite_message_mapping.customer UTILITIES/customer-mapping
+#   terraform import sapintegrationsuite_message_mapping_deployment.customer UTILITIES/customer-mapping
 #   terraform import sapintegrationsuite_access_policy.utilities <existing-access-policy-id>
 #   terraform import sapintegrationsuite_access_policy_reference.utilities_flows <existing-access-policy-id>/<existing-reference-id>
 
@@ -65,6 +67,25 @@ resource "sapintegrationsuite_value_mapping_deployment" "company_codes" {
   package_id      = sapintegrationsuite_integration_package.utilities.id
   mapping_id      = sapintegrationsuite_value_mapping.company_codes.mapping_id
   mapping_version = sapintegrationsuite_value_mapping.company_codes.version
+}
+
+# content/content_hash are left unset until the first `terraform apply`
+# after import, for the same reason as the integration flow above.
+# sapintegrationsuite_message_mapping does have a confirmed in-place update
+# path (unlike sapintegrationsuite_value_mapping): once you supply
+# content/content_hash here, that first apply updates the artifact's
+# content rather than replacing the resource, and every subsequent apply
+# with an unchanged hash is a no-op.
+resource "sapintegrationsuite_message_mapping" "customer" {
+  package_id = sapintegrationsuite_integration_package.utilities.id
+  mapping_id = "customer-mapping"
+  name       = "Customer Mapping"
+}
+
+resource "sapintegrationsuite_message_mapping_deployment" "customer" {
+  package_id      = sapintegrationsuite_integration_package.utilities.id
+  mapping_id      = sapintegrationsuite_message_mapping.customer.mapping_id
+  mapping_version = sapintegrationsuite_message_mapping.customer.version
 }
 
 resource "sapintegrationsuite_access_policy" "utilities" {

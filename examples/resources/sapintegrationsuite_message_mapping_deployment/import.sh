@@ -1,0 +1,1 @@
+terraform import sapintegrationsuite_message_mapping_deployment.customer UTILITIES/customer-mapping

@@ -56,6 +56,9 @@ SAP/btp                              Prideth/sap-integration-suite
 | `sapintegrationsuite_access_policy_reference` | A single artifact reference on an access policy |
 | `sapintegrationsuite_value_mapping` | Value mapping design-time content (file-based) |
 | `sapintegrationsuite_value_mapping_deployment` | Value mapping runtime deployment |
+| `sapintegrationsuite_message_mapping` | Reusable message mapping design-time content (file-based) |
+| `sapintegrationsuite_message_mapping_deployment` | Message mapping runtime deployment |
+| `data.sapintegrationsuite_message_mapping` | Read-only lookup of an existing message mapping |
 
 Every resource here is backed by a currently documented, SAP-supported
 public API — see [`docs/sap-api-references.md`](docs/sap-api-references.md)
@@ -184,11 +187,11 @@ See [`ROADMAP.md`](ROADMAP.md).
   Integration, API Management, Integration Cell, Edge Integration Cell) was
   found; activation stays a manual, one-time bootstrap step. See
   `docs/provisioning-capability-matrix.md`.
-- `sapintegrationsuite_integration_flow` and `sapintegrationsuite_value_mapping`'s
-  `content`/`content_hash` cannot be populated by `terraform import`, since
-  SAP does not return a local file path for an existing design-time
-  artifact; apply a matching configuration after import to bring content
-  under management.
+- `sapintegrationsuite_integration_flow`, `sapintegrationsuite_value_mapping`,
+  and `sapintegrationsuite_message_mapping`'s `content`/`content_hash`
+  cannot be populated by `terraform import`, since SAP does not return a
+  local file path for an existing design-time artifact; apply a matching
+  configuration after import to bring content under management.
 - `sapintegrationsuite_value_mapping` has no in-place update: changing
   `name`, `content`, or `content_hash` replaces the resource (creates a new
   artifact, then deletes the old one) rather than calling an unverified
@@ -196,12 +199,22 @@ See [`ROADMAP.md`](ROADMAP.md).
   `ValueMappingDesigntimeArtifactSaveAsVersion` action this provider does
   not yet use; implementing true in-place update through it is deferred to
   v0.2.x. See `docs/sap-api-references.md`.
+  `sapintegrationsuite_message_mapping` does not share this limitation — it
+  has a confirmed in-place update via `PUT`, on different, entity-specific
+  evidence (see `docs/sap-api-references.md`).
+- `sapintegrationsuite_message_mapping` is the reusable, package-level
+  message mapping artifact, not the inline/local message mapping step
+  configurable directly inside an integration flow — see
+  `docs/resource-design.md` for the distinction.
 - Individual value mapping entries (`UpsertValMaps`, `UpdateDefaultValMap`,
   `DeleteValMaps`) are not yet manageable through this provider — only the
   design-time artifact as a whole. See `docs/resource-design.md` for why.
-- API Gateway / API Artifacts, classic API Management, Integration Cell,
-  and Edge Integration Cell resources are not yet implemented — see
-  `ROADMAP.md`.
+- Whether Delete removes only the active version or every version of the
+  artifact is unconfirmed for both `sapintegrationsuite_value_mapping` and
+  `sapintegrationsuite_message_mapping` — see `docs/sap-api-references.md`.
+- Script collections, API Gateway / API Artifacts, classic API Management,
+  Integration Cell, and Edge Integration Cell resources are not yet
+  implemented — see `ROADMAP.md`.
 
 ## API support matrix
 

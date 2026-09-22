@@ -22,6 +22,15 @@ Initial development toward v0.1.0. See `ROADMAP.md` for what is planned and
   content), and `sapintegrationsuite_value_mapping_deployment`, sharing the
   runtime-artifact polling and status model already proven for integration
   flow deployments.
+- `sapintegrationsuite_message_mapping` resource and data source (file-based
+  content), and `sapintegrationsuite_message_mapping_deployment`, for the
+  reusable, package-level message mapping artifact — not the inline/local
+  message mapping step an integration flow can also define directly inside
+  its own content. Unlike `sapintegrationsuite_value_mapping`, this
+  resource has a confirmed in-place Update via `PUT`, on entity-specific
+  evidence documented in `docs/sap-api-references.md`. Reuses the same
+  shared runtime-artifact polling and status model, confirmed applicable to
+  this entity type rather than assumed.
 - Provider scope, boundary, architecture, and API discovery documentation.
 
 ### Changed
@@ -41,8 +50,9 @@ Initial development toward v0.1.0. See `ROADMAP.md` for what is planned and
   above); SAP separately documents a `ValueMappingDesigntimeArtifactSaveAsVersion`
   action this provider does not yet use, deferred to v0.2.x pending
   confirmation of its exact contract.
-- Whether `sapintegrationsuite_value_mapping`'s Delete removes only the
-  active version or every version of the artifact has not been confirmed
-  against a primary source.
+- Whether `sapintegrationsuite_value_mapping`'s or
+  `sapintegrationsuite_message_mapping`'s Delete removes only the active
+  version or every version of the artifact has not been confirmed against
+  a primary source.
 - Individual value mapping entries are not yet manageable through this
   provider — see `docs/resource-design.md`.

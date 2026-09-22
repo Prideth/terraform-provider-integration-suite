@@ -105,3 +105,26 @@ resource "sapintegrationsuite_value_mapping_deployment" "company_codes" {
   mapping_id      = sapintegrationsuite_value_mapping.company_codes.mapping_id
   mapping_version = sapintegrationsuite_value_mapping.company_codes.version
 }
+
+# A reusable message mapping artifact: not wired up as a dependency of the
+# metering flow above, since this sample flow's own content does not
+# actually reference it. In a real landscape, an integration flow that does
+# reference a message mapping artifact from a message mapping step still
+# does not need Terraform to express that reference explicitly — the flow's
+# own content owns it, and SAP does not automatically deploy a referenced
+# message mapping when the referencing flow is deployed, so its deployment
+# stays a separate resource either way.
+resource "sapintegrationsuite_message_mapping" "customer" {
+  package_id = sapintegrationsuite_integration_package.utilities.id
+  mapping_id = "customer-mapping"
+  name       = "Customer Mapping"
+
+  content      = "${path.module}/message-mappings/customer-mapping.zip"
+  content_hash = filesha256("${path.module}/message-mappings/customer-mapping.zip")
+}
+
+resource "sapintegrationsuite_message_mapping_deployment" "customer" {
+  package_id      = sapintegrationsuite_integration_package.utilities.id
+  mapping_id      = sapintegrationsuite_message_mapping.customer.mapping_id
+  mapping_version = sapintegrationsuite_message_mapping.customer.version
+}
