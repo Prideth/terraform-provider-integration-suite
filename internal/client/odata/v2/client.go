@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	sapthttp "github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/http"
 )
@@ -69,7 +70,14 @@ func (c *Client) Delete(ctx context.Context, path string) error {
 }
 
 func (c *Client) do(ctx context.Context, method, path string, body []byte) ([]byte, error) {
-	url := c.baseURL + "/" + path
+	// path is normally relative to baseURL, but a server-driven paging
+	// "__next" link (see GetAllPages) is already a complete absolute URL
+	// that must be followed exactly as SAP returned it, not rejoined with
+	// baseURL.
+	url := path
+	if !strings.HasPrefix(path, "http://") && !strings.HasPrefix(path, "https://") {
+		url = c.baseURL + "/" + path
+	}
 
 	var reqBody io.Reader
 	if body != nil {
