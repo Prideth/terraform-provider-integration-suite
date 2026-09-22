@@ -44,15 +44,23 @@ type Config struct {
 	MaxRetries int
 	BaseDelay  time.Duration
 	MaxDelay   time.Duration
+
+	// InvalidateToken, if set, is called at most once per Do call the first
+	// time a response comes back 401, immediately followed by one retry
+	// (with no backoff wait, since the fix is a fresh token, not time). A
+	// second 401 after that retry is returned to the caller as-is: SAP
+	// rejected a freshly issued token, so retrying further would not help.
+	InvalidateToken func()
 }
 
 // Client is an HTTP client that retries transient SAP API failures.
 type Client struct {
-	transport  *http.Client
-	userAgent  string
-	maxRetries int
-	baseDelay  time.Duration
-	maxDelay   time.Duration
+	transport       *http.Client
+	userAgent       string
+	maxRetries      int
+	baseDelay       time.Duration
+	maxDelay        time.Duration
+	invalidateToken func()
 }
 
 // New builds a retrying HTTP client from cfg.
@@ -76,11 +84,12 @@ func New(cfg Config) *Client {
 	}
 
 	return &Client{
-		transport:  transport,
-		userAgent:  cfg.UserAgent,
-		maxRetries: maxRetries,
-		baseDelay:  baseDelay,
-		maxDelay:   maxDelay,
+		transport:       transport,
+		userAgent:       cfg.UserAgent,
+		maxRetries:      maxRetries,
+		baseDelay:       baseDelay,
+		maxDelay:        maxDelay,
+		invalidateToken: cfg.InvalidateToken,
 	}
 }
 
@@ -99,15 +108,41 @@ func isRetryable(statusCode int) bool {
 }
 
 // Do executes req, retrying transient failures with exponential backoff and
-// jitter, honoring a Retry-After header when the server supplies one. The
-// caller owns req.Body: for retries to work with a body, req must have been
-// built with GetBody set (as http.NewRequestWithContext does for common body
-// types).
+// jitter, honoring a Retry-After header when the server supplies one, and
+// refreshing the OAuth token for at most one retry on a 401. The caller owns
+// req.Body: for retries to work with a body, req must have been built with
+// GetBody set (as http.NewRequestWithContext does for common body types).
 func (c *Client) Do(req *http.Request) (*http.Response, error) {
 	if c.userAgent != "" {
 		req.Header.Set("User-Agent", c.userAgent)
 	}
 
+	resp, err := c.doWithRetries(req)
+	if err != nil || c.invalidateToken == nil || resp.StatusCode != http.StatusUnauthorized {
+		return resp, err
+	}
+
+	// SAP can invalidate a token before its stated expiry, in which case the
+	// cached token looks valid to us but is rejected downstream. Force a
+	// fresh token and try exactly once more; if that also comes back 401,
+	// the problem is not a stale token and we return it as-is.
+	drainAndClose(resp.Body)
+	c.invalidateToken()
+
+	if req.GetBody != nil {
+		body, bodyErr := req.GetBody()
+		if bodyErr != nil {
+			return nil, fmt.Errorf("http: rewinding request body for auth retry: %w", bodyErr)
+		}
+		req.Body = body
+	}
+
+	return c.doWithRetries(req)
+}
+
+// doWithRetries executes req, retrying transient failures with exponential
+// backoff and jitter. It never itself distinguishes a 401; that is Do's job.
+func (c *Client) doWithRetries(req *http.Request) (*http.Response, error) {
 	var lastErr error
 	for attempt := 0; attempt <= c.maxRetries; attempt++ {
 		if attempt > 0 {

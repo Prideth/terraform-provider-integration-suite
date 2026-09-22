@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"sync/atomic"
 	"testing"
 )
@@ -24,7 +25,7 @@ func TestConfig_HTTPClient_AcquiresAndCachesToken(t *testing.T) {
 		ClientSecret: "client-secret",
 	}
 
-	client, err := cfg.HTTPClient(context.Background(), http.DefaultClient)
+	client, _, err := cfg.HTTPClient(context.Background(), http.DefaultClient)
 	if err != nil {
 		t.Fatalf("HTTPClient() error: %v", err)
 	}
@@ -63,8 +64,66 @@ func TestConfig_HTTPClient_RejectsIncompleteConfig(t *testing.T) {
 	}
 
 	for _, cfg := range cases {
-		if _, err := cfg.HTTPClient(context.Background(), http.DefaultClient); err == nil {
+		if _, _, err := cfg.HTTPClient(context.Background(), http.DefaultClient); err == nil {
 			t.Errorf("expected an error for incomplete config %+v", cfg)
 		}
+	}
+}
+
+func TestConfig_HTTPClient_InvalidateForcesFreshToken(t *testing.T) {
+	var tokenRequests int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&tokenRequests, 1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token": "token-` + strconv.Itoa(int(n)) + `", "token_type": "bearer", "expires_in": 3600}`))
+	}))
+	defer server.Close()
+
+	cfg := Config{
+		TokenURL:     server.URL,
+		ClientID:     "client-id",
+		ClientSecret: "client-secret",
+	}
+
+	client, invalidate, err := cfg.HTTPClient(context.Background(), http.DefaultClient)
+	if err != nil {
+		t.Fatalf("HTTPClient() error: %v", err)
+	}
+
+	var gotAuth []string
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = append(gotAuth, r.Header.Get("Authorization"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer api.Close()
+
+	for i := 0; i < 2; i++ {
+		resp, err := client.Get(api.URL)
+		if err != nil {
+			t.Fatalf("Get() error: %v", err)
+		}
+		_ = resp.Body.Close()
+	}
+	if got := atomic.LoadInt32(&tokenRequests); got != 1 {
+		t.Fatalf("expected 1 token request before Invalidate, got %d", got)
+	}
+
+	invalidate()
+
+	resp, err := client.Get(api.URL)
+	if err != nil {
+		t.Fatalf("Get() error: %v", err)
+	}
+	_ = resp.Body.Close()
+
+	if got := atomic.LoadInt32(&tokenRequests); got != 2 {
+		t.Fatalf("expected a fresh token request after Invalidate, got %d total", got)
+	}
+	if gotAuth[0] != gotAuth[1] {
+		t.Errorf("expected the first two requests to reuse the cached token, got %q then %q", gotAuth[0], gotAuth[1])
+	}
+	if gotAuth[2] == gotAuth[1] {
+		t.Errorf("expected Invalidate to force a different token, got the same one: %q", gotAuth[2])
 	}
 }

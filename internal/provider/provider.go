@@ -155,7 +155,7 @@ func (p *sapIntegrationSuiteProvider) Configure(ctx context.Context, req provide
 		return
 	}
 
-	authenticatedClient, err := oauthCfg.HTTPClient(ctx, http.DefaultClient)
+	authenticatedClient, invalidateToken, err := oauthCfg.HTTPClient(ctx, http.DefaultClient)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to configure SAP Integration Suite authentication", err.Error())
 		return
@@ -164,8 +164,9 @@ func (p *sapIntegrationSuiteProvider) Configure(ctx context.Context, req provide
 	data := &Data{
 		Host: host,
 		HTTPClient: sapthttp.New(sapthttp.Config{
-			Transport: authenticatedClient,
-			UserAgent: sapthttp.UserAgent(p.version),
+			Transport:       authenticatedClient,
+			UserAgent:       sapthttp.UserAgent(p.version),
+			InvalidateToken: invalidateToken,
 		}),
 		Version: p.version,
 	}

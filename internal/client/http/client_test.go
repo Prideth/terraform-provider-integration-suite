@@ -138,6 +138,116 @@ func TestClient_DoesNotRetryClientErrors(t *testing.T) {
 	}
 }
 
+func TestClient_RetriesOnceAfterInvalidatingTokenOn401(t *testing.T) {
+	var attempts int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&attempts, 1)
+		if n == 1 {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	var invalidated int32
+	client := New(Config{
+		BaseDelay:       time.Millisecond,
+		MaxDelay:        5 * time.Millisecond,
+		InvalidateToken: func() { atomic.AddInt32(&invalidated, 1) },
+	})
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+	if err != nil {
+		t.Fatalf("building request: %v", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Do returned error: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200 after the auth retry, got %d", resp.StatusCode)
+	}
+	if got := atomic.LoadInt32(&attempts); got != 2 {
+		t.Fatalf("expected exactly 2 attempts (original + one auth retry), got %d", got)
+	}
+	if got := atomic.LoadInt32(&invalidated); got != 1 {
+		t.Fatalf("expected InvalidateToken to be called exactly once, got %d", got)
+	}
+}
+
+func TestClient_DoesNotRetryASecond401(t *testing.T) {
+	var attempts int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&attempts, 1)
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	var invalidated int32
+	client := New(Config{
+		BaseDelay:       time.Millisecond,
+		MaxDelay:        5 * time.Millisecond,
+		InvalidateToken: func() { atomic.AddInt32(&invalidated, 1) },
+	})
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+	if err != nil {
+		t.Fatalf("building request: %v", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Do returned error: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected the second 401 to be returned as-is, got %d", resp.StatusCode)
+	}
+	if got := atomic.LoadInt32(&attempts); got != 2 {
+		t.Fatalf("expected exactly 2 attempts (original + one auth retry, no more), got %d", got)
+	}
+	if got := atomic.LoadInt32(&invalidated); got != 1 {
+		t.Fatalf("expected InvalidateToken to be called exactly once, got %d", got)
+	}
+}
+
+func TestClient_401WithoutInvalidateTokenIsReturnedAsIs(t *testing.T) {
+	var attempts int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&attempts, 1)
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	client := New(Config{BaseDelay: time.Millisecond, MaxDelay: 5 * time.Millisecond})
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+	if err != nil {
+		t.Fatalf("building request: %v", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Do returned error: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected 401 to be returned as-is, got %d", resp.StatusCode)
+	}
+	if got := atomic.LoadInt32(&attempts); got != 1 {
+		t.Fatalf("expected exactly 1 attempt with no InvalidateToken configured, got %d", got)
+	}
+}
+
 func TestClient_HonorsRetryAfterHeader(t *testing.T) {
 	var attempts int32
 	start := time.Now()
