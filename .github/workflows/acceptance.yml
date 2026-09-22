@@ -24,7 +24,7 @@ jobs:
       SAP_INTEGRATION_SUITE_CLIENT_ID: ${{ secrets.SAP_INTEGRATION_SUITE_CLIENT_ID }}
       SAP_INTEGRATION_SUITE_CLIENT_SECRET: ${{ secrets.SAP_INTEGRATION_SUITE_CLIENT_SECRET }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-go@v5
         with:
