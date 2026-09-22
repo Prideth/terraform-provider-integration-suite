@@ -259,28 +259,56 @@ var Catalog = []Feature{
 
 	// --- Security ---
 	{
-		Key:             "security.access_policy",
-		Domain:          "security",
-		Name:            "Access Policy",
-		Description:     "An access policy restricting which artifacts a role can access.",
-		SupportStatus:   StatusSupported,
-		ResourceTypes:   []string{"sapintegrationsuite_access_policy"},
-		DataSourceTypes: []string{},
-		PublicAPI:       true,
-		APIProtocol:     "OData V2",
-		Operations:      Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},
+		Key:           "security.access_policy",
+		Domain:        "security",
+		Name:          "Access Policy",
+		Description:   "An access policy restricting which artifacts a role can access.",
+		SupportStatus: StatusSupported,
+		ResourceTypes: []string{"sapintegrationsuite_access_policy"},
+		DataSourceTypes: []string{
+			"sapintegrationsuite_access_policy",
+		},
+		PublicAPI:   true,
+		APIProtocol: "OData V2",
+		Limitations: []string{
+			"reconciliation_status is surfaced whenever the API returns it, but Create/Update do not " +
+				"poll it to a terminal state: SAP's Manage Access Policies UI documents replicating a " +
+				"policy to one or more runtimes (Cloud Integration runtime, Integration Cell, Edge " +
+				"Integration Cell) with a per-runtime Fail/Success/Pending reconciliation status, but " +
+				"this project could not confirm that mechanism is exposed through the public " +
+				"AccessPolicies OData API this provider uses, as opposed to being UI-only. Treat the " +
+				"field as informational, not something to script against.",
+			"Whether RoleName refers to a BTP role collection or an individual BTP role (assigned to " +
+				"users via a role collection) has not been confirmed against SAP's OData $metadata; SAP's " +
+				"own UI documentation describes associating \"a role\" with the policy \"using SAP " +
+				"Business Technology Platform cockpit\", which this provider treats as an opaque string " +
+				"it does not interpret or manage.",
+		},
+		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},
 	},
 	{
-		Key:             "security.access_policy_reference",
-		Domain:          "security",
-		Name:            "Access Policy Reference",
-		Description:     "A single artifact reference (attribute/operator/value match rule) on an access policy.",
-		SupportStatus:   StatusSupported,
-		ResourceTypes:   []string{"sapintegrationsuite_access_policy_reference"},
-		DataSourceTypes: []string{},
-		PublicAPI:       true,
-		APIProtocol:     "OData V2",
-		Operations:      Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},
+		Key:           "security.access_policy_reference",
+		Domain:        "security",
+		Name:          "Access Policy Reference",
+		Description:   "A single artifact reference (attribute/operator/value match rule) on an access policy.",
+		SupportStatus: StatusSupported,
+		ResourceTypes: []string{"sapintegrationsuite_access_policy_reference"},
+		DataSourceTypes: []string{
+			"sapintegrationsuite_access_policy_reference",
+		},
+		PublicAPI:   true,
+		APIProtocol: "OData V2",
+		Limitations: []string{
+			"No in-place update: every attribute is part of the reference's match condition and SAP " +
+				"does not document updating a reference in place, so access_policy_id, artifact_type, " +
+				"attribute, operator, and value all force replacement. This is a deliberate lifecycle " +
+				"choice, not a missing capability.",
+			"The exact wire-format casing of the Attribute (\"Name\"/\"Id\" vs. \"NAME\"/\"ID\") and " +
+				"Operator (\"EQUALS\"/\"MATCHES\" vs. \"equals\"/\"matches\") enum values has not been " +
+				"confirmed against a live tenant or OData $metadata; SAP's UI documentation confirms the " +
+				"two values for each but only in prose/UI-label form.",
+		},
+		Operations: Operations{Create: true, Read: true, Update: false, Delete: true, Import: true},
 	},
 	{
 		Key:           "security.user_credential",

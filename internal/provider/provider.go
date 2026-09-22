@@ -177,6 +177,8 @@ func (p *sapIntegrationSuiteProvider) DataSources(_ context.Context) []func() da
 		NewValueMappingDataSource,
 		NewMessageMappingDataSource,
 		NewScriptCollectionDataSource,
+		NewAccessPolicyDataSource,
+		NewAccessPolicyReferenceDataSource,
 		NewProviderFeaturesDataSource,
 		NewProviderFeatureDataSource,
 	}

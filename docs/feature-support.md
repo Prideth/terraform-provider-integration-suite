@@ -70,8 +70,8 @@ Do not conflate these: a feature can be fully supported by this provider and sti
 | `migration_assessment` | other_capability | unsupported (research_required) | No | — | — | — | — | — | — | — |
 | `open_connectors` | other_capability | unsupported (research_required) | No | — | — | — | — | — | — | — |
 | `partner_directory.entry` | partner_directory | unsupported (not_implemented) | Yes | — | — | — | — | — | — | — |
-| `security.access_policy` | security | supported | Yes | Yes | Yes | Yes | Yes | Yes | — | Resource |
-| `security.access_policy_reference` | security | supported | Yes | Yes | Yes | Yes | Yes | Yes | — | Resource |
+| `security.access_policy` | security | supported | Yes | Yes | Yes | Yes | Yes | Yes | — | Resource + Data Source |
+| `security.access_policy_reference` | security | supported | Yes | Yes | Yes | — | Yes | Yes | — | Resource + Data Source |
 | `security.certificate_user_mapping` | security | unsupported (not_implemented) | Yes | — | — | — | — | — | — | — |
 | `security.keystore_entry` | security | unsupported (not_implemented) | Yes | — | — | — | — | — | — | — |
 | `security.oauth2_client_credential` | security | unsupported (not_implemented) | Yes | — | — | — | — | — | — | — |
