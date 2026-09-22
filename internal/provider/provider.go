@@ -182,12 +182,15 @@ func (p *sapIntegrationSuiteProvider) Resources(_ context.Context) []func() reso
 		NewIntegrationFlowDeploymentResource,
 		NewAccessPolicyResource,
 		NewAccessPolicyReferenceResource,
+		NewValueMappingResource,
+		NewValueMappingDeploymentResource,
 	}
 }
 
 func (p *sapIntegrationSuiteProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		NewIntegrationPackageDataSource,
+		NewValueMappingDataSource,
 	}
 }
 

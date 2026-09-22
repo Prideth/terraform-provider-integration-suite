@@ -1,0 +1,236 @@
+package provider
+
+import (
+	"context"
+	"errors"
+
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/apierror"
+	"github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/cloudintegration"
+)
+
+// maxValueMappingContentBytes bounds how large a local value mapping content
+// file this provider will read, for the same reasons documented on
+// maxIntegrationFlowContentBytes.
+const maxValueMappingContentBytes = 32 * 1024 * 1024 // 32 MiB
+
+// NewValueMappingResource returns a fresh resource.Resource implementation
+// for sapintegrationsuite_value_mapping.
+func NewValueMappingResource() resource.Resource {
+	return &valueMappingResource{}
+}
+
+type valueMappingResource struct {
+	client *cloudintegration.Client
+}
+
+type valueMappingModel struct {
+	ID          types.String `tfsdk:"id"`
+	PackageID   types.String `tfsdk:"package_id"`
+	MappingID   types.String `tfsdk:"mapping_id"`
+	Name        types.String `tfsdk:"name"`
+	Content     types.String `tfsdk:"content"`
+	ContentHash types.String `tfsdk:"content_hash"`
+	Version     types.String `tfsdk:"version"`
+}
+
+func (r *valueMappingResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_value_mapping"
+}
+
+func (r *valueMappingResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		Description: "Manages the design-time content of a Cloud Integration value mapping, " +
+			"uploaded from a local content file (SAP's own design-time export/import format for " +
+			"this artifact type — the same ZIP-style package produced by exporting a value " +
+			"mapping from the Integration Suite UI). Backed by the public Integration Content " +
+			"OData V2 API (ValueMappingDesigntimeArtifacts). A value mapping cannot be saved " +
+			"without at least one mapping entry, so the uploaded content must already contain " +
+			"one. Deploying to a runtime is handled by the separate " +
+			"sapintegrationsuite_value_mapping_deployment resource. Individual mapping entries " +
+			"are not yet independently manageable through this provider — see " +
+			"docs/resource-design.md for why.",
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Computed:    true,
+				Description: "Composite identifier in the form \"<package_id>/<mapping_id>\".",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"package_id": schema.StringAttribute{
+				Required:    true,
+				Description: "ID of the integration package this value mapping belongs to.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"mapping_id": schema.StringAttribute{
+				Required:    true,
+				Description: "The value mapping's technical ID. Immutable: changing it replaces the value mapping.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"name": schema.StringAttribute{
+				Required:    true,
+				Description: "The value mapping's display name.",
+			},
+			"content": schema.StringAttribute{
+				Optional: true,
+				Computed: true,
+				Description: "Path to the local content file for the value mapping project, for " +
+					"example \"${path.module}/value-mappings/company-codes.zip\". Required to " +
+					"manage the mapping's content; left as-is on import until a matching " +
+					"configuration is applied, since SAP does not return a local file path for an " +
+					"existing design-time artifact.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"content_hash": schema.StringAttribute{
+				Optional: true,
+				Computed: true,
+				Description: "SHA-256 hash of the content file, for example " +
+					"filesha256(\"${path.module}/value-mappings/company-codes.zip\"). Terraform " +
+					"only re-uploads the file when this hash changes.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"version": schema.StringAttribute{
+				Computed:    true,
+				Description: "The design-time version SAP assigned to the most recent upload.",
+			},
+		},
+	}
+}
+
+func (r *valueMappingResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	data, ok := req.ProviderData.(*Data)
+	if !ok {
+		resp.Diagnostics.AddError("Unexpected provider data type", "Expected *provider.Data")
+		return
+	}
+	r.client = cloudintegration.New(data.HTTPClient, data.Host)
+}
+
+func (r *valueMappingResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan valueMappingModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	content, err := readBoundedFile(plan.Content.ValueString(), maxValueMappingContentBytes)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to read value mapping content file", err.Error())
+		return
+	}
+	if err := verifyContentHash(content, plan.ContentHash.ValueString()); err != nil {
+		resp.Diagnostics.AddError("Value mapping content hash mismatch", err.Error())
+		return
+	}
+
+	mapping, err := r.client.CreateValueMapping(ctx, plan.PackageID.ValueString(), plan.MappingID.ValueString(), plan.Name.ValueString(), content)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to create SAP Integration Suite value mapping", diagnosticDetail(err))
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, valueMappingToModel(plan.PackageID.ValueString(), mapping, plan))...)
+}
+
+func (r *valueMappingResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state valueMappingModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	mapping, err := r.client.GetValueMapping(ctx, state.PackageID.ValueString(), state.MappingID.ValueString())
+	if err != nil {
+		var apiErr *apierror.Error
+		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
+			resp.State.RemoveResource(ctx)
+			return
+		}
+		resp.Diagnostics.AddError("Failed to read SAP Integration Suite value mapping", diagnosticDetail(err))
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, valueMappingToModel(state.PackageID.ValueString(), mapping, state))...)
+}
+
+func (r *valueMappingResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan valueMappingModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	content, err := readBoundedFile(plan.Content.ValueString(), maxValueMappingContentBytes)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to read value mapping content file", err.Error())
+		return
+	}
+	if err := verifyContentHash(content, plan.ContentHash.ValueString()); err != nil {
+		resp.Diagnostics.AddError("Value mapping content hash mismatch", err.Error())
+		return
+	}
+
+	mapping, err := r.client.UpdateValueMapping(ctx, plan.MappingID.ValueString(), plan.Name.ValueString(), content)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to update SAP Integration Suite value mapping", diagnosticDetail(err))
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, valueMappingToModel(plan.PackageID.ValueString(), mapping, plan))...)
+}
+
+func (r *valueMappingResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state valueMappingModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	err := r.client.DeleteValueMapping(ctx, state.MappingID.ValueString())
+	if err != nil {
+		var apiErr *apierror.Error
+		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
+			return
+		}
+		resp.Diagnostics.AddError("Failed to delete SAP Integration Suite value mapping", diagnosticDetail(err))
+	}
+}
+
+func (r *valueMappingResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	packageID, mappingID, err := splitCompositeID(req.ID)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid import ID", err.Error())
+		return
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRoot("package_id"), packageID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRoot("mapping_id"), mappingID)...)
+}
+
+func valueMappingToModel(packageID string, mapping *cloudintegration.ValueMapping, previous valueMappingModel) valueMappingModel {
+	return valueMappingModel{
+		ID:          types.StringValue(packageID + "/" + mapping.ID),
+		PackageID:   types.StringValue(packageID),
+		MappingID:   types.StringValue(mapping.ID),
+		Name:        types.StringValue(mapping.Name),
+		Content:     previous.Content,
+		ContentHash: previous.ContentHash,
+		Version:     types.StringValue(mapping.Version),
+	}
+}
