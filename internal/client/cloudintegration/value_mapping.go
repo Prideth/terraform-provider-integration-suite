@@ -73,45 +73,59 @@ func (c *Client) CreateValueMapping(ctx context.Context, packageID, mappingID, n
 	return &mapping, nil
 }
 
-// UpdateValueMapping uploads new content for an existing value mapping,
-// creating a new design-time version under the same mapping ID, following
-// the same PUT-against-the-keyed-entity convention already implemented and
-// tested for sapintegrationsuite_integration_flow's sibling entity set.
+// There is deliberately no UpdateValueMapping. A prior version of this
+// client called PUT against the keyed (Id, Version) entity, by analogy with
+// IntegrationDesigntimeArtifacts' confirmed update behavior. That analogy
+// does not hold up under closer scrutiny and was removed rather than kept
+// as a shipped guess:
 //
-// This is a documented assumption, not a confirmed fact: SAP separately
-// documents a distinct ValueMappingDesigntimeArtifactSaveAsVersion action
-// that takes a caller-supplied new version identifier, which may be the
-// API's actual intended update path instead of (or in addition to) PUT. See
-// docs/sap-api-references.md and docs/resource-design.md for the full
-// reasoning and what would need to change if this assumption is wrong.
-func (c *Client) UpdateValueMapping(ctx context.Context, mappingID, name string, content []byte) (*ValueMapping, error) {
-	payload, err := json.Marshal(ValueMapping{
-		Name:    name,
-		Content: base64.StdEncoding.EncodeToString(content),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("cloudintegration: encoding value mapping: %w", err)
-	}
+//   - SAP documents a distinct ValueMappingDesigntimeArtifactSaveAsVersion
+//     action (POST) that takes the artifact's technical ID plus a
+//     caller-supplied new version identifier. Multiple independent secondary
+//     sources describe it specifically as the way to "change the version of
+//     ValueMapping" — a materially different contract from
+//     IntegrationDesigntimeArtifacts' PUT, which lets SAP assign the new
+//     version implicitly. A dedicated SAP Knowledge Base Article (3502529,
+//     "HTTP/403 Forbidden response while trying to change Version of the
+//     ValueMapping") independently confirms that changing a value mapping's
+//     version is treated as its own distinct, separately gated operation.
+//   - An independent third-party tool built directly against this same SAP
+//     OData API (github.com/lemaiwo/ci-mcp-server) explicitly disables its
+//     generic "update" operation for ValueMappingDesigntimeArtifacts, while
+//     leaving it enabled for IntegrationDesigntimeArtifacts,
+//     MessageMappingDesigntimeArtifacts, and ScriptCollectionDesigntimeArtifacts
+//     — the same family of design-time artifact entity sets. That is a
+//     deliberate difference, not an oversight, and it points the same
+//     direction as the two findings above.
+//
+// None of this is a byte-for-byte primary-source confirmation: help.sap.com,
+// api.sap.com, community.sap.com, blogs.sap.com, and every mirror/proxy this
+// environment could reach for them were blocked by network egress policy
+// during this investigation, so the exact SaveAsVersion request/response
+// shape could not be fetched and verified directly. Given that, retaining an
+// unverified PUT — which the evidence above suggests does not work the way
+// sapintegrationsuite_integration_flow's does — would be shipping a guess
+// dressed up as a feature. sapintegrationsuite_value_mapping instead treats
+// name/content/content_hash changes as replacing the resource (see
+// resource_value_mapping.go), which only relies on Create and Delete, both
+// independently confirmed. Implementing update-in-place via
+// ValueMappingDesigntimeArtifactSaveAsVersion is tracked as a v0.2.x item
+// once its request/response contract can be confirmed against a live
+// tenant or a reachable primary source; see docs/sap-api-references.md and
+// docs/resource-design.md.
 
-	key, err := designtimeArtifactKey(mappingID, activeVersion)
-	if err != nil {
-		return nil, err
-	}
-
-	body, err := c.odata.Put(ctx, v2.BuildPath(valueMappingDesigntimeArtifactsEntitySet, key, ""), payload)
-	if err != nil {
-		return nil, err
-	}
-
-	var mapping ValueMapping
-	if err := v2.DecodeEntity(body, &mapping); err != nil {
-		return nil, err
-	}
-	return &mapping, nil
-}
-
-// DeleteValueMapping deletes a value mapping design-time artifact (all
-// versions).
+// DeleteValueMapping deletes the value mapping design-time artifact
+// identified by mappingID, addressed the same way GetValueMapping and the
+// (removed) update path address it: via the "active" version key. Whether
+// this removes only the active/current design-time version or every version
+// of the artifact has not been confirmed against a primary source (the same
+// network restrictions described above applied to this question too). This
+// provider does not expose multiple versions of a value mapping
+// concurrently, so the distinction does not change this resource's
+// behavior today, but it means a value mapping deleted through Terraform
+// could in principle leave older, non-active versions behind on SAP's side.
+// Treat this as an open item for verification against a live tenant before
+// relying on "destroy always removes everything SAP stored" as a guarantee.
 func (c *Client) DeleteValueMapping(ctx context.Context, mappingID string) error {
 	key, err := designtimeArtifactKey(mappingID, activeVersion)
 	if err != nil {
@@ -124,6 +138,20 @@ func (c *Client) DeleteValueMapping(ctx context.Context, mappingID string) error
 // of a value mapping. It returns immediately once SAP has accepted the
 // deployment request; callers must poll GetRuntimeArtifact for completion,
 // since deployment is asynchronous.
+//
+// The action name is singular ("...Artifact", not "...Artifacts"), matching
+// the equivalent action for every other design-time artifact type in this
+// API family (DeployIntegrationDesigntimeArtifact,
+// DeployMessageMappingDesigntimeArtifact, ...). This was re-checked this
+// phase after a report that current SAP documentation uses the plural form:
+// every reachable secondary source (multiple independent search results
+// summarizing SAP community/blog content) consistently gives the singular
+// form and the Id='...'&Version='...' query-parameter shape already
+// implemented below, and no source found gave the plural form. The
+// documentation pages that would settle this conclusively
+// (help.sap.com/api.sap.com) were not reachable from this environment to
+// fetch and read directly — see the note on DeleteValueMapping above for
+// why.
 func (c *Client) DeployValueMapping(ctx context.Context, mappingID, version string) error {
 	path := fmt.Sprintf("DeployValueMappingDesigntimeArtifact?Id='%s'&Version='%s'",
 		v2.EscapeLiteral(mappingID), v2.EscapeLiteral(version))

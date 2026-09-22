@@ -54,7 +54,10 @@ func (r *valueMappingResource) Schema(_ context.Context, _ resource.SchemaReques
 			"one. Deploying to a runtime is handled by the separate " +
 			"sapintegrationsuite_value_mapping_deployment resource. Individual mapping entries " +
 			"are not yet independently manageable through this provider — see " +
-			"docs/resource-design.md for why.",
+			"docs/resource-design.md for why. Changing name, content, or content_hash replaces " +
+			"the value mapping (create a new artifact, then delete the old one) rather than " +
+			"updating it in place, since SAP's Value Mapping API does not have a confirmed " +
+			"in-place update path — see docs/sap-api-references.md.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:    true,
@@ -78,8 +81,15 @@ func (r *valueMappingResource) Schema(_ context.Context, _ resource.SchemaReques
 				},
 			},
 			"name": schema.StringAttribute{
-				Required:    true,
-				Description: "The value mapping's display name.",
+				Required: true,
+				Description: "The value mapping's display name. Changing it replaces the value " +
+					"mapping: SAP's Value Mapping API does not have a confirmed in-place update " +
+					"path (see docs/sap-api-references.md), so this provider creates a new " +
+					"artifact and deletes the old one rather than retaining an unverified update " +
+					"call.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"content": schema.StringAttribute{
 				Optional: true,
@@ -88,9 +98,11 @@ func (r *valueMappingResource) Schema(_ context.Context, _ resource.SchemaReques
 					"example \"${path.module}/value-mappings/company-codes.zip\". Required to " +
 					"manage the mapping's content; left as-is on import until a matching " +
 					"configuration is applied, since SAP does not return a local file path for an " +
-					"existing design-time artifact.",
+					"existing design-time artifact. Changing it replaces the value mapping — see " +
+					"the \"name\" attribute above for why.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"content_hash": schema.StringAttribute{
@@ -98,9 +110,11 @@ func (r *valueMappingResource) Schema(_ context.Context, _ resource.SchemaReques
 				Computed: true,
 				Description: "SHA-256 hash of the content file, for example " +
 					"filesha256(\"${path.module}/value-mappings/company-codes.zip\"). Terraform " +
-					"only re-uploads the file when this hash changes.",
+					"replaces the value mapping when this hash changes — see the \"name\" " +
+					"attribute above for why.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"version": schema.StringAttribute{
@@ -170,6 +184,17 @@ func (r *valueMappingResource) Read(ctx context.Context, req resource.ReadReques
 	resp.Diagnostics.Append(resp.State.Set(ctx, valueMappingToModel(state.PackageID.ValueString(), mapping, state))...)
 }
 
+// Update is not reachable for any meaningful configuration change: name,
+// content, and content_hash — the only attributes a user can change — are
+// all RequiresReplace (see Schema), so Terraform performs a Create+Delete
+// instead of calling Update whenever any of them change. This is a
+// deliberate choice, not an oversight: see the comment above
+// DeleteValueMapping in internal/client/cloudintegration/value_mapping.go
+// for why this provider does not retain an unverified in-place update call
+// for this resource. The Terraform Plugin Framework's resource.Resource
+// interface still requires an Update method to exist; it is only ever
+// invoked here with a plan that carries no actual attribute change, so it
+// just copies the plan through without calling the API.
 func (r *valueMappingResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan valueMappingModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -177,23 +202,7 @@ func (r *valueMappingResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
-	content, err := readBoundedFile(plan.Content.ValueString(), maxValueMappingContentBytes)
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to read value mapping content file", err.Error())
-		return
-	}
-	if err := verifyContentHash(content, plan.ContentHash.ValueString()); err != nil {
-		resp.Diagnostics.AddError("Value mapping content hash mismatch", err.Error())
-		return
-	}
-
-	mapping, err := r.client.UpdateValueMapping(ctx, plan.MappingID.ValueString(), plan.Name.ValueString(), content)
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to update SAP Integration Suite value mapping", diagnosticDetail(err))
-		return
-	}
-
-	resp.Diagnostics.Append(resp.State.Set(ctx, valueMappingToModel(plan.PackageID.ValueString(), mapping, plan))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
 func (r *valueMappingResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

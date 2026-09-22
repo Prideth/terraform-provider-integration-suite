@@ -77,28 +77,68 @@ func TestClient_GetValueMapping_NotFound(t *testing.T) {
 	}
 }
 
-func TestClient_UpdateValueMapping(t *testing.T) {
+func TestClient_CreateValueMapping_InvalidArtifactIsError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPut {
-			t.Errorf("expected PUT, got %s", r.Method)
-		}
-		want := "/api/v1/ValueMappingDesigntimeArtifacts(Id='company-codes',Version='active')"
-		if r.URL.Path != want {
-			t.Errorf("path = %q, want %q", r.URL.Path, want)
-		}
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"d": {"Id": "company-codes", "Name": "Company Codes v2", "PackageId": "UTILITIES", "Version": "1.0.1"}}`))
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error": {"code": "BAD_REQUEST", "message": {"value": "a value mapping must contain at least one entry"}}}`))
 	}))
 	defer server.Close()
 
 	client := New(http.DefaultClient, server.URL)
 
-	mapping, err := client.UpdateValueMapping(context.Background(), "company-codes", "Company Codes v2", []byte("new-mapping-bytes"))
-	if err != nil {
-		t.Fatalf("UpdateValueMapping() error: %v", err)
+	_, err := client.CreateValueMapping(context.Background(), "UTILITIES", "empty-mapping", "Empty", []byte("no-entries"))
+
+	var apiErr *apierror.Error
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected a 400 *apierror.Error, got %v", err)
 	}
-	if mapping.Version != "1.0.1" {
-		t.Errorf("Version = %q, want 1.0.1", mapping.Version)
+}
+
+func TestClient_GetValueMapping_Forbidden(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"error": {"code": "FORBIDDEN", "message": {"value": "missing WorkspacePackagesConfigure role"}}}`))
+	}))
+	defer server.Close()
+
+	client := New(http.DefaultClient, server.URL)
+
+	_, err := client.GetValueMapping(context.Background(), "UTILITIES", "company-codes")
+
+	var apiErr *apierror.Error
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected a 403 *apierror.Error, got %v", err)
+	}
+}
+
+func TestClient_GetValueMapping_MalformedResponseIsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`not valid json`))
+	}))
+	defer server.Close()
+
+	client := New(http.DefaultClient, server.URL)
+
+	if _, err := client.GetValueMapping(context.Background(), "UTILITIES", "company-codes"); err == nil {
+		t.Fatal("expected an error decoding a malformed OData response, got nil")
+	}
+}
+
+func TestClient_DeleteValueMapping_Conflict(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"error": {"code": "CONFLICT", "message": {"value": "still referenced by a deployed integration flow"}}}`))
+	}))
+	defer server.Close()
+
+	client := New(http.DefaultClient, server.URL)
+
+	err := client.DeleteValueMapping(context.Background(), "company-codes")
+
+	var apiErr *apierror.Error
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusConflict {
+		t.Fatalf("expected a 409 *apierror.Error, got %v", err)
 	}
 }
 
@@ -156,5 +196,22 @@ func TestClient_DeployValueMapping(t *testing.T) {
 
 	if err := client.DeployValueMapping(context.Background(), "company-codes", "1.0.1"); err != nil {
 		t.Fatalf("DeployValueMapping() error: %v", err)
+	}
+}
+
+func TestClient_DeployValueMapping_NotFoundIsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"error": {"code": "NOT_FOUND", "message": {"value": "no such value mapping"}}}`))
+	}))
+	defer server.Close()
+
+	client := New(http.DefaultClient, server.URL)
+
+	err := client.DeployValueMapping(context.Background(), "missing", "active")
+
+	var apiErr *apierror.Error
+	if !errors.As(err, &apiErr) || !apiErr.IsNotFound() {
+		t.Fatalf("expected a not-found *apierror.Error, got %v", err)
 	}
 }
