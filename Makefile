@@ -29,6 +29,7 @@ tidy:
 docs:
 	cd tools && go build -o ../.bin/tfplugindocs github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
 	./.bin/tfplugindocs generate --provider-name sapintegrationsuite
+	go run ./cmd/gendocs > docs/feature-support.md
 
 clean:
 	rm -f $(BINARY)

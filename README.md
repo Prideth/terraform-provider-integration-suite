@@ -67,6 +67,25 @@ for the exact API behind each one, and
 [`docs/provisioning-capability-matrix.md`](docs/provisioning-capability-matrix.md)
 for the full discovery behind what is and is not implemented yet.
 
+## Feature support
+
+This provider ships a machine-readable feature support catalog, queryable
+directly from Terraform with no SAP host or credentials — it describes
+what this provider *version* implements, not what is active in any
+particular tenant:
+
+```hcl
+data "sapintegrationsuite_provider_features" "all" {}
+
+data "sapintegrationsuite_provider_feature" "value_mapping" {
+  key = "cloud_integration.value_mapping"
+}
+```
+
+See [`docs/feature-support.md`](docs/feature-support.md) for the full,
+generated table of every feature this project has evaluated — supported,
+partial, or not implemented, and why.
+
 ## Requirements
 
 - [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.5
