@@ -59,6 +59,11 @@ SAP/btp                              Prideth/sap-integration-suite
 | `sapintegrationsuite_message_mapping` | Reusable message mapping design-time content (file-based) |
 | `sapintegrationsuite_message_mapping_deployment` | Message mapping runtime deployment |
 | `data.sapintegrationsuite_message_mapping` | Read-only lookup of an existing message mapping |
+| `sapintegrationsuite_script_collection` | Reusable script collection design-time content (file-based) |
+| `sapintegrationsuite_script_collection_deployment` | Script collection runtime deployment |
+| `data.sapintegrationsuite_script_collection` | Read-only lookup of an existing script collection |
+| `data.sapintegrationsuite_provider_features` | The full provider feature support catalog |
+| `data.sapintegrationsuite_provider_feature` | Support information for exactly one feature |
 
 Every resource here is backed by a currently documented, SAP-supported
 public API — see [`docs/sap-api-references.md`](docs/sap-api-references.md)
@@ -207,7 +212,8 @@ See [`ROADMAP.md`](ROADMAP.md).
   found; activation stays a manual, one-time bootstrap step. See
   `docs/provisioning-capability-matrix.md`.
 - `sapintegrationsuite_integration_flow`, `sapintegrationsuite_value_mapping`,
-  and `sapintegrationsuite_message_mapping`'s `content`/`content_hash`
+  `sapintegrationsuite_message_mapping`, and
+  `sapintegrationsuite_script_collection`'s `content`/`content_hash`
   cannot be populated by `terraform import`, since SAP does not return a
   local file path for an existing design-time artifact; apply a matching
   configuration after import to bring content under management.
@@ -229,11 +235,12 @@ See [`ROADMAP.md`](ROADMAP.md).
   `DeleteValMaps`) are not yet manageable through this provider — only the
   design-time artifact as a whole. See `docs/resource-design.md` for why.
 - Whether Delete removes only the active version or every version of the
-  artifact is unconfirmed for both `sapintegrationsuite_value_mapping` and
-  `sapintegrationsuite_message_mapping` — see `docs/sap-api-references.md`.
-- Script collections, API Gateway / API Artifacts, classic API Management,
-  Integration Cell, and Edge Integration Cell resources are not yet
-  implemented — see `ROADMAP.md`.
+  artifact is unconfirmed for `sapintegrationsuite_value_mapping`,
+  `sapintegrationsuite_message_mapping`, and
+  `sapintegrationsuite_script_collection` — see `docs/sap-api-references.md`.
+- API Gateway / API Artifacts, classic API Management, Integration Cell,
+  and Edge Integration Cell resources are not yet implemented — see
+  `ROADMAP.md`.
 
 ## API support matrix
 

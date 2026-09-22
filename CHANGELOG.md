@@ -31,6 +31,20 @@ Initial development toward v0.1.0. See `ROADMAP.md` for what is planned and
   evidence documented in `docs/sap-api-references.md`. Reuses the same
   shared runtime-artifact polling and status model, confirmed applicable to
   this entity type rather than assumed.
+- `sapintegrationsuite_script_collection` resource and data source
+  (file-based content), and `sapintegrationsuite_script_collection_deployment`,
+  for reusable Groovy/JavaScript script bundles. Shares its Update model
+  with `sapintegrationsuite_message_mapping` (a confirmed in-place `PUT`,
+  on the same entity-specific evidence) and reuses the same shared
+  runtime-artifact polling and status model as every other `*_deployment`
+  resource.
+- A machine-readable provider feature support catalog
+  (`internal/features`), queryable via `data.sapintegrationsuite_provider_features`
+  and `data.sapintegrationsuite_provider_feature` with no SAP host or
+  OAuth credentials required — this provider's `Configure` no longer fails
+  just because SAP connectivity is unconfigured; every SAP-backed resource
+  and data source instead reports a clear, specific error when actually
+  used without one. See `docs/feature-support.md`.
 - Provider scope, boundary, architecture, and API discovery documentation.
 
 ### Changed
@@ -50,8 +64,9 @@ Initial development toward v0.1.0. See `ROADMAP.md` for what is planned and
   above); SAP separately documents a `ValueMappingDesigntimeArtifactSaveAsVersion`
   action this provider does not yet use, deferred to v0.2.x pending
   confirmation of its exact contract.
-- Whether `sapintegrationsuite_value_mapping`'s or
-  `sapintegrationsuite_message_mapping`'s Delete removes only the active
+- Whether `sapintegrationsuite_value_mapping`'s,
+  `sapintegrationsuite_message_mapping`'s, or
+  `sapintegrationsuite_script_collection`'s Delete removes only the active
   version or every version of the artifact has not been confirmed against
   a primary source.
 - Individual value mapping entries are not yet manageable through this

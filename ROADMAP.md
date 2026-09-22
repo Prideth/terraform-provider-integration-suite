@@ -25,6 +25,14 @@ favors a small, high-quality resource set over broad but shallow coverage.
   - `sapintegrationsuite_message_mapping`
   - `sapintegrationsuite_message_mapping_deployment`
   - `data.sapintegrationsuite_message_mapping`
+- Script Collections (reusable Groovy/JavaScript bundles, same design-time/runtime split):
+  - `sapintegrationsuite_script_collection`
+  - `sapintegrationsuite_script_collection_deployment`
+  - `data.sapintegrationsuite_script_collection`
+- A machine-readable provider feature support catalog, queryable with no SAP tenant
+  credentials — see `docs/feature-support.md`:
+  - `data.sapintegrationsuite_provider_features`
+  - `data.sapintegrationsuite_provider_feature`
 - Import support and drift detection for every resource above
 - Unit test suite (`httptest`-based) for auth, HTTP retry, OData v2, and domain mapping
 - Acceptance test framework (gated on `TF_ACC=1`)
@@ -36,8 +44,6 @@ favors a small, high-quality resource set over broad but shallow coverage.
 - Value mapping entry-level management (`UpsertValMaps`, `UpdateDefaultValMap`,
   `DeleteValMaps`), once the exact payload/path shapes and delete granularity are confirmed
   against a reachable primary source or a live tenant — see `docs/resource-design.md`
-- Script collections (same design-time/runtime split as integration flows, value mappings,
-  and message mappings)
 - Message mapping entry-level or dependent-resource management, if SAP ever exposes one
   independent of the opaque content archive this provider already transports
 - Classic API Management resources, once the required scopes and object model are fully

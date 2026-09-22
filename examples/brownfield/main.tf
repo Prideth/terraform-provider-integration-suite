@@ -10,6 +10,8 @@
 #   terraform import sapintegrationsuite_value_mapping_deployment.company_codes UTILITIES/company-codes
 #   terraform import sapintegrationsuite_message_mapping.customer UTILITIES/customer-mapping
 #   terraform import sapintegrationsuite_message_mapping_deployment.customer UTILITIES/customer-mapping
+#   terraform import sapintegrationsuite_script_collection.shared UTILITIES/shared-scripts
+#   terraform import sapintegrationsuite_script_collection_deployment.shared UTILITIES/shared-scripts
 #   terraform import sapintegrationsuite_access_policy.utilities <existing-access-policy-id>
 #   terraform import sapintegrationsuite_access_policy_reference.utilities_flows <existing-access-policy-id>/<existing-reference-id>
 
@@ -86,6 +88,22 @@ resource "sapintegrationsuite_message_mapping_deployment" "customer" {
   package_id      = sapintegrationsuite_integration_package.utilities.id
   mapping_id      = sapintegrationsuite_message_mapping.customer.mapping_id
   mapping_version = sapintegrationsuite_message_mapping.customer.version
+}
+
+# content/content_hash are left unset until the first `terraform apply`
+# after import, for the same reason as the other file-based resources
+# above. sapintegrationsuite_script_collection has a confirmed in-place
+# update path, the same as sapintegrationsuite_message_mapping.
+resource "sapintegrationsuite_script_collection" "shared" {
+  package_id           = sapintegrationsuite_integration_package.utilities.id
+  script_collection_id = "shared-scripts"
+  name                 = "Shared Scripts"
+}
+
+resource "sapintegrationsuite_script_collection_deployment" "shared" {
+  package_id                = sapintegrationsuite_integration_package.utilities.id
+  script_collection_id      = sapintegrationsuite_script_collection.shared.script_collection_id
+  script_collection_version = sapintegrationsuite_script_collection.shared.version
 }
 
 resource "sapintegrationsuite_access_policy" "utilities" {

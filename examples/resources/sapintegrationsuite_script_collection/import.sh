@@ -1,0 +1,1 @@
+terraform import sapintegrationsuite_script_collection.shared UTILITIES/shared-scripts
