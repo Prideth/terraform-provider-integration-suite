@@ -3,12 +3,12 @@
 page_title: "sapintegrationsuite_value_mapping Resource - sapintegrationsuite"
 subcategory: ""
 description: |-
-  Manages the design-time content of a Cloud Integration value mapping, uploaded from a local content file (SAP's own design-time export/import format for this artifact type — the same ZIP-style package produced by exporting a value mapping from the Integration Suite UI). Backed by the public Integration Content OData V2 API (ValueMappingDesigntimeArtifacts). A value mapping cannot be saved without at least one mapping entry, so the uploaded content must already contain one. Deploying to a runtime is handled by the separate sapintegrationsuite_value_mapping_deployment resource. Individual mapping entries are not yet independently manageable through this provider — see docs/resource-design.md for why.
+  Manages the design-time content of a Cloud Integration value mapping, uploaded from a local content file (SAP's own design-time export/import format for this artifact type — the same ZIP-style package produced by exporting a value mapping from the Integration Suite UI). Backed by the public Integration Content OData V2 API (ValueMappingDesigntimeArtifacts). A value mapping cannot be saved without at least one mapping entry, so the uploaded content must already contain one. Deploying to a runtime is handled by the separate sapintegrationsuite_value_mapping_deployment resource. Individual mapping entries are not yet independently manageable through this provider — see docs/resource-design.md for why. Changing name, content, or content_hash replaces the value mapping (create a new artifact, then delete the old one) rather than updating it in place, since SAP's Value Mapping API does not have a confirmed in-place update path — see docs/sap-api-references.md.
 ---
 
 # sapintegrationsuite_value_mapping (Resource)
 
-Manages the design-time content of a Cloud Integration value mapping, uploaded from a local content file (SAP's own design-time export/import format for this artifact type — the same ZIP-style package produced by exporting a value mapping from the Integration Suite UI). Backed by the public Integration Content OData V2 API (ValueMappingDesigntimeArtifacts). A value mapping cannot be saved without at least one mapping entry, so the uploaded content must already contain one. Deploying to a runtime is handled by the separate sapintegrationsuite_value_mapping_deployment resource. Individual mapping entries are not yet independently manageable through this provider — see docs/resource-design.md for why.
+Manages the design-time content of a Cloud Integration value mapping, uploaded from a local content file (SAP's own design-time export/import format for this artifact type — the same ZIP-style package produced by exporting a value mapping from the Integration Suite UI). Backed by the public Integration Content OData V2 API (ValueMappingDesigntimeArtifacts). A value mapping cannot be saved without at least one mapping entry, so the uploaded content must already contain one. Deploying to a runtime is handled by the separate sapintegrationsuite_value_mapping_deployment resource. Individual mapping entries are not yet independently manageable through this provider — see docs/resource-design.md for why. Changing name, content, or content_hash replaces the value mapping (create a new artifact, then delete the old one) rather than updating it in place, since SAP's Value Mapping API does not have a confirmed in-place update path — see docs/sap-api-references.md.
 
 ## Example Usage
 
@@ -29,13 +29,13 @@ resource "sapintegrationsuite_value_mapping" "company_codes" {
 ### Required
 
 - `mapping_id` (String) The value mapping's technical ID. Immutable: changing it replaces the value mapping.
-- `name` (String) The value mapping's display name.
+- `name` (String) The value mapping's display name. Changing it replaces the value mapping: SAP's Value Mapping API does not have a confirmed in-place update path (see docs/sap-api-references.md), so this provider creates a new artifact and deletes the old one rather than retaining an unverified update call.
 - `package_id` (String) ID of the integration package this value mapping belongs to.
 
 ### Optional
 
-- `content` (String) Path to the local content file for the value mapping project, for example "${path.module}/value-mappings/company-codes.zip". Required to manage the mapping's content; left as-is on import until a matching configuration is applied, since SAP does not return a local file path for an existing design-time artifact.
-- `content_hash` (String) SHA-256 hash of the content file, for example filesha256("${path.module}/value-mappings/company-codes.zip"). Terraform only re-uploads the file when this hash changes.
+- `content` (String) Path to the local content file for the value mapping project, for example "${path.module}/value-mappings/company-codes.zip". Required to manage the mapping's content; left as-is on import until a matching configuration is applied, since SAP does not return a local file path for an existing design-time artifact. Changing it replaces the value mapping — see the "name" attribute above for why.
+- `content_hash` (String) SHA-256 hash of the content file, for example filesha256("${path.module}/value-mappings/company-codes.zip"). Terraform replaces the value mapping when this hash changes — see the "name" attribute above for why.
 
 ### Read-Only
 

@@ -47,7 +47,14 @@ resource "sapintegrationsuite_integration_flow_deployment" "metering" {
 }
 
 # content/content_hash are left unset until the first `terraform apply`
-# after import, for the same reason as the integration flow above.
+# after import, for the same reason as the integration flow above. Unlike
+# the integration flow above, though, sapintegrationsuite_value_mapping has
+# no confirmed in-place update path (see docs/sap-api-references.md): once
+# you do supply content/content_hash here to bring the mapping's content
+# under management, that first apply replaces the artifact (creates a new
+# one, deletes the old one) rather than updating it in place. Every
+# subsequent apply with an unchanged hash is a no-op, same as any other
+# resource here.
 resource "sapintegrationsuite_value_mapping" "company_codes" {
   package_id = sapintegrationsuite_integration_package.utilities.id
   mapping_id = "company-codes"

@@ -43,27 +43,48 @@ API. This document is that trace.
 - **SAP product area**: Integration Suite / Cloud Integration
 - **Official API**: Integration Content API
 - **Entity sets / actions**: `ValueMappingDesigntimeArtifacts`,
-  `ValueMappingDesigntimeArtifactSaveAsVersion` (action, not currently used — see the open
-  question below), `IntegrationRuntimeArtifacts` (the same shared runtime-artifacts entity
+  `ValueMappingDesigntimeArtifactSaveAsVersion` (action, not currently used — see Update below),
+  `IntegrationRuntimeArtifacts` (the same shared runtime-artifacts entity
   `sapintegrationsuite_integration_flow_deployment` uses — confirmed via SAP's own "Runtime
   Status API" description as covering "currently deployed integration artifacts" generally,
-  not one entity per design-time artifact type), `DeployValueMappingDesigntimeArtifact` (action)
+  not one entity per design-time artifact type), `DeployValueMappingDesigntimeArtifact` (action;
+  singular form re-checked this phase — see `docs/resource-design.md`)
 - **Protocol**: OData V2
-- **Operations**: GET, POST (create), PUT (this provider's Update implementation — see the open
-  question below), DELETE, plus the `Deploy` action (POST)
+- **Operations**: GET, POST (create), DELETE, plus the `Deploy` action (POST). No PUT/Update —
+  see below.
 - **Required roles**: `WorkspacePackagesConfigure`, `WorkspacePackagesEdit`,
   `WorkspaceArtifactsDeploy`
 - **Confirmed constraint**: a value mapping cannot be created with zero entries — at least one
   mapping entry must be part of the artifact's content at creation time.
-- **Open question — Update semantics**: SAP documents a distinct
-  `ValueMappingDesigntimeArtifactSaveAsVersion` action (POST, taking the artifact's technical
-  ID and a caller-supplied new version identifier) alongside plain `POST`/`PUT`. Whether normal
-  content updates should go through `PUT` (as implemented, by analogy with
-  `IntegrationDesigntimeArtifacts`) or through this action instead has not been confirmed:
-  `help.sap.com`, `api.sap.com`, `community.sap.com`, and `blogs.sap.com` were all unreachable
-  from this development environment, and no other reachable source gave the exact
-  request/response shape needed to decide with confidence. Verify against a live tenant before
-  relying on `Update` in production; see `docs/resource-design.md` for the full reasoning.
+- **Update — resolved conservatively, no in-place update implemented**: SAP documents a distinct
+  `ValueMappingDesigntimeArtifactSaveAsVersion` action (POST, taking the artifact's technical ID
+  and a caller-supplied new version identifier). An earlier version of this provider called
+  `PUT` against the keyed entity instead, by analogy with `IntegrationDesigntimeArtifacts`.
+  Re-investigating this contract, `help.sap.com`, `api.sap.com`, `community.sap.com`,
+  `blogs.sap.com`, and every reachable mirror/proxy for them were blocked by this environment's
+  network egress policy, so the exact `PUT` vs. `SaveAsVersion` semantics could not be confirmed
+  against primary documentation or an actual request/response trace. Reachable secondary
+  evidence — a dedicated SAP Knowledge Base Article (3502529) treating "changing the version of
+  a ValueMapping" as its own distinct, separately gated operation, and an independent
+  third-party OData client that explicitly disables generic update for
+  `ValueMappingDesigntimeArtifacts` while leaving it enabled for the sibling
+  `IntegrationDesigntimeArtifacts`/`MessageMappingDesigntimeArtifacts`/`ScriptCollectionDesigntimeArtifacts`
+  entity sets — points away from a working generic `PUT` for this entity set specifically.
+  Given that, `sapintegrationsuite_value_mapping` does not retain the `PUT` call: `name`,
+  `content`, and `content_hash` are all `RequiresReplace`, so any change to them replaces the
+  resource (`Create` a new artifact, `Delete` the old one) instead of relying on an unverified
+  update path. `UpdateValueMapping` no longer exists in
+  `internal/client/cloudintegration/value_mapping.go`. Implementing true in-place update via
+  `ValueMappingDesigntimeArtifactSaveAsVersion` is deferred to v0.2.x, once its request/response
+  contract can be confirmed against a live tenant or a reachable primary source; see
+  `docs/resource-design.md` for the full reasoning.
+- **Delete semantics — unverified scope**: `DeleteValueMapping` deletes via the same
+  `(Id, Version='active')` key used for reads. Whether this removes only the active version or
+  every version of the artifact was not confirmed against a primary source (same network
+  restrictions as above). This provider never creates more than one version of a value mapping
+  concurrently, so it does not change this resource's observable behavior, but it means
+  `terraform destroy` is not guaranteed to remove every version SAP stored — flagged here rather
+  than asserted as "deletes all versions".
 - **Deferred — entry-level operations**: `UpsertValMaps` (POST, insert/update individual
   mapping rows — confirmed to 404 if the target source/target agency-identifier scheme does not
   already exist), `UpdateDefaultValMap` (POST, sets a scheme's default value via a `ValMapId`

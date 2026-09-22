@@ -171,10 +171,19 @@ OData actions with its own preconditions).
 | `ValueMappingDesigntimeArtifacts(Id=…,Version=…)` | DELETE | Delete the artifact |
 | `DeployValueMappingDesigntimeArtifact?Id='…'&Version='…'` | POST | Deploy a specific version to the runtime |
 | `IntegrationRuntimeArtifacts(Id=…)` | GET / DELETE | Read deployment status / undeploy — the **same shared runtime-artifacts entity** already used by `sapintegrationsuite_integration_flow_deployment`, not a distinct "ValueMappingRuntimeArtifacts" entity |
-| `UpsertValMaps` | POST | Insert/update individual mapping-entry rows inside an *existing* scheme |
-| `UpdateDefaultValMap` | POST | Set the default value for a scheme, identified by a `ValMapId` GUID looked up separately |
+| `UpsertValMaps` | POST | Insert/update individual mapping-entry rows inside an *existing* scheme. Reachable secondary sources describe it as query-parameter-only (no request body — sending one reportedly causes a 400), returning 202 with no response body on success. |
+| `UpdateDefaultValMap` | POST | Set the default value for a scheme, identified by a `ValMapId` GUID. That GUID is not returned by `UpsertValMaps`'s response (which per the above has no body); the same secondary sources describe retrieving it via a separate `ValueMappingDesigntimeArtifacts` read after the upsert, not from the upsert call itself. |
 | `DeleteValMaps` | — | Delete mapping-entry rows (exact granularity unconfirmed) |
 | Required roles | — | `WorkspacePackagesConfigure`, `WorkspacePackagesEdit`, `WorkspaceArtifactsDeploy` |
+
+The deploy action's exact name (singular `...Artifact`, not plural `...Artifacts`) was re-checked
+this phase after a report that current SAP documentation might use the plural form. Every
+reachable secondary source (independent search results summarizing SAP community/blog content)
+consistently gives the singular form used above, matching the sibling actions
+`DeployIntegrationDesigntimeArtifact` and `DeployMessageMappingDesigntimeArtifact`; no source
+found gave the plural form. `help.sap.com`/`api.sap.com`, which would settle this conclusively,
+were not reachable from this environment to fetch and read directly (see the Update entry below
+for the full list of what was tried and blocked).
 
 **A real, confirmed constraint shapes the whole design**: a value mapping artifact cannot be
 saved with zero entries — SAP requires at least one mapping entry to exist before the object
@@ -198,29 +207,78 @@ artifact's design-time content, not a fully independent object graph creatable p
 - **Create**: `POST ValueMappingDesigntimeArtifacts` with `Id`, `Name`, `PackageId`, and
   base64-encoded `ArtifactContent`.
 - **Read**: `GET ValueMappingDesigntimeArtifacts(Id='{mapping_id}',Version='active')`.
-- **Update — open question**: implemented via `PUT` against the keyed `(Id, Version)` entity,
-  reusing the exact mechanism already implemented and tested for
-  `sapintegrationsuite_integration_flow`, since both entity sets belong to the same API family
-  with (as far as could be confirmed) parallel conventions. **This is a documented
-  assumption, not a confirmed fact**: SAP separately documents an explicit
-  `ValueMappingDesigntimeArtifactSaveAsVersion` action that takes an caller-supplied new
-  version identifier, which may be the API's actual intended update path instead of (or in
-  addition to) `PUT`. Because `help.sap.com`, `api.sap.com`, `community.sap.com`, and
-  `blogs.sap.com` were all unreachable from this development environment (network egress
-  policy), this could not be resolved against primary documentation or by tracing an actual
-  request/response pair. If `PUT` turns out not to be accepted, only
-  `internal/client/cloudintegration/value_mapping.go`'s `UpdateValueMapping` needs to change —
-  no Terraform schema is affected either way. Tracked as a required follow-up before this
-  resource is considered production-hardened; see `docs/sap-api-references.md`.
+- **Update — resolved conservatively, not implemented via PUT**: an earlier version of this
+  resource called `PUT` against the keyed `(Id, Version)` entity, by analogy with
+  `sapintegrationsuite_integration_flow`. That assumption was re-investigated this phase and
+  deliberately not kept:
+  - `help.sap.com`, `api.sap.com`, `community.sap.com`, `blogs.sap.com`, and every reachable
+    mirror/proxy for them (web.archive.org, a Google Translate proxy, a text-extraction proxy)
+    were all blocked by this environment's network egress policy, so the exact
+    `ValueMappingDesigntimeArtifactSaveAsVersion` request/response shape and any authoritative
+    statement about what plain `PUT` does for this entity set could not be fetched and read
+    directly.
+  - What could be gathered from reachable secondary sources (search-engine summaries of SAP
+    community/blog posts, plus a public SAP Knowledge Base Article, 3502529, titled "HTTP/403
+    Forbidden response while trying to change Version of the ValueMapping") consistently treats
+    changing a value mapping's version as a distinct, separately named, separately gated
+    operation (`ValueMappingDesigntimeArtifactSaveAsVersion`, taking a caller-supplied new
+    version identifier) — not something that happens implicitly as a side effect of a generic
+    `PUT`, the way it does for `IntegrationDesigntimeArtifacts`.
+  - An independent third-party OData client built directly against this same API
+    (`github.com/lemaiwo/ci-mcp-server`) explicitly disables its generic "update" operation for
+    `ValueMappingDesigntimeArtifacts` specifically, while leaving the identical operation enabled
+    for `IntegrationDesigntimeArtifacts`, `MessageMappingDesigntimeArtifacts`, and
+    `ScriptCollectionDesigntimeArtifacts` — the same family of design-time artifact entity sets.
+    That is a deliberate, specific difference, not a gap in that project's coverage.
+
+  None of this is primary-source confirmation, but taken together it points the same direction:
+  retaining the `PUT` call would have been shipping a guess this project's own standing rule
+  says not to ship, especially given the explicit instruction not to keep an unverified `PUT`
+  just because it resembles the Integration Flow API. **Resolution (Option A from the phase's
+  conservative-fallback list): `sapintegrationsuite_value_mapping` no longer has an in-place
+  Update.** `name`, `content`, and `content_hash` are now all `RequiresReplace`; changing any of
+  them makes Terraform create a new value mapping artifact and delete the old one, which only
+  relies on `Create` and `Delete` — both independently confirmed, unlike the update path.
+  `internal/client/cloudintegration/value_mapping.go` no longer has an `UpdateValueMapping`
+  function at all; see the comment there for the full reasoning. Implementing true in-place
+  update via `ValueMappingDesigntimeArtifactSaveAsVersion` is deferred to v0.2.x, once its exact
+  contract can be confirmed against a live tenant or a reachable primary source — see
+  `docs/sap-api-references.md`.
 - **Delete**: `DELETE ValueMappingDesigntimeArtifacts(Id='{mapping_id}',Version='active')`.
 - **Version**: Computed only, exactly like `sapintegrationsuite_integration_flow` — SAP
   assigns it, Terraform never asks the user to manage a version string, which is also what
   keeps a `terraform apply` with unchanged content from producing a new version.
 - **Import**: `terraform import sapintegrationsuite_value_mapping.example UTILITIES/company-codes`.
+- **`content_hash` stays explicit, not provider-computed**: re-evaluated this phase, since
+  requiring the user to write both `content` and `content_hash` (typically
+  `content_hash = filesha256(content)`) could look like redundant manual bookkeeping the
+  provider could do itself. Keeping it explicit was kept as the better design:
+  - `filesha256()` is a Terraform built-in function evaluated as part of the configuration
+    graph, not something the user maintains by hand — in practice this is the same
+    `source_hash`/`etag`-style pattern used by file-backed resources across the Terraform
+    ecosystem (for example `aws_s3_object`'s `source_hash`), not something unusual to this
+    provider.
+  - Making `content_hash` fully provider-computed would mean reading the local file from
+    inside a custom plan modifier during `terraform plan`, purely to detect drift before any
+    API call happens. That is technically possible with the Terraform Plugin Framework, but it
+    reads a local file as a side effect of planning outside the declarative config-graph value
+    the plan is otherwise built from — a bigger change to this provider's planning model than
+    this phase's scope (resolving the Value Mapping API contract) justifies.
+  - `sapintegrationsuite_integration_flow` already ships the identical explicit
+    `content`/`content_hash` pattern; changing it only for `sapintegrationsuite_value_mapping`
+    would make the two file-based resources behave inconsistently for no API-contract reason.
+    Any change here belongs in its own cross-cutting pass covering both resources, not folded
+    into a Value Mapping-focused phase.
+  - Conclusion: `content_hash` remains an explicit, user-supplied attribute for both resources.
 - **Drift detection**: `Read` re-fetches metadata on every refresh, exactly like
   `sapintegrationsuite_integration_flow`; the same import limitation applies to `content` (see
   that resource's entry above) since SAP does not return a local file path for existing
-  content.
+  content. Right after import, with `content`/`content_hash` left unset in configuration,
+  `terraform plan` shows no changes — `UseStateForUnknown` keeps the planned value equal to the
+  (null) imported state, so `RequiresReplace` sees no diff and does not fire. The first apply
+  that *does* supply `content`/`content_hash` to bring an imported artifact's content under
+  management is expected to replace the resource (see the Update entry above), not update it in
+  place — this is called out explicitly in `examples/brownfield/main.tf`.
 
 ## `sapintegrationsuite_value_mapping_deployment`
 
@@ -235,6 +293,21 @@ artifact's design-time content, not a fully independent object graph creatable p
   design-time version changes and, once `Read` writes the actually-deployed version back into
   it, surfaces drift from an out-of-band redeploy or undeploy. Uses the same context-aware
   polling with exponential backoff and jitter, never a fixed sleep.
+- **Shared runtime abstraction, re-reviewed this phase**: `internal/client/cloudintegration/runtime_artifact.go`
+  and `internal/provider/runtime_deployment.go` are shared, unmodified, between
+  `sapintegrationsuite_integration_flow_deployment` and this resource. Re-checked specifically
+  for whether that sharing forces genuinely different artifact types through one abstraction —
+  it does not: SAP's own documentation of the "Runtime Status API" describes
+  `IntegrationRuntimeArtifacts` and the deploy/undeploy/status model as covering "currently
+  deployed integration artifacts" generically, not per design-time artifact type, and the same
+  third-party OData client referenced under Update above (`ci-mcp-server`) independently models
+  `IntegrationRuntimeArtifacts` as a single generic entity set, not one per artifact type.
+  Deliberately, the sharing stops at runtime status/undeploy: `DeployValueMappingDesigntimeArtifact`
+  is its own action (distinct from `DeployIntegrationDesigntimeArtifact`, just following the
+  same naming and query-parameter convention), and nothing about design-time Update/versioning
+  is shared — value mapping and integration flow diverge there (see Update above), and the code
+  does not pretend otherwise. "Shared polling is good only where semantics are genuinely
+  shared" continues to hold for this abstraction.
 - **Import**: `terraform import sapintegrationsuite_value_mapping_deployment.example UTILITIES/company-codes`.
 
 ## Deliberately not implemented this phase: entry-level management

@@ -24,11 +24,25 @@ Initial development toward v0.1.0. See `ROADMAP.md` for what is planned and
   flow deployments.
 - Provider scope, boundary, architecture, and API discovery documentation.
 
+### Changed
+
+- `sapintegrationsuite_value_mapping` no longer implements Update via
+  `PUT`. Re-verifying the Value Mapping API contract found no confirmed
+  in-place update path for this entity set (unlike
+  `sapintegrationsuite_integration_flow`'s equivalent, which is confirmed);
+  `name`, `content`, and `content_hash` are now `RequiresReplace`, so
+  changing any of them replaces the resource instead of relying on an
+  unverified `PUT`. See `docs/sap-api-references.md` for the full
+  reasoning and `docs/resource-design.md` for what was checked.
+
 ### Known limitations
 
-- `sapintegrationsuite_value_mapping`'s content update uses `PUT`, by
-  analogy with `sapintegrationsuite_integration_flow`; SAP separately
-  documents a `ValueMappingDesigntimeArtifactSaveAsVersion` action whose
-  relationship to `PUT` has not been confirmed against a live tenant.
+- `sapintegrationsuite_value_mapping` has no in-place update (see Changed
+  above); SAP separately documents a `ValueMappingDesigntimeArtifactSaveAsVersion`
+  action this provider does not yet use, deferred to v0.2.x pending
+  confirmation of its exact contract.
+- Whether `sapintegrationsuite_value_mapping`'s Delete removes only the
+  active version or every version of the artifact has not been confirmed
+  against a primary source.
 - Individual value mapping entries are not yet manageable through this
   provider — see `docs/resource-design.md`.

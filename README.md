@@ -189,11 +189,13 @@ See [`ROADMAP.md`](ROADMAP.md).
   SAP does not return a local file path for an existing design-time
   artifact; apply a matching configuration after import to bring content
   under management.
-- `sapintegrationsuite_value_mapping`'s `Update` uses the same `PUT`
-  convention already proven for `sapintegrationsuite_integration_flow`, but
-  SAP separately documents a distinct `ValueMappingDesigntimeArtifactSaveAsVersion`
-  action this provider does not yet use; this needs verification against a
-  live tenant. See `docs/sap-api-references.md`.
+- `sapintegrationsuite_value_mapping` has no in-place update: changing
+  `name`, `content`, or `content_hash` replaces the resource (creates a new
+  artifact, then deletes the old one) rather than calling an unverified
+  `PUT`. SAP separately documents a distinct
+  `ValueMappingDesigntimeArtifactSaveAsVersion` action this provider does
+  not yet use; implementing true in-place update through it is deferred to
+  v0.2.x. See `docs/sap-api-references.md`.
 - Individual value mapping entries (`UpsertValMaps`, `UpdateDefaultValMap`,
   `DeleteValMaps`) are not yet manageable through this provider — only the
   design-time artifact as a whole. See `docs/resource-design.md` for why.
