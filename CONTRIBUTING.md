@@ -47,6 +47,26 @@ make docs   # regenerate docs/ after any schema or description change
 7. If the change is acceptance-testable, add an acceptance test gated on
    `TF_ACC=1`, using `tf-acc-` prefixed names for any object created in a
    real tenant.
+8. **Update the feature support catalog.** This is mandatory, not optional
+   — no feature implementation is complete until this step is done:
+   1. Add or update the feature's entry in `internal/features/catalog.go`
+      (`support_status`, `support_reason`, `resource_types`,
+      `data_source_types`, and every `Operations` flag).
+   2. Only set an `Operations` flag to `true`, or move `support_status`
+      toward `supported`, once the corresponding operation is actually
+      implemented and covered by a test proving the claimed SAP API
+      behavior — an `Update` method existing in Go is not by itself
+      evidence that `operations.update` should be `true`; a resource
+      whose `Update` exists to satisfy the Terraform Plugin Framework
+      interface but never gets called for a real diff (`RequiresReplace`
+      on everything mutable) is not `operations.update = true` either.
+   3. Regenerate `docs/feature-support.md` with `go run ./cmd/gendocs > docs/feature-support.md`
+      (also done by `make docs`).
+   4. Run the catalog consistency tests
+      (`go test ./internal/features/... ./internal/provider/... -run 'TestCatalog|TestFeatureCatalog'`)
+      — they fail if a registered resource/data source has no catalog
+      entry, or if a catalog entry claims a resource/data source type that
+      does not exist.
 
 ## Commit and PR expectations
 
