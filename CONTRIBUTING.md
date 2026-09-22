@@ -17,6 +17,50 @@ Integration Suite.
    suitability checklist in `docs/resource-design.md` (desired state,
    identity, read-back, create, update, delete, drift, import).
 
+## Branch model
+
+This repository uses a permanent two-branch model:
+
+```
+master
+  ^
+ dev
+  ^
+feature/<name>
+```
+
+- **`master`** is the stable/release branch, and remains the GitHub default
+  branch. It only moves forward as an explicit release/stabilization step
+  — never automatically after a feature merges.
+- **`dev`** is the permanent integration branch. All feature work lands
+  here first. `dev` is not the GitHub default branch.
+- **`feature/<name>`** branches are always created from `dev`, and always
+  merge back into `dev`, never directly into `master`. Name them after the
+  feature (for example `feature/access-policy-completion`), never with a
+  tooling/vendor/author prefix such as `claude/`, `ai/`, `bot/`, or
+  `anthropic/`.
+
+Workflow for a feature:
+
+```shell
+git switch dev
+git pull --ff-only origin dev
+git switch -c feature/<name>
+# ... do the work, commit ...
+git switch dev
+git pull --ff-only origin dev
+git merge --ff-only feature/<name>
+git push origin dev
+```
+
+Prefer `--ff-only` while development is a single sequential stream. If a
+fast-forward merge fails, stop and inspect why rather than forcing a merge
+commit, rebasing, or force-pushing a published branch.
+
+Promoting `dev` to `master` is a separate, deliberate release step,
+performed only when explicitly requested — never automatically after a
+feature merges into `dev`.
+
 ## Development setup
 
 Requirements: Go (version pinned in `go.mod`), Terraform CLI (for
@@ -70,8 +114,10 @@ make docs   # regenerate docs/ after any schema or description change
 
 ## Commit and PR expectations
 
+- Pull requests target `dev`, not `master` — see the branch model above.
 - Run `go build ./...`, `go vet ./...`, `go test ./...`, `gofmt -l .`, and
-  `golangci-lint run ./...` before opening a PR; CI enforces all of these.
+  `golangci-lint run ./...` before opening a PR; CI enforces all of these
+  on pull requests and on pushes to both `dev` and `master`.
 - Keep commits logically scoped; a single PR can contain multiple commits.
 - Fill in the PR template, including the SAP API reference for any new
   capability.
