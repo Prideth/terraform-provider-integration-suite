@@ -19,10 +19,9 @@ has landed.
 **Repository naming**: the GitHub repository, Go module, provider binary
 name, and registry manifest all use the final naming
 (`github.com/Prideth/terraform-provider-sap-integration-suite`,
-`Prideth/sap-integration-suite`, `sapintegrationsuite`). One administrative
-step remains: the repository's default branch is still `master`; `main` is
-already fully up to date and should be switched to default (Settings →
-Branches → default branch), after which `master` can be retired.
+`Prideth/sap-integration-suite`, `sapintegrationsuite`). `master` is this
+repository's permanent stable/default branch; feature work happens on
+short-lived branches off `master` (for example `provider-hardening`).
 
 ## Provider scope
 
