@@ -248,6 +248,79 @@ var Catalog = []Feature{
 		Operations: Operations{Read: true},
 	},
 	{
+		Key:    "cloud_integration.integration_adapter",
+		Domain: "cloud_integration",
+		Name:   "Integration Adapter",
+		Description: "A custom Integration Adapter design-time artifact (a *.esa archive built with " +
+			"the SAP Adapter SDK), imported into a Cloud Integration package. Cloud Foundry " +
+			"environment only.",
+		SupportStatus:   StatusPartial,
+		SupportReason:   ReasonPublicAPIIncomplete,
+		ResourceTypes:   []string{"sapintegrationsuite_integration_adapter"},
+		DataSourceTypes: []string{"sapintegrationsuite_integration_adapter"},
+		PublicAPI:       true,
+		APIProtocol:     "OData V2",
+		Planned:         true,
+		Limitations: []string{
+			"This provider's evidence base for this entity is thinner than for the sibling " +
+				"design-time artifact types it manages: SAP's own \"Integration Adapter Example " +
+				"Requests, Cloud Foundry Environment\" documentation shows only Delete (confirming " +
+				"the entity is keyed by Id alone, not the composite (Id, Version) key every other " +
+				"design-time artifact type in this API uses) and the Deploy action — no Create or " +
+				"Read example was found. Create is implemented by strong analogy to every sibling " +
+				"artifact type's confirmed PackageId/ArtifactContent POST body shape, corroborated " +
+				"by a third-party technical source, not by an SAP-published example request for " +
+				"this specific entity. See docs/guides/integration-adapters.md.",
+			"No in-place update: SAP documents that importing an ID that already exists on the " +
+				"tenant is rejected as an error, which is positive evidence against a working " +
+				"reimport-to-update flow, so every attribute is RequiresReplace rather than an " +
+				"unverified PUT/PATCH.",
+			"type and application are not validated against a fixed set of values: SAP's " +
+				"documentation confirms both exist as UI dropdowns with example values (Analytics, " +
+				"CRM, ERP, ... for type; Slack, ... for application) but does not confirm whether " +
+				"the underlying property is a closed enum or free-form text.",
+			"Distinct from SAP Business Accelerator Hub prebundled adapters (a different import/" +
+				"auto-deploy lifecycle reached from inside the integration flow editor) and from " +
+				"Integration Suite capability activation — see docs/guides/integration-adapters.md " +
+				"for why these are not the same feature.",
+			"There is no sapintegrationsuite_integration_adapters collection data source: no " +
+				"confirmed list/filter contract for this entity set was found, unlike " +
+				"ServiceEndpoints' documented Name/Protocol filters.",
+		},
+		Operations: Operations{Create: true, Read: true, Delete: true, Import: true},
+	},
+	{
+		Key:    "cloud_integration.integration_adapter_deployment",
+		Domain: "cloud_integration",
+		Name:   "Integration Adapter Deployment",
+		Description: "The runtime deployment state of a custom Integration Adapter, independent of " +
+			"its design-time content lifecycle.",
+		SupportStatus:   StatusPartial,
+		SupportReason:   ReasonPublicAPIIncomplete,
+		ResourceTypes:   []string{"sapintegrationsuite_integration_adapter_deployment"},
+		DataSourceTypes: []string{},
+		PublicAPI:       true,
+		APIProtocol:     "OData V2",
+		Planned:         true,
+		Limitations: []string{
+			"Deploy is confirmed directly from SAP's own example request: POST " +
+				"DeployIntegrationAdapterDesigntimeArtifact?Id='...', singular \"Artifact\" (matching " +
+				"every sibling deploy action in this API), with no Version query parameter (unlike " +
+				"every sibling deploy action, consistent with Id being this entity's only confirmed " +
+				"key).",
+			"Runtime status polling and undeploy reuse the same shared IntegrationRuntimeArtifacts " +
+				"entity every other *_deployment resource in this provider polls/undeploys through, " +
+				"by analogy — this project could not independently confirm that a deployed custom " +
+				"adapter surfaces through that same shared entity as opposed to an adapter-specific " +
+				"status/undeploy mechanism (for example BuildAndDeployStatus). See " +
+				"docs/guides/integration-adapters.md.",
+			"Whether a fresh deployment's runtime status becomes visible immediately or after a " +
+				"build/deploy delay specific to adapters (as opposed to ordinary content deployment) " +
+				"was not confirmed.",
+		},
+		Operations: Operations{Create: true, Read: true, Delete: true, Deploy: true, Undeploy: true},
+	},
+	{
 		Key:           "cloud_integration.message_processing_logs",
 		Domain:        "cloud_integration",
 		Name:          "Message Processing Logs",

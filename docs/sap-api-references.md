@@ -197,6 +197,94 @@ API. This document is that trace.
   modify integration flow content to manage a reference to a script collection, the same
   ownership boundary already established for message mapping.
 
+## `sapintegrationsuite_integration_adapter` / `..._deployment`
+
+- **SAP product area**: Integration Suite / Cloud Integration — custom Integration Adapters
+  built with the SAP Adapter SDK. **Cloud Foundry environment only**; every SAP source covering
+  this feature repeats "This information is relevant only when you use SAP Cloud Integration in
+  the Cloud Foundry environment."
+- **Official API**: Integration Content API. The general "Integration Content" resource table
+  (read via the `SAP-docs/btp-integration-suite` GitHub mirror) lists it as: "Integration
+  Adapter: Represents an integration adapter (only available in the Cloud Foundry environment).
+  You can use resource `IntegrationAdapterDesigntimeArtifacts` to import, deploy, or delete an
+  integration adapter."
+- **Entity set**: `IntegrationAdapterDesigntimeArtifacts`
+- **Protocol**: OData V2
+- **Evidence tier — weaker than the sibling design-time artifact types above**: SAP's own
+  "Integration Adapter Example Requests, Cloud Foundry Environment" page — the direct
+  counterpart to the complete example-request pages that back Integration Flow, Value Mapping,
+  Message Mapping, and Script Collection above — shows only two operations. Everything else
+  below is explicitly marked by its evidence tier.
+- **Confirmed — Delete**: `DELETE /api/v1/IntegrationAdapterDesigntimeArtifacts(Id='SubsystemSymbolicName1')`.
+  This is the only confirmed evidence for the entity's key shape: `Id` alone, not the composite
+  `(Id, Version)` key every sibling design-time artifact entity set in this API uses.
+- **Confirmed — Deploy**: `POST /api/v1/DeployIntegrationAdapterDesigntimeArtifact?Id='SubsystemSymbolicName1'`.
+  Two details worth flagging explicitly since they're easy to get wrong by analogy:
+  - Singular action name ("...Artifact"), matching every sibling deploy action in this API —
+    confirmed directly, not assumed.
+  - No `Version` query parameter, unlike every sibling deploy action (which all take both `Id`
+    and `Version`). Consistent with the Id-only key finding above.
+- **Not confirmed by an adapter-specific example — Create**: implemented as `POST
+  IntegrationAdapterDesigntimeArtifacts` with a JSON body of `PackageId`, `Id`, `Name`, `Type`,
+  `Application`, and base64 `ArtifactContent`, matching every sibling design-time artifact
+  type's confirmed Create shape in this exact API and corroborated by a third-party technical
+  walkthrough describing this exact request for this exact entity — but not by an SAP-published
+  example request the way Create is confirmed for every sibling type.
+- **Confirmed (UI documentation) — identity and duplicate handling**: "The integration adapter
+  ID needs to be unique across the tenant" (not merely the package) and "If there's already an
+  integration adapter with the same ID, the system throws an error." The latter is treated as
+  positive evidence against a working reimport-to-update flow — see Update below.
+- **Not confirmed — Read**: `GET IntegrationAdapterDesigntimeArtifacts(Id='...')`, the ordinary
+  OData GET-by-key convention every entity set in this API follows, not confirmed by an
+  adapter-specific example.
+- **Not confirmed, and deliberately not implemented — Update**: no PUT/PATCH/reimport example
+  was found anywhere for this entity. Combined with the confirmed duplicate-ID-is-an-error
+  behavior, this provider implements no update path at all: every attribute on
+  `sapintegrationsuite_integration_adapter` is `RequiresReplace`.
+- **`Type`/`Application` — confirmed as UI concepts, not confirmed as an enum or free text**:
+  SAP's UI documentation states `Type` "is used to categorize the adapters based on line of
+  business" (documented examples: Analytics, CRM, ERP, Finance, HCM, Marketing) and
+  `Application` "refers to the software/application for which the adapter provides ...
+  connectivity" (documented example: Slack), but never states whether either is a closed API
+  enum. No validator is applied to either attribute.
+- **Not confirmed — deployment runtime status / undeploy**: `sapintegrationsuite_integration_adapter_deployment`
+  reuses the same shared `IntegrationRuntimeArtifacts` polling/undeploy (`GetRuntimeArtifact`/
+  `UndeployRuntimeArtifact`, already used by every other `*_deployment` resource in this
+  provider) by analogy. SAP's documentation for the shared `IntegrationRuntimeArtifacts` deploy
+  mechanism explicitly states "You can only deploy BUNDLE type integration artifacts
+  (integration flows, value mappings, or OData services)" — confirming adapters are *excluded*
+  from that generic deploy path (which is exactly why they have their own dedicated deploy
+  action) but not confirming or ruling out whether a custom adapter, once deployed through its
+  own action, becomes readable/undeployable through that same shared entity. A dedicated
+  `BuildAndDeployStatus`-based mechanism remains a plausible alternative this project could not
+  rule out. See `docs/guides/integration-adapters.md`.
+- **Distinct lifecycles — confirmed as separate concepts, addressed explicitly to prevent
+  conflation**: "Import Integration Adapters" (a different SAP Help Portal page) describes
+  importing a *prebundled SAP Business Accelerator Hub* adapter from inside the integration flow
+  editor — an entirely different, UI-triggered, auto-deploying flow with no separate OData
+  identity, not the custom-`.esa`-upload feature this provider manages. `docs/guides/integration-adapters.md`
+  documents this distinction prominently, per this project's standing policy of never silently
+  conflating two different SAP lifecycles that happen to share a name.
+- **File size limit**: no SAP-documented maximum `.esa` upload size was found. This provider
+  enforces only its own generic protective bound (32 MiB, the same bound already used for script
+  collections and value mappings), not an SAP-documented limit.
+- **Required roles**: SAP's "Importing Custom Integration Adapter, Cloud Foundry Environment"
+  page names `WorkspacePackagesEdit` and `WorkspaceArtifactsDeploy` as the role templates
+  required for the various adapter tasks.
+- **CSRF audit performed for this feature, no changes needed**: this feature's Create (`POST`),
+  Delete (`DELETE`), and Deploy (`POST`) client methods go through the exact same shared
+  transport chain (`internal/client/cloudintegration.Client` → `internal/client/odata/v2.Client`
+  → `internal/client/http.Client.Do`) as every other resource in this provider — the CSRF layer
+  (`internal/client/http/csrf.go`) dispatches purely on HTTP method
+  (`POST`/`PUT`/`PATCH`/`DELETE`), so it applies automatically with zero adapter-specific code.
+  No new or adapter-specific CSRF handling was written or was needed; the full test suite
+  (`internal/client/auth`, `internal/client/cloudintegration`, `internal/client/http`,
+  `internal/client/odata/v2`, `internal/client/partnerdirectory`,
+  `internal/client/securitycontent`, `internal/features`, `internal/provider`) was run after
+  adding this feature specifically to confirm no regression to Integration Packages, Integration
+  Flows, Value Mappings, Message Mappings, Script Collections, Access Policies, Partner
+  Directory, or Security Content.
+
 ## `data.sapintegrationsuite_service_endpoints`
 
 - **SAP product area**: Integration Suite / Cloud Integration — runtime discovery of deployed

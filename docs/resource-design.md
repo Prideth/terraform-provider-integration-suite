@@ -664,6 +664,113 @@ the other file-based resources.
   `data.sapintegrationsuite_message_mapping` exactly.
 - **SAP object**: `GET ScriptCollectionDesigntimeArtifacts(Id='{script_collection_id}',Version='active')`.
 
+## `sapintegrationsuite_integration_adapter`
+
+- **Purpose**: manage the design-time content of a custom Integration Adapter (a `*.esa`
+  archive built with the SAP Adapter SDK), uploaded from a local content file. Cloud Foundry
+  environment only.
+- **SAP object**: `IntegrationAdapterDesigntimeArtifacts` (Integration Content API, OData V2).
+  See `docs/sap-api-references.md` for the full evidence-tier breakdown — this entity has
+  materially thinner public documentation than the other design-time artifact types above.
+- **Desired state**: yes, in the same shape as the other file-backed design-time resources —
+  content is opaque binary content plus a hash, not scalar fields.
+- **Identity**: `id`, SAP's confirmed sole key for this entity (unlike every sibling design-time
+  artifact type, which all use a composite `(Id, Version)` key). SAP documents this ID as unique
+  across the entire tenant, not merely the containing package.
+- **Read-back**: `GET IntegrationAdapterDesigntimeArtifacts(Id='{id}')` (not confirmed by an
+  adapter-specific example, but the standard convention every entity set in this API follows).
+  `package_id` is deliberately populated from the caller's own state/plan value rather than
+  trusted from the GET response, the same defensive choice already made for
+  `sapintegrationsuite_script_collection`'s `PackageId` handling, since this project could not
+  confirm GET reliably returns it.
+- **Create**: `POST IntegrationAdapterDesigntimeArtifacts` with
+  `PackageId`/`Id`/`Name`/`Type`/`Application`/`ArtifactContent` (base64) — corroborated by
+  analogy to every sibling design-time artifact type's confirmed Create shape and a third-party
+  technical source, not by an SAP-published example for this specific entity.
+- **Update — deliberately absent**: SAP documents that importing a duplicate `Id` is rejected as
+  an error, which is positive evidence against a working reimport-to-update flow. No
+  PUT/PATCH/reimport example was found for this entity anywhere. Every attribute —
+  `id`, `package_id`, `name`, `type`, `application`, `content`, `content_hash` — is
+  `RequiresReplace`. This is a stricter model than every sibling design-time artifact type
+  (which all have at least a confirmed content-replacing `PUT`), chosen deliberately given the
+  much thinner evidence base and the concrete negative signal from the duplicate-ID error.
+- **`type`/`application` — no validator**: confirmed as UI concepts with documented example
+  values, not confirmed as a closed enum versus free text at the API level. Adding a validator
+  without that evidence risks rejecting values SAP itself would accept.
+- **Delete**: `DELETE IntegrationAdapterDesigntimeArtifacts(Id='{id}')` — confirmed directly
+  from SAP's own example request, the strongest evidence tier this entity has for any operation
+  besides Deploy.
+- **Import**: composite `<package_id>/<id>`, even though `id` alone is SAP's confirmed key for
+  Delete/Deploy. This is a deliberate Terraform-side choice: `package_id` is `Required` and
+  `RequiresReplace`, and this project could not confirm it is recoverable from a plain GET by
+  `id`. Importing by `id` alone would leave it unrecoverable, and since it is `RequiresReplace`,
+  the first plan after import would want to destroy and recreate the adapter purely because
+  Terraform never learned its package — a materially worse outcome than asking the practitioner
+  to supply a value they already know. See `docs/guides/integration-adapters.md`.
+- **File size limit**: no SAP-documented maximum was found; this provider applies only its own
+  generic 32 MiB protective bound, the same one already used for script collections and value
+  mappings, not an SAP-documented limit.
+- **Content handling**: treated as opaque. Never unpacked, executed, or inspected beyond the
+  size bound and content-hash check already applied to every file-backed resource in this
+  provider — see the "Content handling" note in `docs/guides/integration-adapters.md`.
+
+## `sapintegrationsuite_integration_adapter_deployment`
+
+- **Purpose**: express the desired runtime deployment state of a custom Integration Adapter,
+  independent of its design-time content lifecycle — the same design-time/runtime split as
+  every other artifact type this provider manages.
+- **SAP object**: the confirmed `DeployIntegrationAdapterDesigntimeArtifact` action (`POST
+  ...?Id='{id}'`, no `Version` parameter — see `docs/sap-api-references.md`), plus the shared
+  `IntegrationRuntimeArtifacts` entity for status/undeploy, reused by analogy (not
+  independently confirmed for this specific artifact type).
+- **Desired state**: "this adapter Id should be deployed." Unlike every sibling `*_deployment`
+  resource, there is no `*_version` attribute: the confirmed deploy action has nothing to
+  select besides `Id`, since the design-time entity has no confirmed `Version`-keyed identity.
+- **Identity**: the adapter's `id` directly (no composite needed — deployment has no package
+  concept, matching the confirmed Deploy/Delete request shapes).
+- **Create/Update**: `POST DeployIntegrationAdapterDesigntimeArtifact?Id='{id}'`, then poll
+  `IntegrationRuntimeArtifacts(Id='{id}')` until `Status` is `STARTED` or `ERROR`, reusing
+  `waitForRuntimeArtifact` — the exact same context-aware exponential-backoff-with-jitter poller
+  every other `*_deployment` resource in this provider already uses. Update is unreachable in
+  practice (`adapter_id` is the only settable attribute besides `timeouts`, and it is
+  `RequiresReplace`).
+- **Delete**: `DELETE IntegrationRuntimeArtifacts(Id='{id}')` (undeploy), reused by analogy from
+  the shared runtime-artifacts entity. `404` is treated as already-undeployed, the same
+  convention as every sibling `*_deployment` resource.
+- **Drift detection**: `Read` re-fetches `IntegrationRuntimeArtifacts(Id='{id}')`; a `404`
+  removes the resource from state (undeployed externally).
+- **Import**: `terraform import sapintegrationsuite_integration_adapter_deployment.example <id>`
+  — a single value, matching the confirmed single-key deploy/runtime lifecycle (unlike the
+  design-time resource's composite import, which exists only because `package_id` cannot be
+  recovered any other way).
+- **Ordering against a consuming integration flow**: SAP states an adapter must be deployed
+  before a consuming integration flow is deployed. This provider does not parse integration flow
+  content to discover adapter dependencies automatically — practitioners declare it via
+  `depends_on`. See `docs/guides/integration-adapters.md`.
+- **Restart deliberately not modeled**: SAP's UI exposes a Restart action for a deployed
+  adapter. This is an imperative, operational action, not declarative desired state — the same
+  reasoning behind not managing any other artifact type's restart, and this provider has no
+  `sapintegrationsuite_integration_adapter_restart` resource.
+
+## `data.sapintegrationsuite_integration_adapter`
+
+- **Purpose**: read-only lookup of an existing custom Integration Adapter's metadata by its
+  tenant-wide ID, for brownfield discovery before import or for referencing an adapter this
+  provider does not itself manage from an
+  `sapintegrationsuite_integration_adapter_deployment` resource.
+- **SAP object**: `GET IntegrationAdapterDesigntimeArtifacts(Id='{id}')`.
+- **Why no `package_id` attribute here (unlike the resource)**: the resource needs `package_id`
+  to satisfy `Required`+`RequiresReplace` semantics on create/import even though it cannot
+  confirm the GET response includes it; the data source has no such constraint — it simply does
+  not expose a field this project could not confirm the API actually returns.
+- **Why no `data.sapintegrationsuite_integration_adapters` collection data source**: no
+  confirmed list/filter contract was found for this entity set, unlike `ServiceEndpoints`,
+  which SAP explicitly documents `Name`/`Protocol` `$filter` support for. Implementing a
+  collection lookup without confirmed filtering semantics risks either silently returning
+  everything (expensive, and a different contract than what a practitioner would reasonably
+  expect from named filter arguments) or guessing at filter parameter names SAP might reject —
+  both worse than not implementing it yet.
+
 ## `data.sapintegrationsuite_service_endpoints`
 
 - **Purpose**: read-only discovery of the runtime service endpoints (entry point URLs, API
