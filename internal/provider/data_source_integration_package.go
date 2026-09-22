@@ -56,6 +56,9 @@ func (d *integrationPackageDataSource) Configure(_ context.Context, req datasour
 		resp.Diagnostics.AddError("Unexpected provider data type", "Expected *provider.Data")
 		return
 	}
+	if !requireHTTPClient(data, "data source", &resp.Diagnostics) {
+		return
+	}
 	d.client = cloudintegration.New(data.HTTPClient, data.Host)
 }
 

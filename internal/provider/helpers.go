@@ -5,11 +5,31 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/apierror"
 )
+
+// requireHTTPClient adds a clear, actionable diagnostic and reports failure
+// when data has no SAP HTTP client configured. Every SAP-backed resource
+// and data source calls this from its own Configure method: the provider's
+// own Configure never fails just because SAP connectivity is missing (see
+// provider.go), since the feature catalog data sources need none, so each
+// SAP-backed type is responsible for surfacing this itself, in place of
+// silently building a client that can never authenticate. noun should be
+// "resource" or "data source", matching what the diagnostic is attached to.
+func requireHTTPClient(data *Data, noun string, diags *diag.Diagnostics) bool {
+	if data.HTTPClient != nil {
+		return true
+	}
+	diags.AddError(
+		"SAP Integration Suite API configuration is required for this "+noun+".",
+		"Configure provider.host and OAuth credentials or the corresponding SAP_INTEGRATION_SUITE_* environment variables.",
+	)
+	return false
+}
 
 // diagnosticDetail renders an error for a Terraform diagnostic detail
 // string. For a SAP API error it surfaces the status code, SAP error code,

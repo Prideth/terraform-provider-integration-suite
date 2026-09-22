@@ -79,6 +79,9 @@ func (r *accessPolicyResource) Configure(_ context.Context, req resource.Configu
 		resp.Diagnostics.AddError("Unexpected provider data type", "Expected *provider.Data")
 		return
 	}
+	if !requireHTTPClient(data, "resource", &resp.Diagnostics) {
+		return
+	}
 	r.client = cloudintegration.New(data.HTTPClient, data.Host)
 }
 

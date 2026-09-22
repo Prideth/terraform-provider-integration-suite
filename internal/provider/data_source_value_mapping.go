@@ -69,6 +69,9 @@ func (d *valueMappingDataSource) Configure(_ context.Context, req datasource.Con
 		resp.Diagnostics.AddError("Unexpected provider data type", "Expected *provider.Data")
 		return
 	}
+	if !requireHTTPClient(data, "data source", &resp.Diagnostics) {
+		return
+	}
 	d.client = cloudintegration.New(data.HTTPClient, data.Host)
 }
 

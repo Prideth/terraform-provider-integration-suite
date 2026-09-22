@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -100,6 +99,17 @@ func (p *sapIntegrationSuiteProvider) Schema(_ context.Context, _ provider.Schem
 	}
 }
 
+// Configure resolves whatever SAP connectivity configuration is available,
+// but never fails Configure itself just because it is incomplete or absent.
+// The provider feature catalog data sources (sapintegrationsuite_provider_features,
+// sapintegrationsuite_provider_feature) describe this provider binary itself
+// and need no SAP tenant connection at all; requiring SAP credentials here
+// would make them unusable exactly where they are most useful (a first
+// look at what this provider can do, offline, before any tenant exists).
+// Every SAP-backed resource and data source instead checks
+// Data.HTTPClient itself in its own Configure method and returns a clear,
+// specific configuration error if it is nil — see requireHTTPClient in
+// helpers.go.
 func (p *sapIntegrationSuiteProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
 	var config providerModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
@@ -108,13 +118,6 @@ func (p *sapIntegrationSuiteProvider) Configure(ctx context.Context, req provide
 	}
 
 	host := stringOrEnv(config.Host, "SAP_INTEGRATION_SUITE_HOST")
-	if host == "" {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("host"),
-			"Missing SAP Integration Suite host",
-			"Set the host attribute or the SAP_INTEGRATION_SUITE_HOST environment variable.",
-		)
-	}
 
 	var tokenURL, clientID, clientSecret types.String
 	if config.OAuth != nil {
@@ -129,46 +132,23 @@ func (p *sapIntegrationSuiteProvider) Configure(ctx context.Context, req provide
 		ClientSecret: stringOrEnv(clientSecret, "SAP_INTEGRATION_SUITE_CLIENT_SECRET"),
 	}
 
-	if oauthCfg.TokenURL == "" {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("oauth").AtName("token_url"),
-			"Missing OAuth token URL",
-			"Set oauth.token_url or the SAP_INTEGRATION_SUITE_TOKEN_URL environment variable.",
-		)
-	}
-	if oauthCfg.ClientID == "" {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("oauth").AtName("client_id"),
-			"Missing OAuth client ID",
-			"Set oauth.client_id or the SAP_INTEGRATION_SUITE_CLIENT_ID environment variable.",
-		)
-	}
-	if oauthCfg.ClientSecret == "" {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("oauth").AtName("client_secret"),
-			"Missing OAuth client secret",
-			"Set oauth.client_secret or the SAP_INTEGRATION_SUITE_CLIENT_SECRET environment variable.",
-		)
-	}
-
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	authenticatedClient, invalidateToken, err := oauthCfg.HTTPClient(ctx, http.DefaultClient)
-	if err != nil {
-		resp.Diagnostics.AddError("Unable to configure SAP Integration Suite authentication", err.Error())
-		return
-	}
-
 	data := &Data{
-		Host: host,
-		HTTPClient: sapthttp.New(sapthttp.Config{
+		Version: p.version,
+	}
+
+	if host != "" && oauthCfg.TokenURL != "" && oauthCfg.ClientID != "" && oauthCfg.ClientSecret != "" {
+		authenticatedClient, invalidateToken, err := oauthCfg.HTTPClient(ctx, http.DefaultClient)
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to configure SAP Integration Suite authentication", err.Error())
+			return
+		}
+
+		data.Host = host
+		data.HTTPClient = sapthttp.New(sapthttp.Config{
 			Transport:       authenticatedClient,
 			UserAgent:       sapthttp.UserAgent(p.version),
 			InvalidateToken: invalidateToken,
-		}),
-		Version: p.version,
+		})
 	}
 
 	resp.DataSourceData = data
@@ -194,6 +174,8 @@ func (p *sapIntegrationSuiteProvider) DataSources(_ context.Context) []func() da
 		NewIntegrationPackageDataSource,
 		NewValueMappingDataSource,
 		NewMessageMappingDataSource,
+		NewProviderFeaturesDataSource,
+		NewProviderFeatureDataSource,
 	}
 }
 

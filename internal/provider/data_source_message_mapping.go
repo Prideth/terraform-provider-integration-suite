@@ -71,6 +71,9 @@ func (d *messageMappingDataSource) Configure(_ context.Context, req datasource.C
 		resp.Diagnostics.AddError("Unexpected provider data type", "Expected *provider.Data")
 		return
 	}
+	if !requireHTTPClient(data, "data source", &resp.Diagnostics) {
+		return
+	}
 	d.client = cloudintegration.New(data.HTTPClient, data.Host)
 }
 
