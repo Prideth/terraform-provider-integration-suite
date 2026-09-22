@@ -25,7 +25,12 @@ used whenever a Terraform resource would not be able to fulfil its contract (see
 | Security Content | Certificate-User Mapping | Design-time | Yes | OData V2 | Yes | Yes | Yes | Yes | N/A | Resource (planned) |
 | Security Content | Access Policies | Design-time | Yes (confirmed: "retrieved [read and write] by an OData V2 API", SAP official documentation) | OData V2 | Yes | Yes | Yes | Yes | N/A | Resource + Data Source (v0.1.0) |
 | Security Content | Access Policy Artifact References | Design-time | Yes (nested under Access Policies) | OData V2 | Yes | Yes | Yes | Yes | N/A | Resource (v0.1.0) — has its own composite identity, see resource-design.md |
-| Partner Directory | Partner Directory Entries | Design-time | Yes | OData V2 | Yes | Yes | Yes | Yes | N/A | Unsupported (v0.1.x) — deferred, not yet schema-designed |
+| Partner Directory | Partner (`Partners`) | Design-time | Yes (read-only: no confirmed create; Pid comes into existence implicitly via a child entity) | OData V2 | Yes | No (unconfirmed) | N/A | Cascades to child entities (documented) | N/A | Data Source only — see `resource-design.md` |
+| Partner Directory | String Parameter | Design-time | Yes | OData V2 | Yes | Yes | Yes, via `PUT` (full replace) | Yes | N/A | Resource + Data Source |
+| Partner Directory | Binary Parameter | Design-time | Yes | OData V2 | Yes | Yes | Yes, via `PUT` (full replace) | Yes | N/A | Resource + Data Source |
+| Partner Directory | Alternative Partner | Design-time | Yes | OData V2 | Yes | Yes | Yes, via `PUT` (repoints `Pid`) | Yes | N/A | Resource + Data Source — key is hex-encoded (`Hexagency`/`Hexscheme`/`Hexid`), hidden by this provider |
+| Partner Directory | Authorized User | Design-time | Yes | OData V2 | Yes | Yes | Yes, via `PUT` (repoints `Pid`) | Yes | N/A | Resource + Data Source |
+| Partner Directory | User Credential Parameter | Design-time | Yes | OData V2 | Yes (identity only; no password read-back confirmed) | Yes | No confirmed in-place update | Yes | N/A | Resource (`write-only` password, no Update; cannot batch with other entity types in one ChangeSet) |
 | API Management (classic) | API Providers / Proxies / Products | Design-time & Runtime | Yes (separate REST API, "Accessing API Management APIs Programmatically") | REST/OData mixed | Yes | Yes | Yes | Yes | Yes | Unsupported (v0.1.x) — deferred to a later minor version |
 | API Gateway (new model) | API Artifact | Design-time | Not yet confirmed in enough detail for a stable schema | Unknown | Unknown | Unknown | Unknown | Unknown | Unknown | Unsupported (v0.1.x) — planned v0.2.x once confirmed |
 

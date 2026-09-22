@@ -69,7 +69,12 @@ Do not conflate these: a feature can be fully supported by this provider and sti
 | `integration_cell.runtime` | integration_cell | unsupported (no_public_api) | No | — | — | — | — | — | — | — |
 | `migration_assessment` | other_capability | unsupported (research_required) | No | — | — | — | — | — | — | — |
 | `open_connectors` | other_capability | unsupported (research_required) | No | — | — | — | — | — | — | — |
-| `partner_directory.entry` | partner_directory | unsupported (not_implemented) | Yes | — | — | — | — | — | — | — |
+| `partner_directory.alternative_partner` | partner_directory | supported | Yes | Yes | Yes | Yes | Yes | Yes | — | Resource + Data Source |
+| `partner_directory.authorized_user` | partner_directory | supported | Yes | Yes | Yes | Yes | Yes | Yes | — | Resource + Data Source |
+| `partner_directory.binary_parameter` | partner_directory | supported | Yes | Yes | Yes | Yes | Yes | Yes | — | Resource + Data Source |
+| `partner_directory.partner` | partner_directory | read_only (unsafe_terraform_lifecycle) | Yes | — | Yes | — | — | — | — | Data Source |
+| `partner_directory.string_parameter` | partner_directory | supported | Yes | Yes | Yes | Yes | Yes | Yes | — | Resource + Data Source |
+| `partner_directory.user_credential_parameter` | partner_directory | partial (unsafe_terraform_lifecycle) | Yes | Yes | Yes | — | Yes | Yes | — | Resource |
 | `security.access_policy` | security | supported | Yes | Yes | Yes | Yes | Yes | Yes | — | Resource + Data Source |
 | `security.access_policy_reference` | security | supported | Yes | Yes | Yes | — | Yes | Yes | — | Resource + Data Source |
 | `security.certificate_user_mapping` | security | unsupported (not_implemented) | Yes | — | — | — | — | — | — | — |
@@ -89,7 +94,6 @@ Grouped by why, not just that. A feature can be `partial` and reachable via one 
 - **`api_management.classic.api_proxy`** — A classic API Management API proxy definition.
 - **`api_management.classic.key_value_map`** — A classic API Management key-value map used for runtime configuration lookups.
 - **`cloud_integration.service_endpoints`** — Read-only lookup of a deployed integration flow's exposed runtime service endpoint URLs.
-- **`partner_directory.entry`** — A trading-partner-style directory entry used by B2B-oriented integration flows.
 - **`security.certificate_user_mapping`** — A mapping from a client certificate to an inbound user identity.
 - **`security.keystore_entry`** — A certificate keystore entry security material artifact.
 - **`security.oauth2_client_credential`** — An OAuth2 client credential security material artifact used by integration flow adapters.
@@ -102,6 +106,14 @@ Grouped by why, not just that. A feature can be `partial` and reachable via one 
   - No confirmed in-place update: changing name, content, or content_hash replaces the resource (create a new artifact, then delete the old one) instead of calling an unverified PUT.
   - SAP separately documents a ValueMappingDesigntimeArtifactSaveAsVersion action this provider does not yet use.
   - Whether Delete removes only the active version or every version of the artifact is unconfirmed against a primary source.
+- **`partner_directory.partner`** — A Partner ID (Pid) known to the tenant's Partner Directory.
+  - No resource: SAP documents no confirmed create operation for Partners — a Pid comes into existence implicitly the first time a StringParameter, BinaryParameter, AlternativePartner, AuthorizedUser, or UserCredentialParameter references it.
+  - Deleting a Pid is documented as cascading to every entity belonging to it, which is the other reason this stays read-only: a Partner resource's Destroy could erase content owned by an entirely different Terraform module.
+- **`partner_directory.user_credential_parameter`** — A communication username/password credential scoped to a Partner ID (Pid). (partial support already implemented — see Limitations below)
+  - The password is a write-only attribute (password_wo): Terraform never stores it in plan or state, and this provider never requests or reads a password back from SAP, which does not document returning one. Requires Terraform CLI 1.11 or later.
+  - No in-place update: no public API for changing an existing credential's password was confirmed, so rotating it (via the paired password_wo_version attribute) replaces the resource — delete the old credential, then create a new one.
+  - UserCredentialParameter cannot be combined with other Partner Directory entity types in a single OData batch (ChangeSet) request; this provider always issues it standalone.
+  - Import recovers partner_id, parameter_id, and user, but never the password: a configuration applied right after import must still supply password_wo and a password_wo_version, which plans as a replacement even though nothing server-side has actually changed.
 
 ### No suitable public SAP API
 

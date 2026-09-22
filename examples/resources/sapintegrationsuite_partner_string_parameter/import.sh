@@ -1,0 +1,1 @@
+terraform import sapintegrationsuite_partner_string_parameter.receiver_address PartnerZ/ReceiverAddress

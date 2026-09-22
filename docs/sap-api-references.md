@@ -269,13 +269,79 @@ API. This document is that trace.
   scopes; SAP's documentation additionally names the `PI_Administrator` role collection as
   required to create and edit access policies through the application UI.
 
+## Partner Directory API
+
+- **SAP product area**: Integration Suite / Cloud Integration — Partner Directory
+- **Official API**: Partner Directory OData V2 API, under the same `/api/v1` service root as
+  Integration Content and Security Content — confirmed via SAP's own "Partner Directory",
+  "Partner Directory Concepts", "Partner Directory Entity Types", and "Requests for String
+  Parameter, Binary Parameter, and Authorized User" documentation pages.
+- **Entity sets and confirmed operations**:
+  - `Partners` — GET (read) is documented; no confirmed create operation. SAP documents Pid
+    uniqueness as "ensured by the tenant owner application" (the caller picks the value, it is
+    not server-allocated), and describes deleting a Pid as capable of removing every entry
+    belonging to it in the Partner Directory "via one call". No `sapintegrationsuite_partner`
+    resource exists because of this — see `docs/resource-design.md`.
+  - `StringParameters` — GET/POST/PUT/DELETE, key `(Pid, Id)`. A documented example request
+    body: `{"Pid":"partner1","Id":"sp1","Value":"sp1v"}`.
+  - `BinaryParameters` — GET/POST/PUT/DELETE, key `(Pid, Id)`, `Value` base64-encoded.
+    Documented `ContentType` values: `xml`, `xsl`, `xsd`, `json`, `text`, `zip`, `gz`, `zlib`,
+    `crt` (with encoding-suffixed variants such as `xml;encoding=UTF-8` also valid — this
+    provider does not restrict `content_type` to the short documented list for that reason).
+    SAP documents a 260 KB maximum `Value` size and recommends storing larger uncompressed
+    XML/XSL/XSD content as a `zip` instead (auto-unzipped by the XML Validator and XSLT Mapping
+    steps).
+  - `AlternativePartners` — GET/POST/PUT/DELETE. The documented entity carries both plain
+    (`Agency`, `Scheme`, `Id`, `Pid`) and hex-encoded (`Hexagency`, `Hexscheme`, `Hexid`) fields;
+    a documented example request URL, `AlternativePartners(Hexagency='6167656e637931',...)`,
+    confirms the hex form is the actual OData key and that it is the lowercase hex encoding of
+    the plain value's UTF-8 bytes (`"agency1"` → `"6167656e637931"`). Creation uses the plain
+    fields; SAP computes the hex key itself.
+  - `AuthorizedUsers` — GET/POST/PUT/DELETE, key `User`. SAP documents this as many-to-one
+    (one communication user per Pid, a Pid can have several). Documented example body:
+    `{"User": "...", "Pid": "PartnerZ"}`. Whether `User` is case-normalized internally was not
+    confirmed against a primary source; this provider does not normalize it.
+  - `UserCredentialParameters` — POST (create) and DELETE are documented; no confirmed
+    PUT/PATCH for updating an existing credential's password. Documented example body:
+    `{"Pid":"Receiver_1","Id":"USER","User":"...", "Password":"..."}`. SAP documents the
+    generated security-artifact alias format as `pd:<Pid>:<Id>:UserCredential`, matching the
+    property set via the exchange property `RECEIVER_CREDENTIAL` in scripts. SAP additionally
+    documents that `UserCredentialParameter` and `CertificateUserMapping` cannot be included
+    together with other entity types in a single OData ChangeSet (batch) request.
+- **Password read-back — could not confirm either way**: no primary source was found
+  definitively stating whether a GET (or the POST response) on `UserCredentialParameters`
+  returns the password. Given that genuine uncertainty for a security-sensitive credential,
+  this provider's `UserCredentialParameter` Go type (used for every response this client
+  decodes) simply has no `Password` field at all, so the answer to "does this provider ever
+  expose it" is "no" regardless of what SAP's API actually does.
+- **CSRF protection**: SAP's OData V2 services on Cloud Foundry/BTP require a valid
+  `X-CSRF-Token` for POST/PUT/PATCH/DELETE, obtained via a GET with `X-CSRF-Token: fetch`
+  against the same resource, independently of OAuth authentication (OAuth proves identity;
+  CSRF proves the write was not forged). This is documented generically for SAP's Cloud
+  Integration `api/v1` OData services, not specifically restated on the Partner Directory
+  pages, but there is no indication Partner Directory's shared service root is exempt from it.
+  Implemented once in the shared HTTP client (`internal/client/http/csrf.go`) rather than
+  per-resource, so it applies to every write this provider makes, not just Partner Directory's.
+- **Pagination**: SAP's OData V2 services return a `__next` link (a complete absolute URL) in
+  `d.__next` for server-driven paging; `GetAllPages` in `internal/client/odata/v2` follows it
+  until exhausted. String Parameters in particular is documented as capable of holding large
+  numbers of entries per tenant.
+- **Required roles**: the Cloud Foundry role template `AuthGroup_TenantPartnerDirectoryConfigurator`
+  is documented as required to work with a tenant's Partner Directory entities via the OData
+  API (`AuthGroup_Administrator` also works). This provider does not manage that role or role
+  collection — see `docs/provider-scope.md`.
+- **Security note**: SAP explicitly documents that ordinary Partner Directory data (string and
+  binary parameters) is stored unencrypted. This provider's documentation and resource
+  descriptions explicitly warn against storing secrets there; only
+  `UserCredentialParameters` is treated as a credential store, and even that is modeled
+  conservatively — see the write-only `password_wo` design in `docs/resource-design.md`.
+
 ## Deferred APIs (tracked, not yet implemented)
 
 | Area | API | Status |
 |---|---|---|
 | Classic API Management | "Accessing API Management APIs Programmatically" REST/OData APIs | Confirmed public, deferred to a later minor version |
 | New API Gateway / API Artifacts | Design-time API for API-centric artifacts with Runtime Profile (Integration Cell / Edge Integration Cell) | Existence confirmed via UI/feature docs; exact public API surface not yet confirmed in enough detail for a stable Terraform schema — deferred to v0.2.x |
-| Partner Directory | Partner Directory API (part of the same `CloudIntegrationAPI` package) | Confirmed public, deferred — not yet schema-designed |
 | Security material (user credentials, OAuth2 client credentials, keystore entries) | Security Content API | Confirmed public, deferred — needs write-only/sensitive-value design pass first |
 | Value mapping entry-level management | `UpsertValMaps`, `UpdateDefaultValMap`, `DeleteValMaps` | Confirmed public, deferred — exact payload/path shapes and delete granularity not confirmed against a reachable primary source; see `docs/resource-design.md` |
 

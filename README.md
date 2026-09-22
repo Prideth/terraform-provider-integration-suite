@@ -54,6 +54,8 @@ SAP/btp                              Prideth/sap-integration-suite
 | `sapintegrationsuite_integration_flow_deployment` | Integration flow runtime deployment |
 | `sapintegrationsuite_access_policy` | Access policy |
 | `sapintegrationsuite_access_policy_reference` | A single artifact reference on an access policy |
+| `data.sapintegrationsuite_access_policy` | Read-only lookup of an existing access policy |
+| `data.sapintegrationsuite_access_policy_reference` | Read-only lookup of an existing access policy reference |
 | `sapintegrationsuite_value_mapping` | Value mapping design-time content (file-based) |
 | `sapintegrationsuite_value_mapping_deployment` | Value mapping runtime deployment |
 | `sapintegrationsuite_message_mapping` | Reusable message mapping design-time content (file-based) |
@@ -62,6 +64,18 @@ SAP/btp                              Prideth/sap-integration-suite
 | `sapintegrationsuite_script_collection` | Reusable script collection design-time content (file-based) |
 | `sapintegrationsuite_script_collection_deployment` | Script collection runtime deployment |
 | `data.sapintegrationsuite_script_collection` | Read-only lookup of an existing script collection |
+| `sapintegrationsuite_partner_string_parameter` | Partner Directory string parameter |
+| `sapintegrationsuite_partner_binary_parameter` | Partner Directory binary parameter (file-based) |
+| `sapintegrationsuite_alternative_partner` | Partner Directory alternative partner mapping |
+| `sapintegrationsuite_partner_authorized_user` | Partner Directory authorized user mapping |
+| `sapintegrationsuite_partner_user_credential_parameter` | Partner Directory user credential (write-only password) |
+| `data.sapintegrationsuite_partner` | Confirms whether a Partner ID exists |
+| `data.sapintegrationsuite_partners` | Lists every Partner ID in the tenant |
+| `data.sapintegrationsuite_partner_string_parameter` | Read-only lookup of an existing string parameter |
+| `data.sapintegrationsuite_partner_string_parameters` | Lists every string parameter for a partner |
+| `data.sapintegrationsuite_partner_binary_parameter` | Read-only lookup of an existing binary parameter |
+| `data.sapintegrationsuite_alternative_partner` | Read-only lookup of an existing alternative partner mapping |
+| `data.sapintegrationsuite_partner_authorized_user` | Read-only lookup of an existing authorized user mapping |
 | `data.sapintegrationsuite_provider_features` | The full provider feature support catalog |
 | `data.sapintegrationsuite_provider_feature` | Support information for exactly one feature |
 
@@ -96,7 +110,9 @@ partial, or not implemented, and why.
 - [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.5
 - An SAP Integration Suite tenant with Cloud Integration activated
 - An OAuth 2.0 client credentials service key with the Integration Content /
-  Security Content API scopes
+  Security Content API scopes; Partner Directory resources additionally
+  require the `AuthGroup_TenantPartnerDirectoryConfigurator` role
+  (or `AuthGroup_Administrator`) — see `docs/guides/partner-directory.md`
 
 ## Installation
 
@@ -241,6 +257,16 @@ See [`ROADMAP.md`](ROADMAP.md).
 - API Gateway / API Artifacts, classic API Management, Integration Cell,
   and Edge Integration Cell resources are not yet implemented — see
   `ROADMAP.md`.
+- There is no `sapintegrationsuite_partner` resource: SAP documents no
+  confirmed create operation for Partner Directory `Partners`, and
+  deleting one is documented as cascading to every entity that belongs to
+  it. Use `data.sapintegrationsuite_partner` / `data.sapintegrationsuite_partners`
+  for discovery instead. See `docs/guides/partner-directory.md`.
+- `sapintegrationsuite_partner_user_credential_parameter` has no in-place
+  update and never reads a password back from SAP — a permanent property
+  of its security model. See `docs/guides/partner-directory.md`.
+- Partner Directory data (string and binary parameters) is stored
+  unencrypted by SAP; do not store secrets there.
 
 ## API support matrix
 

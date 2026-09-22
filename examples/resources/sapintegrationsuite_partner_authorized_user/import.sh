@@ -1,0 +1,1 @@
+terraform import sapintegrationsuite_partner_authorized_user.commuser commuser1

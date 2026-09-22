@@ -1,0 +1,1 @@
+terraform import sapintegrationsuite_partner_binary_parameter.order_schema PartnerZ/OrderSchema

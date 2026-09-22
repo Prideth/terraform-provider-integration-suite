@@ -42,6 +42,32 @@ Initial development toward v0.1.0. See `ROADMAP.md` for what is planned and
   on the same entity-specific evidence) and reuses the same shared
   runtime-artifact polling and status model as every other `*_deployment`
   resource.
+- Partner Directory support: `sapintegrationsuite_partner_string_parameter`,
+  `sapintegrationsuite_partner_binary_parameter` (file-based, with SAP's
+  documented 260 KB size limit checked before upload),
+  `sapintegrationsuite_alternative_partner` (hiding SAP's hex-encoded
+  `Hexagency`/`Hexscheme`/`Hexid` entity key behind plain
+  agency/scheme/external_id attributes), and
+  `sapintegrationsuite_partner_authorized_user` resources, each with a
+  matching data source, plus `data.sapintegrationsuite_partner` and
+  `data.sapintegrationsuite_partners` for discovery (there is no
+  `sapintegrationsuite_partner` resource: SAP documents no confirmed create
+  operation for Partners, and deleting one is documented as cascading to
+  every entity belonging to it). See `docs/guides/partner-directory.md`.
+- `sapintegrationsuite_partner_user_credential_parameter`, a
+  security-sensitive Partner Directory resource using a write-only
+  `password_wo` attribute (Terraform CLI 1.11+) paired with a
+  `password_wo_version` marker, since Terraform never stores the password
+  and this provider never reads one back from SAP.
+- CSRF token handling in the shared HTTP client for every modifying
+  (POST/PUT/PATCH/DELETE) request: SAP's OData V2 services protect writes
+  with an `X-CSRF-Token` independently of OAuth, and this had no handling
+  anywhere in this provider before now. Fetches and retries transparently
+  when SAP asks for a token; a no-op when it does not.
+- Generic server-driven paging (`__next` link following) in the OData v2
+  client, so a large collection (Partner Directory's String Parameters in
+  particular) is read completely rather than silently truncated to its
+  first page.
 - A machine-readable provider feature support catalog
   (`internal/features`), queryable via `data.sapintegrationsuite_provider_features`
   and `data.sapintegrationsuite_provider_feature` with no SAP host or
@@ -89,3 +115,14 @@ Initial development toward v0.1.0. See `ROADMAP.md` for what is planned and
 - The exact wire-format casing SAP's `AccessPolicies` OData API expects for
   `Attribute` (`Name`/`Id`) and `Operator` (`EQUALS`/`MATCHES`) enum values
   has not been confirmed against a live tenant or `$metadata`.
+- `sapintegrationsuite_partner_user_credential_parameter` has no in-place
+  update and no password read-back — a permanent property of its security
+  model, not a gap expected to close later. See
+  `docs/guides/partner-directory.md`.
+- Whether `sapintegrationsuite_partner_authorized_user`'s `user` value is
+  case-normalized by SAP internally has not been confirmed against a
+  primary source; this provider does not normalize it.
+- There is no `sapintegrationsuite_partner` resource. SAP documents no
+  confirmed create operation for `Partners`, and deleting one is
+  documented as capable of cascading to every entity that belongs to it —
+  see `docs/guides/partner-directory.md`.

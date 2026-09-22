@@ -664,13 +664,125 @@ the other file-based resources.
   `data.sapintegrationsuite_message_mapping` exactly.
 - **SAP object**: `GET ScriptCollectionDesigntimeArtifacts(Id='{script_collection_id}',Version='active')`.
 
+## `sapintegrationsuite_partner_string_parameter` / `..._binary_parameter`
+
+- **Purpose**: manage a single named value (text or binary) scoped to a Partner Directory
+  partner ID (Pid).
+- **SAP object**: `StringParameters` / `BinaryParameters` (Partner Directory API, OData V2 —
+  SAP documents full CRUD for both, `PUT` for update).
+- **Identity**: composite `(Pid, Id)`; the string-parameter resource's Terraform ID is
+  `<partner_id>/<parameter_id>`, the same composite-ID pattern already used throughout this
+  provider (`splitCompositeID`).
+- **Create**: `POST StringParameters` / `POST BinaryParameters`. The Pid does not need to
+  already exist — SAP creates it implicitly on first reference (see the Partners entry below).
+- **Update**: `PUT` (full replace) addressed by the `(Pid, Id)` key predicate; only the mutable
+  field(s) (`Value`, or `ContentType`+`Value` for binary) are sent, since Pid/Id are the key and
+  never mutable.
+- **Delete**: `DELETE` by the same key predicate.
+- **Binary parameter specifics**: file-based (`content`/`content_hash`), the same pattern as
+  every other file-based resource in this provider. `content_type` is not restricted to a fixed
+  validator list, since SAP's documented values (`xml`, `xsl`, `xsd`, `json`, `text`, `zip`,
+  `gz`, `zlib`, `crt`) coexist with encoding-suffixed variants like `xml;encoding=UTF-8` that a
+  short fixed list would incorrectly reject. SAP's documented 260 KB maximum decoded value size
+  is checked client-side before any request is sent.
+- **Security note**: Partner Directory data is stored unencrypted. Neither resource is meant
+  for secrets — see the User Credential Parameter entry below and
+  `docs/guides/partner-directory.md`.
+- **Import**: `terraform import sapintegrationsuite_partner_string_parameter.example PartnerZ/ReceiverAddress`.
+
+## `sapintegrationsuite_alternative_partner`
+
+- **Purpose**: manage a mapping from an external identity tuple (`agency`, `scheme`,
+  `external_id`) to an internal Partner ID.
+- **SAP object**: `AlternativePartners` (Partner Directory API, OData V2).
+- **Identity — the unusual part**: SAP's actual OData entity key is not the plain
+  `Agency`/`Scheme`/`Id` strings but their hex-encoded form (`Hexagency`/`Hexscheme`/`Hexid`),
+  confirmed against a documented SAP example (`"agency1"` → `"6167656e637931"`). This provider
+  computes the hex key internally (`EncodeAlternativePartnerKey`,
+  `encoding/hex.EncodeToString` on the UTF-8 bytes) and never exposes it as something a
+  practitioner sets — only the plain `agency`/`scheme`/`external_id` attributes exist in the
+  schema.
+- **Create**: `POST AlternativePartners` with the plain `Agency`/`Scheme`/`Id`/`Pid` fields; SAP
+  computes and stores the hex key itself.
+- **Read/Update/Delete**: addressed by the hex key predicate this provider computes from the
+  same three plain values it already has in state.
+- **Update**: `PUT` repoints an existing mapping at a different `partner_id`; `agency`,
+  `scheme`, and `external_id` together are the mapping's identity and force replacement.
+- **Import ID**: the three hex-encoded segments joined by `/` —
+  `<hex_agency>/<hex_scheme>/<hex_external_id>`. A "pretty" syntax using the plain strings
+  directly was rejected: all three can themselves contain `/` or other characters that would
+  make a naive split ambiguous. Hex text can never contain `/`, so this format is always
+  unambiguous to parse back apart, with dedicated round-trip tests covering ASCII, spaces,
+  Unicode, and punctuation.
+
+## `sapintegrationsuite_partner_authorized_user`
+
+- **Purpose**: manage a mapping from a communication user to the Partner ID it is authorized to
+  act as for inbound communication.
+- **SAP object**: `AuthorizedUsers` (Partner Directory API, OData V2). SAP documents this as
+  many-to-one: one communication user maps to exactly one Pid, a Pid can have several.
+- **Identity**: `User` is the entity's key; the Terraform ID is the same value.
+- **Update**: `PUT` repoints an existing mapping at a different `partner_id`; `user` forces
+  replacement (it is the mapping's identity).
+- **Case normalization — unconfirmed**: whether SAP lowercases `User` internally was not
+  confirmed against a primary source or a live tenant. This provider does not normalize it,
+  to avoid introducing behavior that has not been verified; see
+  `docs/guides/partner-directory.md`.
+- **Boundary**: this resource manages only the Partner Directory mapping, never the BTP user,
+  OAuth client, or communication user credential itself.
+- **Import**: `terraform import sapintegrationsuite_partner_authorized_user.example commuser1`.
+
+## `sapintegrationsuite_partner_user_credential_parameter`
+
+- **Purpose**: manage a communication username/password credential scoped to a Pid, treated as
+  a distinct, security-sensitive case rather than "one more Partner Directory parameter type."
+- **SAP object**: `UserCredentialParameters` (Partner Directory API, OData V2). SAP documents
+  `POST` with `Pid`/`Id`/`User`/`Password` in the request body, and that this entity type (along
+  with `CertificateUserMapping`) cannot be combined with other entity types in a single OData
+  ChangeSet (batch) request.
+- **Password handling**: `password_wo` is a `WriteOnly` schema attribute (Terraform Plugin
+  Framework v1.17.0 in this module supports it; requires Terraform CLI 1.11+), so Terraform
+  never persists it to plan or state. The client-layer `UserCredentialParameter` struct used
+  for `Get` and for decoding `Create`'s response has no `Password` field at all — a password
+  can never end up copied into a Go value this provider exposes, independent of what SAP's
+  response body actually contains, since no primary source confirming or ruling out a
+  password read-back was found.
+- **Update — deliberately absent**: no public API for changing an existing credential's
+  password in place was confirmed. Rather than guess at a `PUT`/`PATCH` for a security-sensitive
+  entity, every field is `RequiresReplace`, including a `password_wo_version` marker the
+  practitioner bumps to signal a rotation; Terraform then deletes the old credential and creates
+  a new one using only the two confirmed operations (`POST`, `DELETE`).
+- **Import**: recovers `partner_id`, `parameter_id`, and `user` only — never the password, since
+  there is nothing to recover it from. A configuration applied right after import must still
+  supply `password_wo`/`password_wo_version`, which plans as a replacement even though nothing
+  has changed server-side; this is inherent to importing a write-only-secret resource.
+- **Feature catalog status**: `partial`, not `supported` — the missing update/read-back is a
+  permanent property of this resource's security model, not a gap expected to close later.
+
+## `data.sapintegrationsuite_partner` / `data.sapintegrationsuite_partners`
+
+- **Purpose**: read-only discovery of Partner IDs (Pids). `data.sapintegrationsuite_partner`
+  confirms a single Pid exists; `data.sapintegrationsuite_partners` lists every Pid in the
+  tenant, following server-driven paging.
+- **Why no `sapintegrationsuite_partner` resource (§17 suitability check)**: SAP documents no
+  confirmed create operation for `Partners` — a Pid comes into existence implicitly the first
+  time a child entity (`StringParameter`, `BinaryParameter`, `AlternativePartner`,
+  `AuthorizedUser`, or `UserCredentialParameter`) references it, and SAP's own documentation
+  says Pid uniqueness "is ensured by the tenant owner application" rather than being
+  server-allocated. Separately, SAP documents that deleting a Pid can cascade to remove every
+  entity belonging to it in one call. A Terraform resource needs a safe, predictable
+  Create/Destroy pair; Partners has neither a confirmed Create nor a Destroy that could not
+  erase content owned by a completely different Terraform module. Read-only data sources give
+  practitioners exactly what the API actually supports (existence checks and discovery) without
+  inventing a lifecycle SAP does not offer.
+
 ## Deferred to v0.2.x and later
 
 `sapintegrationsuite_capability`, `sapintegrationsuite_api_artifact`,
 `sapintegrationsuite_api_artifact_deployment`, message mapping entry-level or dependent-resource
 management (schema files referenced by a mapping are managed as part of the opaque content
 archive, not as separate Terraform resources), value mapping entry-level management (see above),
-security material resources (user credentials, OAuth credentials, keystore), and Partner
-Directory resources are designed at the API level in `api-capability-matrix.md` but
-intentionally not implemented yet, to keep each release small and high quality (see
-`ROADMAP.md`).
+and security material resources (user credentials, OAuth credentials, keystore) are designed at
+the API level in `api-capability-matrix.md` but intentionally not implemented yet, to keep each
+release small and high quality (see `ROADMAP.md`). Partner Directory resources are no longer in
+this list — see the sections above.

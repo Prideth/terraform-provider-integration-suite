@@ -15,31 +15,30 @@ matrix.
 
 Development branches from `dev`, in this order, until superseded by an explicit reprioritization:
 
-1. **Partner Directory** — **Next.** Investigate publicly supported declarative Partner
-   Directory objects where Terraform semantics are appropriate.
-2. **Security Content** — Planned. User Credentials, OAuth Credentials, Certificates, Keystore
+1. **Security Content** — **Next.** User Credentials, OAuth Credentials, Certificates, Keystore
    material. Only resources where secrets and read-back semantics are safe for Terraform.
-3. **Message Queues / Data Stores / Variables / Number Ranges** — Research required per object;
+2. **Message Queues / Data Stores / Variables / Number Ranges** — Research required per object;
    do not treat operational/monitoring APIs automatically as Terraform resources.
-4. **Classic API Management** — Planned, after Cloud Integration core support is mature.
-5. **New API Gateway / API Artifacts** — Blocked by API: existence confirmed via UI/feature
+3. **Classic API Management** — Planned, after Cloud Integration core support is mature.
+4. **New API Gateway / API Artifacts** — Blocked by API: existence confirmed via UI/feature
    documentation, but no public design-time API confirmed in enough detail for a stable
    schema. API Artifacts, API Artifact Deployment, API Policies, Runtime Profiles.
-6. **Integration Cell** — Blocked by API for SAP-side lifecycle/configuration; no public
+5. **Integration Cell** — Blocked by API for SAP-side lifecycle/configuration; no public
    activation or status API found yet. Access policy replication/reconciliation to Integration
    Cell is a documented Integration Suite UI capability, but no public API surface for it was
    confirmed during the access-policy completion pass — see
    `docs/sap-api-references.md`.
-7. **Edge Integration Cell** — Blocked by API for SAP control-plane/runtime-specific
+6. **Edge Integration Cell** — Blocked by API for SAP control-plane/runtime-specific
    configuration; never a Kubernetes/Helm replacement. Same access-policy-replication caveat
    as Integration Cell above.
-8. **Additional Integration Suite capabilities** — Research required: Integration Advisor,
+7. **Additional Integration Suite capabilities** — Research required: Integration Advisor,
    Trading Partner Management, Integration Assessment, Migration Assessment, and others, only
    where public APIs justify Terraform management.
 
 Access Policies completion (role/identity semantics, artifact reference lifecycle audit,
 runtime reconciliation research, minimal-PATCH update, data sources, import/drift) is done —
-see "Implemented" below and `docs/guides/access-policies.md`.
+see "Implemented" below and `docs/guides/access-policies.md`. Partner Directory is also done —
+see "Implemented" below and `docs/guides/partner-directory.md`.
 
 This order describes what to work on **next**; it does not retroactively unimplement anything
 already shipped (see "Implemented" below).
@@ -74,6 +73,25 @@ already shipped (see "Implemented" below).
   - `sapintegrationsuite_script_collection`
   - `sapintegrationsuite_script_collection_deployment`
   - `data.sapintegrationsuite_script_collection`
+- Partner Directory (string/binary parameters, alternative partners, authorized users, and a
+  security-sensitive write-only user credential parameter resource — see
+  `docs/guides/partner-directory.md`; no `sapintegrationsuite_partner` resource exists, since
+  SAP documents no confirmed create operation for it, only discovery data sources):
+  - `sapintegrationsuite_partner_string_parameter`
+  - `sapintegrationsuite_partner_binary_parameter`
+  - `sapintegrationsuite_alternative_partner`
+  - `sapintegrationsuite_partner_authorized_user`
+  - `sapintegrationsuite_partner_user_credential_parameter`
+  - `data.sapintegrationsuite_partner`
+  - `data.sapintegrationsuite_partners`
+  - `data.sapintegrationsuite_partner_string_parameter`
+  - `data.sapintegrationsuite_partner_string_parameters`
+  - `data.sapintegrationsuite_partner_binary_parameter`
+  - `data.sapintegrationsuite_alternative_partner`
+  - `data.sapintegrationsuite_partner_authorized_user`
+- A shared, CSRF-aware HTTP client: every modifying (POST/PUT/PATCH/DELETE) request now
+  transparently fetches and retries with an `X-CSRF-Token` if SAP's API asks for one,
+  independently of OAuth authentication — see `docs/sap-api-references.md`
 - A machine-readable provider feature support catalog, queryable with no SAP tenant
   credentials — see `docs/feature-support.md`:
   - `data.sapintegrationsuite_provider_features`
@@ -93,14 +111,13 @@ already shipped (see "Implemented" below).
 - Message mapping entry-level or dependent-resource management, if SAP ever exposes one
   independent of the opaque content archive this provider already transports (**Research
   required**)
-- Partner Directory resources (**Planned**, priority 3 above)
 - Security material resources (user credentials, OAuth2 client credentials, keystore
   entries, certificate-user mappings) with write-only/sensitive-value semantics (**Planned**,
-  priority 4 above)
+  priority 1 above)
 - Classic API Management resources, once the required scopes and object model are fully
-  mapped (**Planned**, priority 6 above)
+  mapped (**Planned**, priority 3 above)
 - New API Gateway / API Artifact model, once its public API surface is confirmed in enough
-  detail for a stable schema (**Blocked by API**, priority 7 above):
+  detail for a stable schema (**Blocked by API**, priority 4 above):
   - `sapintegrationsuite_api_artifact`
   - `sapintegrationsuite_api_artifact_deployment`
 - API Policies, if a typed, stable policy schema is achievable (**Blocked by API**)
