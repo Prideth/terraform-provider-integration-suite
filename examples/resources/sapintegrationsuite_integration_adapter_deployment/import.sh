@@ -1,0 +1,1 @@
+terraform import sapintegrationsuite_integration_adapter_deployment.sftp_extension custom-sftp-extension
