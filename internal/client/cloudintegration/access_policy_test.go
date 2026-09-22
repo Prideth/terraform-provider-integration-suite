@@ -2,6 +2,8 @@ package cloudintegration
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -30,6 +32,7 @@ func TestClient_CreateAccessPolicy(t *testing.T) {
 
 func TestClient_GetUpdateDeleteAccessPolicy(t *testing.T) {
 	var lastMethod string
+	var patchBody []byte
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		lastMethod = r.Method
@@ -42,6 +45,11 @@ func TestClient_GetUpdateDeleteAccessPolicy(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"d": {"Id": "1", "RoleName": "UTILITIES_ARCHITECT", "ReconciliationStatus": "SUCCESS"}}`))
 		case http.MethodPatch:
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatalf("reading PATCH body: %v", err)
+			}
+			patchBody = body
 			w.WriteHeader(http.StatusNoContent)
 		case http.MethodDelete:
 			w.WriteHeader(http.StatusNoContent)
@@ -59,11 +67,25 @@ func TestClient_GetUpdateDeleteAccessPolicy(t *testing.T) {
 		t.Errorf("ReconciliationStatus = %q, want SUCCESS", policy.ReconciliationStatus)
 	}
 
-	if err := client.UpdateAccessPolicy(context.Background(), "1", AccessPolicy{RoleName: "UTILITIES_ARCHITECT", Description: "new"}); err != nil {
+	if err := client.UpdateAccessPolicy(context.Background(), "1", "new"); err != nil {
 		t.Fatalf("UpdateAccessPolicy() error: %v", err)
 	}
 	if lastMethod != http.MethodPatch {
 		t.Errorf("last method = %q, want PATCH", lastMethod)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(patchBody, &decoded); err != nil {
+		t.Fatalf("decoding PATCH body: %v", err)
+	}
+	if len(decoded) != 1 {
+		t.Errorf("PATCH body has %d fields, want exactly 1 (Description): %s", len(decoded), patchBody)
+	}
+	if decoded["Description"] != "new" {
+		t.Errorf("PATCH body Description = %v, want \"new\": %s", decoded["Description"], patchBody)
+	}
+	if _, hasRoleName := decoded["RoleName"]; hasRoleName {
+		t.Errorf("PATCH body must not include the immutable RoleName field: %s", patchBody)
 	}
 
 	if err := client.DeleteAccessPolicy(context.Background(), "1"); err != nil {

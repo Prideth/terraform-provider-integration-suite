@@ -132,10 +132,7 @@ func (r *accessPolicyResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
-	err := r.client.UpdateAccessPolicy(ctx, plan.ID.ValueString(), cloudintegration.AccessPolicy{
-		RoleName:    plan.RoleName.ValueString(),
-		Description: plan.Description.ValueString(),
-	})
+	err := r.client.UpdateAccessPolicy(ctx, plan.ID.ValueString(), plan.Description.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to update SAP Integration Suite access policy", diagnosticDetail(err))
 		return

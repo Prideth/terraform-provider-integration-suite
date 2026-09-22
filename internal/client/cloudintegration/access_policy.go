@@ -61,12 +61,18 @@ func (c *Client) CreateAccessPolicy(ctx context.Context, policy AccessPolicy) (*
 	return &created, nil
 }
 
-// UpdateAccessPolicy updates an access policy's mutable fields (currently:
-// description; the role name identifies the policy and is treated as
-// immutable by the Terraform resource). This uses PATCH rather than PUT so
-// that fields outside the Terraform schema are left untouched.
-func (c *Client) UpdateAccessPolicy(ctx context.Context, id string, policy AccessPolicy) error {
-	payload, err := json.Marshal(policy)
+// UpdateAccessPolicy updates an access policy's description, the only
+// mutable field the Terraform resource exposes (RoleName identifies the
+// policy and is treated as immutable). The PATCH payload deliberately
+// carries only Description, not the full AccessPolicy struct: RoleName is
+// immutable in this provider's model, and there is no confirmation that
+// re-sending it on every description-only update is safe, so the payload
+// stays minimal rather than risk resending a field SAP might interpret as
+// a rename attempt.
+func (c *Client) UpdateAccessPolicy(ctx context.Context, id, description string) error {
+	payload, err := json.Marshal(struct {
+		Description string `json:"Description"`
+	}{Description: description})
 	if err != nil {
 		return fmt.Errorf("cloudintegration: encoding access policy: %w", err)
 	}
