@@ -1,0 +1,144 @@
+package partnerdirectory
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	v2 "github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/odata/v2"
+)
+
+const binaryParametersEntitySet = "BinaryParameters"
+
+// MaxBinaryParameterValueBytes is the maximum size SAP documents for a
+// Binary Parameter's decoded (raw, not base64-encoded) Value: 260 KB. SAP
+// recommends storing XML/XSL/XSD content larger than this uncompressed as
+// a zip archive instead (Content-Type "zip" is automatically unzipped by
+// the XML Validator and XSLT Mapping steps), rather than raising this
+// limit. This provider does not enforce it by refusing a request outright
+// (SAP's own API is the authority on the exact current limit), but
+// resource Create/Update use it to raise an early, specific plan-time
+// diagnostic instead of letting an obviously oversized payload fail with a
+// generic API error after the request has already been sent.
+const MaxBinaryParameterValueBytes = 260 * 1024
+
+// DocumentedBinaryParameterContentTypes lists the Content-Type values SAP's
+// own documentation names for Binary Parameters. This is documentation,
+// not a validator allow-list: SAP's Content-Type field is intentionally
+// more permissive than this fixed set (for example, encoding suffixes like
+// "xml;encoding=UTF-8" are valid but would not appear in a short canonical
+// list), so this provider's content_type schema attribute does not
+// restrict values to this list.
+var DocumentedBinaryParameterContentTypes = []string{
+	"xml",
+	"xsl",
+	"xsd",
+	"json",
+	"text",
+	"zip",
+	"gz",
+	"zlib",
+	"crt",
+}
+
+// BinaryParameter is the wire representation of a BinaryParameters entity:
+// a single named binary value scoped to a partner (Pid), transported as a
+// base64-encoded string over JSON. Identity is the composite key (Pid, Id).
+type BinaryParameter struct {
+	Pid         string `json:"Pid"`
+	Id          string `json:"Id"`
+	ContentType string `json:"ContentType"`
+
+	// Value is the base64-encoded content, exactly as the caller supplied
+	// or SAP returned it. This client transports it opaquely and performs
+	// no decoding of its own.
+	Value string `json:"Value"`
+}
+
+func binaryParameterKey(pid, id string) (string, error) {
+	return v2.CompositeKeyPredicate("Pid", pid, "Id", id)
+}
+
+// GetBinaryParameter reads a single binary parameter by its (Pid, Id) key.
+func (c *Client) GetBinaryParameter(ctx context.Context, pid, id string) (*BinaryParameter, error) {
+	key, err := binaryParameterKey(pid, id)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := c.odata.Get(ctx, v2.BuildPath(binaryParametersEntitySet, key, ""))
+	if err != nil {
+		return nil, err
+	}
+
+	var bp BinaryParameter
+	if err := v2.DecodeEntity(body, &bp); err != nil {
+		return nil, err
+	}
+	return &bp, nil
+}
+
+// CreateBinaryParameter creates a new binary parameter. The Pid it names
+// does not need to exist beforehand, the same implicit-creation semantics
+// as StringParameter.
+func (c *Client) CreateBinaryParameter(ctx context.Context, bp BinaryParameter) (*BinaryParameter, error) {
+	payload, err := json.Marshal(bp)
+	if err != nil {
+		return nil, fmt.Errorf("partnerdirectory: encoding binary parameter: %w", err)
+	}
+
+	body, err := c.odata.Post(ctx, binaryParametersEntitySet, payload)
+	if err != nil {
+		return nil, err
+	}
+
+	var created BinaryParameter
+	if err := v2.DecodeEntity(body, &created); err != nil {
+		return nil, err
+	}
+	return &created, nil
+}
+
+// UpdateBinaryParameter replaces the content type and value of an existing
+// binary parameter via PUT, addressed by its (Pid, Id) key, the same
+// full-replace semantics as UpdateStringParameter.
+func (c *Client) UpdateBinaryParameter(ctx context.Context, pid, id, contentType, value string) error {
+	key, err := binaryParameterKey(pid, id)
+	if err != nil {
+		return err
+	}
+
+	payload, err := json.Marshal(struct {
+		ContentType string `json:"ContentType"`
+		Value       string `json:"Value"`
+	}{ContentType: contentType, Value: value})
+	if err != nil {
+		return fmt.Errorf("partnerdirectory: encoding binary parameter: %w", err)
+	}
+
+	_, err = c.odata.Put(ctx, v2.BuildPath(binaryParametersEntitySet, key, ""), payload)
+	return err
+}
+
+// DeleteBinaryParameter deletes a single binary parameter by its (Pid, Id)
+// key.
+func (c *Client) DeleteBinaryParameter(ctx context.Context, pid, id string) error {
+	key, err := binaryParameterKey(pid, id)
+	if err != nil {
+		return err
+	}
+	return c.odata.Delete(ctx, v2.BuildPath(binaryParametersEntitySet, key, ""))
+}
+
+// ListBinaryParameters returns every binary parameter for a given partner,
+// following SAP's server-driven paging until exhausted.
+func (c *Client) ListBinaryParameters(ctx context.Context, pid string) ([]BinaryParameter, error) {
+	filter := v2.Query{Filter: v2.FilterEquals("Pid", pid)}
+	path := v2.BuildPath(binaryParametersEntitySet, "", filter.Encode())
+
+	params, err := v2.GetAllPages[BinaryParameter](ctx, c.odata, path)
+	if err != nil {
+		return nil, fmt.Errorf("partnerdirectory: listing binary parameters: %w", err)
+	}
+	return params, nil
+}
