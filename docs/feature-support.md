@@ -55,7 +55,8 @@ Do not conflate these: a feature can be fully supported by this provider and sti
 | `cloud_integration.message_mapping_deployment` | cloud_integration | supported | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Resource |
 | `cloud_integration.message_processing_logs` | cloud_integration | unsupported (out_of_scope) | Yes | — | — | — | — | — | — | — |
 | `cloud_integration.message_stores` | cloud_integration | unsupported (out_of_scope) | Yes | — | — | — | — | — | — | — |
-| `cloud_integration.script_collection` | cloud_integration | unsupported (not_implemented) | Yes | — | — | — | — | — | — | — |
+| `cloud_integration.script_collection` | cloud_integration | supported | Yes | Yes | Yes | Yes | Yes | Yes | — | Resource + Data Source |
+| `cloud_integration.script_collection_deployment` | cloud_integration | supported | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Resource |
 | `cloud_integration.service_endpoints` | cloud_integration | unsupported (not_implemented) | Yes | — | — | — | — | — | — | — |
 | `cloud_integration.value_mapping` | cloud_integration | partial (unsafe_terraform_lifecycle) | Yes | Yes | Yes | — | Yes | Yes | — | Resource + Data Source |
 | `cloud_integration.value_mapping_deployment` | cloud_integration | supported | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Resource |
@@ -87,8 +88,6 @@ Grouped by why, not just that. A feature can be `partial` and reachable via one 
 - **`api_management.classic.api_provider`** — A classic API Management backend/API provider system definition.
 - **`api_management.classic.api_proxy`** — A classic API Management API proxy definition.
 - **`api_management.classic.key_value_map`** — A classic API Management key-value map used for runtime configuration lookups.
-- **`cloud_integration.script_collection`** — A reusable collection of Groovy/JavaScript scripts shared across multiple integration flows.
-  - A full design-time/deployment API mirroring Integration Flow's is documented; this provider has not implemented it yet.
 - **`cloud_integration.service_endpoints`** — Read-only lookup of a deployed integration flow's exposed runtime service endpoint URLs.
 - **`partner_directory.entry`** — A trading-partner-style directory entry used by B2B-oriented integration flows.
 - **`security.certificate_user_mapping`** — A mapping from a client certificate to an inbound user identity.

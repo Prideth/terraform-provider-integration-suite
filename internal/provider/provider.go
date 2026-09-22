@@ -166,6 +166,8 @@ func (p *sapIntegrationSuiteProvider) Resources(_ context.Context) []func() reso
 		NewValueMappingDeploymentResource,
 		NewMessageMappingResource,
 		NewMessageMappingDeploymentResource,
+		NewScriptCollectionResource,
+		NewScriptCollectionDeploymentResource,
 	}
 }
 
@@ -174,6 +176,7 @@ func (p *sapIntegrationSuiteProvider) DataSources(_ context.Context) []func() da
 		NewIntegrationPackageDataSource,
 		NewValueMappingDataSource,
 		NewMessageMappingDataSource,
+		NewScriptCollectionDataSource,
 		NewProviderFeaturesDataSource,
 		NewProviderFeatureDataSource,
 	}
