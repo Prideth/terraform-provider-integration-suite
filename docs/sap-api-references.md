@@ -269,6 +269,79 @@ API. This document is that trace.
   scopes; SAP's documentation additionally names the `PI_Administrator` role collection as
   required to create and edit access policies through the application UI.
 
+## `sapintegrationsuite_user_credential` / `sapintegrationsuite_oauth2_client_credential`
+
+- **SAP product area**: Integration Suite / Security — Security Content ("Security Material" in
+  the tenant UI, under *Monitor* > *Manage Security* > *Security Material*)
+- **Official API**: Security Content API, published on SAP Business Accelerator Hub, same
+  `/api/v1` OData V2 host as the Cloud Integration content APIs (confirmed via
+  `internal/client/cloudintegration/client.go`'s existing doc comment, which already noted this
+  client "covers the 'Integration Content' and 'Security Content' OData V2 services under
+  `/api/v1`" before this feature family was implemented). A dedicated
+  `internal/client/securitycontent` client package is used instead, kept separate from
+  `cloudintegration` because these entities have fundamentally different secret semantics.
+- **Entity sets**: `UserCredentials`, `OAuth2ClientCredentials`
+- **Protocol**: OData V2
+- **Operations**: GET, POST, PUT, DELETE. `PUT` is used for Update (full redeploy), matching
+  SAP's Manage Security Material UI, which documents an explicit *Edit* action for Credentials
+  artifacts ("You can also edit and redeploy an existing artifact") and states that editing an
+  OAuth2 Client Credentials artifact specifically requires re-entering the client secret every
+  time. This project could not confirm whether a successful `PUT` returns the updated entity
+  body or `204 No Content`, so both resources re-read the entity with `GET` after every `PUT`
+  rather than trusting the `PUT` response shape — the same defensive pattern already used by
+  `UpdateAccessPolicy`.
+- **`UserCredentials` fields — confirmed**: `Name` (the artifact's alias, used as both display
+  name and OData key — SAP's own UI documentation states "the artifact name is used as an alias
+  for the confidential data"), `User`, `Password` (write-only, never read back), `Description`.
+  Corroborated by a documented third-party example payload (`POST .../UserCredentials` with a
+  JSON body of `Name`, `Kind`, `Description`, `User`, `Password`, `CompanyId`) rather than this
+  project's own inspection of a live tenant's `$metadata`.
+- **`UserCredentials` fields — confirmed existence, unconfirmed casing**: `Kind` (SAP's UI calls
+  this "Type": empty/unset for a generic Basic/username-token credential, `SuccessFactors`, or
+  `OpenConnectors`) and `CompanyId` (only meaningful when `Kind` is `SuccessFactors`; SAP's UI
+  hides this field for every other kind). Both are corroborated by the same third-party example
+  payload as above, not `$metadata`.
+- **`UserCredentials` fields — not exposed**: a deployment status (SAP's UI shows
+  Stored/Deployed/Error for security material generally). This project could not confirm the
+  OData property name for it and would rather omit a `Computed` attribute than expose one that
+  is silently always empty.
+- **`OAuth2ClientCredentials` fields — confirmed**: `Name`, `Description`, `TokenServiceUrl`,
+  `ClientId`, `ClientSecret` (write-only, never read back), `Scope`. Confirmed directly from
+  SAP's Help Portal documentation for "Deploying an OAuth2 Client Credentials Artifact", which
+  describes each field in prose with an unambiguous meaning — a stronger source tier than the
+  `UserCredentials` third-party example payload.
+- **`OAuth2ClientCredentials` fields — documented in the UI, not implemented**: Grant Type
+  (whether the grant type is sent as part of the URL or the request body), Client Authentication
+  (whether the client ID/secret are sent as a body parameter or an `Authorization` header),
+  Resource, Audience, and up to 20 custom Key/Value/"Send as Part of" parameters. SAP's Help
+  Portal documents all of these in prose, but this project could not confirm their OData
+  property names or JSON shapes against `$metadata` or a documented example payload, so they are
+  deliberately left unimplemented rather than guessed at.
+- **Write-only secret design**: see `docs/guides/security-content.md` for the full rationale.
+  In short: `password_wo`/`client_secret_wo` are Terraform Plugin Framework `WriteOnly`
+  attributes (requires Terraform CLI 1.11+), paired with a plain `password_wo_version`/
+  `client_secret_wo_version` string that is the sole signal Terraform uses to decide whether to
+  redeploy the credential. Both Go client types (`UserCredential`, `OAuth2ClientCredential`)
+  structurally have no field for the secret, so it cannot end up in state, a diagnostic, or a
+  log line regardless of what SAP's response body contains.
+- **Required roles**: not separately confirmed for this research pass; assumed to fall under the
+  same Integration Suite "Manage Security" scopes as Access Policies and Keystore
+  administration, pending confirmation.
+
+## `security.*` catalog entries not yet implemented
+
+See `docs/guides/security-content.md` for the full list and reasoning (Keystore Entries,
+Certificate, Key Pair, SSH Key, Certificate Chain, Certificate-User Mapping, Secure Parameter,
+Known Hosts, OAuth2 Authorization Code, OAuth2 SAML Bearer Assertion, PGP keyrings). The one
+correction worth calling out here specifically: **Certificate-User Mapping** was previously
+cataloged as `PublicAPI: true` / `not_implemented`. Reverifying it for this feature family found
+that SAP's certificate-to-user mapping documentation ("Managing Certificate-to-User Mappings",
+"Client Certificate Authentication and Certificate-to-User Mapping (Inbound)", "Setting Up
+Inbound HTTP Connections with Certificate-to-User Mapping") exists only under the **Neo**
+environment, with no Cloud Foundry equivalent found anywhere in SAP's published documentation.
+Since this provider targets Cloud Foundry, the catalog entry is corrected to `PublicAPI: false`
+/ `no_public_api`.
+
 ## Partner Directory API
 
 - **SAP product area**: Integration Suite / Cloud Integration — Partner Directory
@@ -342,7 +415,7 @@ API. This document is that trace.
 |---|---|---|
 | Classic API Management | "Accessing API Management APIs Programmatically" REST/OData APIs | Confirmed public, deferred to a later minor version |
 | New API Gateway / API Artifacts | Design-time API for API-centric artifacts with Runtime Profile (Integration Cell / Edge Integration Cell) | Existence confirmed via UI/feature docs; exact public API surface not yet confirmed in enough detail for a stable Terraform schema — deferred to v0.2.x |
-| Security material (user credentials, OAuth2 client credentials, keystore entries) | Security Content API | Confirmed public, deferred — needs write-only/sensitive-value design pass first |
+| Security material — keystore entries, certificates, key pairs, SSH keys, certificate chains | Security Content API | Existence confirmed, exact `$metadata` field casing not confirmed — deferred, see `docs/guides/security-content.md` (user credentials and OAuth2 client credentials are now implemented) |
 | Value mapping entry-level management | `UpsertValMaps`, `UpdateDefaultValMap`, `DeleteValMaps` | Confirmed public, deferred — exact payload/path shapes and delete granularity not confirmed against a reachable primary source; see `docs/resource-design.md` |
 
 ## Explicitly ruled out

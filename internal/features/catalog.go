@@ -311,51 +311,230 @@ var Catalog = []Feature{
 		Operations: Operations{Create: true, Read: true, Update: false, Delete: true, Import: true},
 	},
 	{
-		Key:           "security.user_credential",
-		Domain:        "security",
-		Name:          "User Credential",
-		Description:   "A user credential security material artifact used by integration flow adapters.",
+		Key:    "security.user_credential",
+		Domain: "security",
+		Name:   "User Credential",
+		Description: "A \"User Credentials\" security material artifact: a username/password credential " +
+			"integration flow adapters use for outbound basic or username-token authentication.",
+		SupportStatus:   StatusPartial,
+		SupportReason:   ReasonPublicAPIIncomplete,
+		ResourceTypes:   []string{"sapintegrationsuite_user_credential"},
+		DataSourceTypes: []string{"sapintegrationsuite_user_credential"},
+		PublicAPI:       true,
+		APIProtocol:     "OData V2",
+		Planned:         true,
+		Limitations: []string{
+			"The password is never returned by SAP's read API; password_wo/password_wo_version are " +
+				"write-only attributes (Terraform CLI 1.11+ required) and drift on the password value " +
+				"itself cannot be detected — only readable metadata (user, description, kind, " +
+				"company_id) is compared on Read.",
+			"Update is implemented as a full PUT redeploy, matching SAP's documented \"Edit\" action " +
+				"for Credentials artifacts, and resends password_wo on every apply that touches this " +
+				"resource (SAP documents re-entering the secret on every edit for the sibling OAuth2 " +
+				"Client Credentials artifact; this provider assumes the same requirement here since it " +
+				"could not find a documented exception for User Credentials).",
+			"The Kind and CompanyId field names are corroborated by a documented third-party example " +
+				"payload, not by this project's own inspection of a live tenant's OData $metadata; " +
+				"verify against your tenant before relying on kind=\"SuccessFactors\"/\"OpenConnectors\" " +
+				"in production. See docs/guides/security-content.md.",
+			"Deployment status (SAP's UI shows Stored/Deployed/Error) is not exposed: this project could " +
+				"not confirm the OData property name for it, and would rather omit a computed attribute " +
+				"than expose one that is silently always empty.",
+		},
+		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},
+	},
+	{
+		Key:    "security.oauth2_client_credential",
+		Domain: "security",
+		Name:   "OAuth2 Client Credential",
+		Description: "An \"OAuth2 Client Credentials\" security material artifact: the client ID, " +
+			"client secret, and token service URL an integration flow adapter uses for the OAuth2 " +
+			"client credentials grant (RFC 6749) on outbound requests.",
+		SupportStatus:   StatusPartial,
+		SupportReason:   ReasonPublicAPIIncomplete,
+		ResourceTypes:   []string{"sapintegrationsuite_oauth2_client_credential"},
+		DataSourceTypes: []string{"sapintegrationsuite_oauth2_client_credential"},
+		PublicAPI:       true,
+		APIProtocol:     "OData V2",
+		Planned:         true,
+		Limitations: []string{
+			"The client secret is never returned by SAP's read API; client_secret_wo/" +
+				"client_secret_wo_version are write-only attributes (Terraform CLI 1.11+ required) and " +
+				"drift on the secret value itself cannot be detected.",
+			"Only name, description, token_service_url, client_id, client_secret, and scope are " +
+				"exposed: SAP's UI additionally documents Grant Type placement, Client Authentication " +
+				"mode (body vs. header), Resource, Audience, and up to 20 custom parameters, but this " +
+				"project could not confirm their OData property names against $metadata or a documented " +
+				"example payload, so they are deliberately unimplemented rather than guessed.",
+			"Update is implemented as a full PUT redeploy and resends client_secret_wo on every apply " +
+				"that touches this resource, matching SAP's documented requirement to re-enter the " +
+				"client secret on every edit.",
+			"OAuth2 Authorization Code and OAuth2 SAML Bearer Assertion are separate SAP artifact types " +
+				"this provider does not implement: Authorization Code requires interactive human " +
+				"authorization (see security.oauth2_authorization_code note in " +
+				"docs/guides/security-content.md), and SAML Bearer Assertion's public API contract was " +
+				"not confirmed.",
+		},
+		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},
+	},
+	{
+		Key:    "security.keystore_entry",
+		Domain: "security",
+		Name:   "Keystore Entry",
+		Description: "A certificate or key pair entry in the tenant's keystore (KeystoreEntries, " +
+			"Keystores, KeystoreResources, HistoryKeystoreEntries in SAP's Security Content API).",
 		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonNotImplemented,
+		SupportReason: ReasonResearchRequired,
 		PublicAPI:     true,
 		APIProtocol:   "OData V2",
 		Planned:       true,
 		Limitations: []string{
-			"Secret values are never returned by SAP's read API; requires write-only attribute semantics not yet designed.",
+			"SAP's UI documentation (Keystore Monitor) and independent technical sources confirm a " +
+				"public KeystoreEntries OData entity set exists with fields resembling Alias, Type, " +
+				"ValidUntil/ValidNotAfter, SubjectDN, IssuerDN, KeyType, KeySize, SerialNumber, " +
+				"SignatureAlgorithm, and one or more Fingerprints, but this project could not confirm " +
+				"the exact property names and casing against $metadata, so no resource or data source " +
+				"is implemented yet rather than shipping a guessed field mapping. Read-only metadata " +
+				"discovery (a data source, not a resource) is the recommended next step: see " +
+				"docs/guides/security-content.md and ROADMAP.md.",
+			"HistoryKeystoreEntries is audit/history information, not a mutable artifact, and should " +
+				"only ever become a read-only data source if implemented, never a resource.",
 		},
 	},
 	{
-		Key:           "security.oauth2_client_credential",
-		Domain:        "security",
-		Name:          "OAuth2 Client Credential",
-		Description:   "An OAuth2 client credential security material artifact used by integration flow adapters.",
+		Key:    "security.certificate",
+		Domain: "security",
+		Name:   "Certificate",
+		Description: "A standalone X.509 certificate keystore entry (as opposed to a key pair), " +
+			"typically an uploaded root or intermediate CA certificate.",
 		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonNotImplemented,
+		SupportReason: ReasonResearchRequired,
 		PublicAPI:     true,
 		APIProtocol:   "OData V2",
 		Planned:       true,
+		Limitations: []string{
+			"SAP's UI documents uploading a certificate to the keystore, but this project could not " +
+				"confirm the OData create/update request shape (entity set name, PEM/DER encoding " +
+				"expectations, alias field) with enough confidence to implement it safely.",
+		},
 	},
 	{
-		Key:           "security.keystore_entry",
-		Domain:        "security",
-		Name:          "Keystore Entry",
-		Description:   "A certificate keystore entry security material artifact.",
+		Key:    "security.key_pair",
+		Domain: "security",
+		Name:   "Key Pair",
+		Description: "An SAP-generated key pair keystore entry (private key plus X.509 certificate " +
+			"chain), as opposed to one uploaded from outside the tenant.",
 		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonNotImplemented,
+		SupportReason: ReasonResearchRequired,
 		PublicAPI:     true,
 		APIProtocol:   "OData V2",
 		Planned:       true,
+		Limitations: []string{
+			"SAP's UI documents key pair generation (KeyPairGenerationRequests / KeyPairResources per " +
+				"the public API catalog), and private keys generated this way are never downloadable, " +
+				"which would make this a safe design (the resource can manage a key pair's existence " +
+				"and metadata without ever handling private key material). This project could not " +
+				"confirm the generation request's exact fields (key algorithm, key size, distinguished " +
+				"name) or its synchronous-vs-asynchronous lifecycle against $metadata or a documented " +
+				"example, so it is not yet implemented.",
+		},
 	},
 	{
-		Key:           "security.certificate_user_mapping",
-		Domain:        "security",
-		Name:          "Certificate-User Mapping",
-		Description:   "A mapping from a client certificate to an inbound user identity.",
+		Key:    "security.ssh_key",
+		Domain: "security",
+		Name:   "SSH Key",
+		Description: "An SAP-generated SSH key pair keystore entry, used for SFTP public-key " +
+			"authentication (SSHKeyGenerationRequests per the public API catalog).",
 		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonNotImplemented,
+		SupportReason: ReasonResearchRequired,
 		PublicAPI:     true,
 		APIProtocol:   "OData V2",
 		Planned:       true,
+		Limitations: []string{
+			"Same reasoning as security.key_pair: SAP's UI documents SSH key pair creation and this " +
+				"provider's standing policy prefers modeling a declarative, persistent resource over a " +
+				"one-shot \"generate\" action, but this project could not confirm the request/response " +
+				"contract well enough to implement it yet.",
+		},
+	},
+	{
+		Key:    "security.certificate_chain",
+		Domain: "security",
+		Name:   "Certificate Chain",
+		Description: "A certificate chain resource associated with a key pair (CertificateChainResources " +
+			"per the public API catalog).",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonResearchRequired,
+		PublicAPI:     true,
+		APIProtocol:   "OData V2",
+		Planned:       true,
+		Limitations: []string{
+			"This project could not confirm this entity's identity, upload/download semantics, or " +
+				"relationship to security.key_pair against $metadata or documented examples.",
+		},
+	},
+	{
+		Key:    "security.certificate_user_mapping",
+		Domain: "security",
+		Name:   "Certificate-User Mapping",
+		Description: "A mapping from a client certificate to an inbound user identity, used for " +
+			"inbound client certificate authentication.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonNoPublicAPI,
+		PublicAPI:     false,
+		Planned:       false,
+		Limitations: []string{
+			"Reverified for this feature family: SAP's own documentation (\"Managing Certificate-to-" +
+				"User Mappings\", \"Client Certificate Authentication and Certificate-to-User Mapping " +
+				"(Inbound)\", \"Setting Up Inbound HTTP Connections with Certificate-to-User Mapping\") " +
+				"exists only under the Neo environment, with no Cloud Foundry equivalent found in SAP's " +
+				"published documentation set. This provider targets the Cloud Foundry environment (its " +
+				"other Security Content resources use the Cloud Foundry \"/api/v1\" OData host), so this " +
+				"catalog entry is corrected from its previous \"not_implemented\"/PublicAPI:true state " +
+				"to \"no_public_api\": the feature cannot be implemented for this provider's target " +
+				"environment, not merely unimplemented yet. If SAP publishes a Cloud Foundry " +
+				"certificate-to-user-mapping API in the future, re-open this entry.",
+		},
+	},
+	{
+		Key:    "security.secure_parameter",
+		Domain: "security",
+		Name:   "Secure Parameter",
+		Description: "A \"Secure Parameter\" security material artifact: an opaque confidential value " +
+			"(for example for a custom adapter) deployed without an associated username.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonResearchRequired,
+		PublicAPI:     false,
+		Planned:       false,
+		Limitations: []string{
+			"SAP's Manage Security Material UI documents creating and deploying a Secure Parameter " +
+				"artifact, but this project found third-party evidence of at least one practitioner " +
+				"receiving an OData error (\"could not find an entity set or function import for " +
+				"SecureParameters\") when attempting to call it through the Security Content API, " +
+				"suggesting the entity set name is different from the obvious guess, is not exposed in " +
+				"every API version, or is not publicly documented at all. Marked PublicAPI: false " +
+				"pending confirmation, not because the UI feature doesn't exist, but because a callable " +
+				"public OData contract for it was not confirmed. If a public contract is confirmed, this " +
+				"would be a strong write-only-attribute candidate (value_wo/value_wo_version), the same " +
+				"shape as security.user_credential's password.",
+		},
+	},
+	{
+		Key:    "security.known_hosts",
+		Domain: "security",
+		Name:   "Known Hosts (SSH)",
+		Description: "The SSH \"known_hosts\" file artifact used to validate SFTP server host keys for " +
+			"outbound SFTP connections.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonResearchRequired,
+		PublicAPI:     false,
+		Planned:       false,
+		Limitations: []string{
+			"SAP's Manage Security Material UI documents uploading and downloading a Known Hosts " +
+				"artifact (file content, not a structured entity with individually settable fields), " +
+				"but this project could not confirm a public OData entity set or REST endpoint for it " +
+				"with enough confidence to implement create/update/delete safely.",
+		},
 	},
 
 	// --- Partner Directory ---

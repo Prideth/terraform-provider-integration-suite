@@ -759,6 +759,81 @@ the other file-based resources.
 - **Feature catalog status**: `partial`, not `supported` — the missing update/read-back is a
   permanent property of this resource's security model, not a gap expected to close later.
 
+## `sapintegrationsuite_user_credential`
+
+- **Purpose**: manage a Security Content "User Credentials" artifact: a username/password
+  credential integration flow adapters use for outbound basic or username-token authentication.
+- **SAP object**: `UserCredentials` (Security Content API, OData V2, same `/api/v1` host as
+  Cloud Integration content). Unlike `UserCredentialParameters` (Partner Directory), this entity
+  is not scoped to a Pid — it is a flat, tenant-level artifact identified by its own name.
+- **Desired state / Identity**: `id` is the artifact's `Name`, both its OData key and the alias
+  integration flow adapters reference; SAP's UI states this explicitly ("the artifact name is
+  used as an alias for the confidential data"). Immutable — SAP does not document renaming a
+  security material artifact.
+- **Read-back**: `User`, `Description`, `Kind`, `CompanyId` are read back; `Password` never is.
+  The Go client's `UserCredential` struct has no `Password` field, so a password could not end
+  up in this provider's state even if a future SAP API version returned one.
+- **Password handling**: `password_wo`/`password_wo_version`, the same `WriteOnly` pattern as
+  `sapintegrationsuite_partner_user_credential_parameter` — see that section above for the
+  general rationale. The difference here is Update: see below.
+- **Create**: `POST UserCredentials` with `Name`/`Kind`/`Description`/`User`/`Password`/
+  `CompanyId`.
+- **Update — implemented, unlike the Partner Directory analog**: SAP's Manage Security Material
+  UI documents an *Edit* action for Credentials artifacts ("You can also edit and redeploy an
+  existing artifact"), so this provider implements Update as `PUT UserCredentials('<name>')`
+  with every mutable field resent, followed by a `GET` to read back the result (this project
+  could not confirm whether a successful `PUT` returns a body or `204 No Content`, so it does
+  not trust the `PUT` response shape). `password_wo` is `Required`, not `RequiresReplace`, and is
+  resent on every Update — this provider assumes SAP requires re-entering the secret on every
+  edit here too, since it documents that requirement explicitly for the sibling OAuth2 Client
+  Credentials artifact and no documented exception for User Credentials was found.
+- **Rotation trigger**: changing `password_wo_version` (or any other mutable attribute) plans an
+  in-place Update, never a replacement — see `docs/guides/security-content.md`. Only `id` and
+  `kind` are `RequiresReplace`.
+- **Delete**: `DELETE UserCredentials('<name>')`.
+- **Drift detection**: readable metadata (`user`, `description`, `kind`, `company_id`) is
+  compared normally on Read; the password itself can never be detected as drifted, since SAP
+  never returns it.
+- **Import**: `terraform import sapintegrationsuite_user_credential.example BACKEND_BASIC`
+  recovers `id` and readable metadata only. `password_wo_version` starts unset in state; a
+  configuration that has not yet added `password_wo`/`password_wo_version` plans no changes at
+  all (Terraform has no opinion on an attribute absent from both state and config), so import
+  never implicitly touches the secret. The first time a practitioner adds both attributes, that
+  plans as an ordinary in-place Update, not a replacement, and is the deliberate, visible
+  "take ownership of rotation" step described in `docs/guides/security-content.md`.
+- **Feature catalog status**: `partial` — full CRUD is implemented, but `kind`/`company_id`
+  field casing is corroborated by a third-party example payload rather than `$metadata`, and a
+  deployment-status field is deliberately not exposed (unconfirmed property name).
+
+## `sapintegrationsuite_oauth2_client_credential`
+
+- **Purpose**: manage a Security Content "OAuth2 Client Credentials" artifact: the client ID,
+  client secret, and token service URL an integration flow adapter uses for the OAuth2 client
+  credentials grant (RFC 6749) on outbound requests.
+- **SAP object**: `OAuth2ClientCredentials` (Security Content API, OData V2).
+- **Desired state / Identity**: `id` is the artifact's `Name`/alias, immutable, same reasoning as
+  `sapintegrationsuite_user_credential`.
+- **Read-back**: `Description`, `TokenServiceUrl`, `ClientId`, `Scope` are read back;
+  `ClientSecret` never is (no field for it on the Go client's `OAuth2ClientCredential` struct).
+- **Fields deliberately not exposed**: Grant Type placement, Client Authentication mode
+  (body vs. header), Resource, Audience, and up to 20 custom parameters are documented in SAP's
+  UI in prose, but their OData property names/JSON shapes were not confirmed against
+  `$metadata` or a documented example payload, so this resource does not expose them — see
+  `docs/sap-api-references.md`.
+- **Create**: `POST OAuth2ClientCredentials` with `Name`/`Description`/`TokenServiceUrl`/
+  `ClientId`/`ClientSecret`/`Scope`.
+- **Update**: `PUT OAuth2ClientCredentials('<name>')`, same full-redeploy-plus-readback pattern
+  as `sapintegrationsuite_user_credential`. `client_secret_wo` is `Required` and resent on every
+  Update: SAP documents this explicitly ("Every time you edit an OAuth2 Client Credentials
+  artifact, you must re-enter the Client Secret").
+- **Rotation trigger**: changing `client_secret_wo_version` (or any other mutable attribute)
+  plans an in-place Update; only `id` is `RequiresReplace`.
+- **Delete**: `DELETE OAuth2ClientCredentials('<name>')`.
+- **Drift detection / Import**: same shape as `sapintegrationsuite_user_credential` — see that
+  section and `docs/guides/security-content.md`.
+- **Feature catalog status**: `partial` — full CRUD is implemented for the confirmed field
+  subset, but several UI-documented fields are not yet exposed.
+
 ## `data.sapintegrationsuite_partner` / `data.sapintegrationsuite_partners`
 
 - **Purpose**: read-only discovery of Partner IDs (Pids). `data.sapintegrationsuite_partner`
@@ -781,8 +856,10 @@ the other file-based resources.
 `sapintegrationsuite_capability`, `sapintegrationsuite_api_artifact`,
 `sapintegrationsuite_api_artifact_deployment`, message mapping entry-level or dependent-resource
 management (schema files referenced by a mapping are managed as part of the opaque content
-archive, not as separate Terraform resources), value mapping entry-level management (see above),
-and security material resources (user credentials, OAuth credentials, keystore) are designed at
-the API level in `api-capability-matrix.md` but intentionally not implemented yet, to keep each
-release small and high quality (see `ROADMAP.md`). Partner Directory resources are no longer in
-this list — see the sections above.
+archive, not as separate Terraform resources), and value mapping entry-level management (see
+above) are designed at the API level in `api-capability-matrix.md` but intentionally not
+implemented yet, to keep each release small and high quality (see `ROADMAP.md`). Partner
+Directory resources are no longer in this list — see the sections above. Security material is
+now split: user credentials and OAuth2 client credentials are implemented (see the sections
+above); keystore entries, certificates, key pairs, SSH keys, and certificate chains remain
+deferred pending `$metadata` confirmation — see `docs/guides/security-content.md`.
