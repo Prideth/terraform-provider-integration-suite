@@ -173,6 +173,8 @@ func (p *sapIntegrationSuiteProvider) Resources(_ context.Context) []func() reso
 		NewAlternativePartnerResource,
 		NewPartnerAuthorizedUserResource,
 		NewPartnerUserCredentialParameterResource,
+		NewUserCredentialResource,
+		NewOAuth2ClientCredentialResource,
 	}
 }
 
@@ -193,6 +195,8 @@ func (p *sapIntegrationSuiteProvider) DataSources(_ context.Context) []func() da
 		NewPartnerAuthorizedUserDataSource,
 		NewProviderFeaturesDataSource,
 		NewProviderFeatureDataSource,
+		NewUserCredentialDataSource,
+		NewOAuth2ClientCredentialDataSource,
 	}
 }
 

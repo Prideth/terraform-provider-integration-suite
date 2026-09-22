@@ -1,0 +1,1 @@
+terraform import sapintegrationsuite_user_credential.backend BACKEND_BASIC
