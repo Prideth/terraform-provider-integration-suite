@@ -93,6 +93,69 @@ API. This document is that trace.
   `docs/resource-design.md` for why guessing their wire format was rejected in favor of
   documenting the gap.
 
+## `sapintegrationsuite_message_mapping` / `..._deployment`
+
+- **SAP product area**: Integration Suite / Cloud Integration
+- **Official API**: Integration Content API
+- **Scope note**: this is the reusable, package-level Message Mapping *artifact*
+  (`MessageMappingDesigntimeArtifacts`), not the inline/local message mapping step configurable
+  directly inside an integration flow. See `docs/resource-design.md` for the distinction.
+- **Entity sets / actions**: `MessageMappingDesigntimeArtifacts`,
+  `MessageMappingDesigntimeArtifactSaveAsVersion` (action, confirmed to exist, not used by this
+  provider — see Update below), `IntegrationRuntimeArtifacts` (the same shared runtime-artifacts
+  entity `sapintegrationsuite_integration_flow_deployment` and
+  `sapintegrationsuite_value_mapping_deployment` use), `DeployMessageMappingDesigntimeArtifact`
+  (action; singular form, matching the sibling actions for the other design-time artifact types)
+- **Protocol**: OData V2
+- **Operations**: GET, POST (create), PUT (update — see below), DELETE, plus the `Deploy` action
+  (POST)
+- **Required roles**: `WorkspacePackagesConfigure`, `WorkspacePackagesEdit`,
+  `WorkspaceArtifactsDeploy`
+- **Sources used**: SAP Help Portal content read via the `SAP-docs` GitHub organization's
+  markdown mirror of the official Cloud Integration documentation (a legitimate primary source —
+  SAP's own published documentation, mirrored verbatim for community feedback — reached this
+  phase despite `help.sap.com` itself being blocked by this environment's network egress
+  policy), plus an independent third-party OData client
+  (`github.com/lemaiwo/ci-mcp-server`) built directly against this same API, used as
+  corroborating (not primary) evidence.
+- **Content format — confirmed, not inferred from Integration Flow**: a message mapping
+  artifact's content is a mapping definition (`*.mmap`) file; SAP's own artifact-upload UI
+  accepts it as (or bundled inside) a ZIP archive. This provider transports that ZIP opaquely as
+  base64-encoded `ArtifactContent`, the same as `IntegrationDesigntimeArtifacts` and
+  `ValueMappingDesigntimeArtifacts` — it does not parse the `.mmap` file or any XSD/WSDL/EDMX/
+  Swagger-OpenAPI schema files the mapping may reference for source/target message structures.
+- **Update — resolved as `PUT`, on entity-specific grounds**: unlike
+  `sapintegrationsuite_value_mapping` (which has no in-place update — see that resource's entry
+  below), this phase found positive evidence supporting `PUT` specifically for
+  `MessageMappingDesigntimeArtifacts`: it shares `IntegrationDesigntimeArtifacts`' exact
+  `(Id, Version)` key shape and confirmed version-creating `PUT` behavior; the same third-party
+  OData client that explicitly disables generic update for `ValueMappingDesigntimeArtifacts`
+  explicitly *enables* it for `MessageMappingDesigntimeArtifacts` (matching
+  `IntegrationDesigntimeArtifacts` and `ScriptCollectionDesigntimeArtifacts`); and no SAP KBA or
+  other evidence of a documented `PUT` problem for this entity set was found (unlike Value
+  Mapping's KBA 3502529). `MessageMappingDesigntimeArtifactSaveAsVersion` exists here too, but
+  this phase's research clarified that `SaveAsVersion` is a universal action across this whole
+  API family (confirmed to exist for `IntegrationDesigntimeArtifacts` as well, coexisting with
+  its confirmed `PUT`), not evidence against `PUT` by itself — see `docs/resource-design.md` for
+  the full reasoning. This provider does not use `SaveAsVersion` since it does not ask users to
+  manage an explicit version string.
+- **Delete — unverified scope, same open item as Value Mapping**: `DeleteMessageMapping` deletes
+  via `(Id, Version='active')`, the same key used for reads. Whether this removes only the
+  active version or every version of the artifact was not confirmed against a primary source.
+- **Deployment — `IntegrationRuntimeArtifacts`, not `BuildAndDeployStatus`**: investigated both
+  per this phase's instructions. `BuildAndDeployStatus(TaskId='…')` is documented in the context
+  of a different artifact family's build-then-deploy pipeline (OData API artifacts, keyed by a
+  `TaskId` a build operation returns), not `MessageMappingDesigntimeArtifacts`. SAP's Runtime
+  Status API documentation and secondary sources both describe message mappings as deployed
+  runtime artifacts monitored through the same shared `IntegrationRuntimeArtifacts` entity
+  already used by the other `*_deployment` resources; `runtime_artifact.go` and
+  `runtime_deployment.go` are reused unmodified. See `docs/resource-design.md` for the full
+  reasoning.
+- **No hidden coupling to referencing integration flows**: SAP's own documentation confirms an
+  integration flow's deployment does not automatically deploy a message mapping it references;
+  this provider does not add automatic-deployment behavior SAP itself does not provide, and does
+  not scan or modify integration flow content to manage that reference.
+
 ## `sapintegrationsuite_access_policy` / `..._reference`
 
 - **SAP product area**: Integration Suite / Security

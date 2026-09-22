@@ -339,11 +339,217 @@ evaluation, not a default:
   force replacing the entire entry set on any single change) — but this is not yet a design
   decision, only a direction for the next investigation.
 
+## Message Mapping API model
+
+A reusable Message Mapping is a **package-level design-time artifact**, structurally the same
+kind of object as an integration flow or a value mapping — not the inline/local message mapping
+step that can be configured directly inside an integration flow without ever becoming a
+standalone artifact. The two are easy to conflate because SAP's own UI uses the same term
+"Message Mapping" for both:
+
+```
+Integration Package
+│
+├── Message Mapping Artifact (MessageMappingDesigntimeArtifacts)
+│      │
+│      └── reusable by Integration Flows via a message mapping flow step
+│
+└── Integration Flow
+       │
+       └── may reference a Message Mapping Artifact, or define an inline
+           mapping that never becomes a separate artifact
+```
+
+This feature is only about the first kind — the reusable, package-level artifact reachable
+through `MessageMappingDesigntimeArtifacts`. It does not model, own, or manage inline mapping
+configuration embedded directly in an integration flow's own content, which stays entirely
+inside that integration flow's `content`/`content_hash` as far as this provider is concerned.
+
+**Confirmed via SAP's own documentation** (SAP Help Portal, read through the `SAP-docs`
+GitHub organization's markdown mirror of the Cloud Integration documentation — the primary,
+official source, not a blog or forum): creating a message mapping artifact requires a package
+context, a technical ID, a display name, and optional description; the artifact's content is a
+mapping definition (`*.mmap`) file, uploaded as (or bundled inside) a ZIP archive; and the
+artifact must be deployed before any integration flow that references it can use it — there is
+no automatic deployment of a referenced message mapping when the referencing integration flow
+is deployed. That last point matters for this provider's ownership model (see the deployment
+resource below): a message mapping's deployment is independent of, and not implicitly triggered
+by, anything the flows that reference it do.
+
+**Confirmed operations** (Integration Content API, OData V2, `CloudIntegrationAPI` package):
+
+| Operation | Method | Purpose |
+|---|---|---|
+| `MessageMappingDesigntimeArtifacts` | GET | Read artifact metadata (`Id`, `Version`, `Name`, `PackageId`), navigable from `IntegrationPackages` |
+| `MessageMappingDesigntimeArtifacts` | POST | Create a new message mapping artifact from uploaded content |
+| `MessageMappingDesigntimeArtifacts(Id=…,Version=…)` | PUT | Update an existing artifact's content, creating a new design-time version — see Update below |
+| `MessageMappingDesigntimeArtifacts(Id=…,Version=…)` | DELETE | Delete the artifact — see Delete below for what "delete" actually removes |
+| `DeployMessageMappingDesigntimeArtifact?Id='…'&Version='…'` | POST | Deploy a specific version to the runtime (singular action name, matching the sibling actions for integration flows and value mappings) |
+| `IntegrationRuntimeArtifacts(Id=…)` | GET / DELETE | Read deployment status / undeploy — the same shared runtime-artifacts entity already used by `sapintegrationsuite_integration_flow_deployment` and `sapintegrationsuite_value_mapping_deployment`, confirmed applicable here too (see the deployment resource entry below) |
+| `MessageMappingDesigntimeArtifactSaveAsVersion?Id='…'&SaveAsVersion='…'` | POST | Save the current content under an explicit, caller-supplied version string, as a named milestone alongside the version SAP assigns automatically on every `PUT` — not used by this provider (see Update below) |
+| Required roles | — | `WorkspacePackagesConfigure`, `WorkspacePackagesEdit`, `WorkspaceArtifactsDeploy` (same Integration Content API roles already required for integration flows and value mappings) |
+
+**`SaveAsVersion` is a universal action across this API family, not a Value-Mapping-specific
+concept.** While re-investigating the Value Mapping API contract in an earlier phase, this
+project treated `ValueMappingDesigntimeArtifactSaveAsVersion` as if it might be Value Mapping's
+*only* real update path, precisely because a plain `PUT` for that entity set could not be
+confirmed to work and a third-party OData client explicitly disabled generic update for it. This
+phase's research shows the actual shape of `SaveAsVersion` more clearly: it exists as
+`IntegrationDesigntimeArtifactSaveAsVersion?Id='…'&SaveAsVersion='…'` for integration flows too
+— an entity set where `PUT`-based update is independently confirmed and already implemented — so
+`PUT` and `SaveAsVersion` are evidently not mutually exclusive alternatives in general; they
+coexist, with `SaveAsVersion` letting a caller pin an explicit version string as a named
+milestone on top of whatever version `PUT` assigns automatically. This does not change any
+conclusion this project reached about Value Mapping specifically (that remains governed by its
+own entity-specific evidence, documented in `docs/sap-api-references.md`), but it does mean the
+mere existence of a `SaveAsVersion` action for Message Mapping is not, by itself, a reason to
+avoid `PUT` here. What actually decides Message Mapping's Update model is entity-specific
+evidence for *this* entity set — see Update below.
+
+## `sapintegrationsuite_message_mapping`
+
+- **Purpose**: manage the design-time content of a reusable Cloud Integration message mapping
+  artifact, uploaded from a local content file, the same way
+  `sapintegrationsuite_integration_flow` manages an integration flow's ZIP content.
+- **SAP object**: `MessageMappingDesigntimeArtifacts`.
+- **Identity**: composite `<package_id>/<mapping_id>`, both user-chosen business keys, exactly
+  mirroring `sapintegrationsuite_integration_flow` and `sapintegrationsuite_value_mapping`.
+- **Create**: `POST MessageMappingDesigntimeArtifacts` with `Id`, `Name`, `PackageId`, and
+  base64-encoded `ArtifactContent`. No SAP-documented minimum-content precondition was found for
+  message mapping (unlike value mapping's confirmed "at least one entry" requirement) — none is
+  enforced client-side either, consistent with this provider's rule of not inventing
+  constraints SAP does not document.
+- **Read**: `GET MessageMappingDesigntimeArtifacts(Id='{mapping_id}',Version='active')`. The
+  `Version='active'` alias is the same one already confirmed and tested for
+  `sapintegrationsuite_integration_flow` and `sapintegrationsuite_value_mapping`, on the same
+  entity family; not re-derived from scratch for this entity, but not assumed to be
+  automatically valid for every future entity in this family either.
+- **Update — implemented via `PUT`, on different grounds than Value Mapping**: unlike Value
+  Mapping, this phase found positive, entity-specific evidence that `PUT` is the right mechanism
+  here, not just an analogy with integration flows:
+  - `MessageMappingDesigntimeArtifacts` shares the exact same `(Id, Version)` composite-key
+    shape as `IntegrationDesigntimeArtifacts`, whose `PUT`-based, version-creating update is
+    independently confirmed and already implemented.
+  - An independent third-party OData client built directly against this API
+    (`github.com/lemaiwo/ci-mcp-server`, the same one whose configuration was used as
+    corroborating evidence against Value Mapping's `PUT`) explicitly enables its generic
+    "update" operation for `MessageMappingDesigntimeArtifacts`, the same as it does for
+    `IntegrationDesigntimeArtifacts` and `ScriptCollectionDesigntimeArtifacts` — and unlike
+    `ValueMappingDesigntimeArtifacts`, where that same tool explicitly disables it. That is a
+    deliberate difference the tool's author drew between these entity sets, not a gap in
+    coverage.
+  - No SAP Knowledge Base Article or other evidence of a documented problem with changing a
+    message mapping's version via `PUT` was found (unlike Value Mapping, where KBA 3502529
+    documents exactly that problem for that entity set specifically).
+  - Following SAP's own `IntegrationDesigntimeArtifacts` behavior, `PUT` here creates a new
+    design-time version of the same artifact ID; this provider treats that as a normal Terraform
+    Update (no replace), because identity (`package_id`/`mapping_id`) does not change — the
+    same design already proven for `sapintegrationsuite_integration_flow`.
+  - `MessageMappingDesigntimeArtifactSaveAsVersion` exists (see the API model above) but is not
+    used: this provider does not ask the user to manage an explicit version string, so there is
+    nothing for it to do here that `PUT`'s automatic versioning does not already cover.
+- **Delete**: `DELETE MessageMappingDesigntimeArtifacts(Id='{mapping_id}',Version='active')`.
+  Whether this removes only the active version or every version of the artifact was not
+  confirmed against a primary source (the same open question already flagged for
+  `sapintegrationsuite_value_mapping`'s Delete) — documented as an open item rather than
+  asserted as "removes all versions".
+- **Version**: Computed only. SAP assigns it on every `PUT`; Terraform never asks the user to
+  manage a version string, which is also what keeps a `terraform apply` with unchanged content
+  from producing a new version (idempotent apply — see Terraform version semantics below).
+- **Import**: `terraform import sapintegrationsuite_message_mapping.example UTILITIES/customer-mapping`.
+- **Drift detection**: `Read` re-fetches metadata on every refresh. `content`/`content_hash`
+  follow the exact same explicit, user-supplied, `RequiresReplace`-free pattern already
+  documented and re-evaluated for `sapintegrationsuite_value_mapping` (see that resource's
+  entry above for the content-hash design reasoning, which applies here unchanged); the same
+  import limitation applies since SAP does not return a local file path for existing content.
+- **Content format**: transported opaquely as a ZIP archive (base64-encoded `ArtifactContent`),
+  exactly like `sapintegrationsuite_integration_flow` and `sapintegrationsuite_value_mapping`.
+  This provider does not parse, validate, or interpret what is inside the archive — not the
+  `.mmap` mapping definition, and not any XSD/WSDL/EDMX/Swagger-OpenAPI schema files SAP's
+  mapping editor lets a message mapping reference for its source/target message structures. It
+  only transports and manages the artifact as a unit, the same boundary already established for
+  the other file-based design-time resources.
+
+## Terraform version semantics for Message Mapping
+
+Selected **Model A** from this phase's three candidate designs (content changes update the
+design-time artifact in place; the provider does not expose or require a caller-supplied version
+string; a separate deployment resource references whatever version the artifact resource last
+produced) over:
+
+- Model B (an explicit `desired_version` Terraform input) — rejected because nothing in the
+  confirmed API contract requires or even exposes a caller-chosen version number for a normal
+  content update; `SaveAsVersion`'s caller-supplied version string is an optional, separate
+  action this provider does not use (see Update above), not a required part of the update path.
+- Model C (draft vs. published version as separate resource concerns) — rejected because no
+  SAP documentation surfaced a draft/published distinction for message mapping artifacts
+  independent of the same `Version='active'` alias already used uniformly across this API
+  family; inventing that distinction without evidence would violate this project's standing
+  rule against guessing wire/state semantics.
+
+Model A is also exactly what `sapintegrationsuite_integration_flow` already implements, so this
+is a consistency choice as well as an evidence-based one: an unchanged `terraform apply` does not
+create a new SAP version, because content-hash comparison against the last-read artifact is what
+decides whether `Update` is even called, and the `version` attribute is Computed-only so
+Terraform itself never treats a version-string mismatch as configuration drift.
+
+## `sapintegrationsuite_message_mapping_deployment`
+
+- **Purpose**: express the desired runtime deployment state of a message mapping, independent
+  of its design-time content, mirroring `sapintegrationsuite_integration_flow_deployment` and
+  `sapintegrationsuite_value_mapping_deployment` exactly.
+- **SAP object**: the `DeployMessageMappingDesigntimeArtifact` action plus the shared
+  `IntegrationRuntimeArtifacts` entity for status/undeploy.
+- **Why `IntegrationRuntimeArtifacts` and not `BuildAndDeployStatus`**: SAP's Integration
+  Content API also exposes a `BuildAndDeployStatus(TaskId='…')` entity, which this phase
+  investigated specifically rather than assuming it applies here. The evidence found ties
+  `BuildAndDeployStatus` to a different artifact family's build-then-deploy pipeline (OData API
+  artifacts, which SAP documents as needing to be built before they can be deployed, keyed by a
+  `TaskId` a build operation returns — not by the artifact's own `Id`), not to
+  `MessageMappingDesigntimeArtifacts`. By contrast, SAP's own Runtime Status API documentation
+  describes `IntegrationRuntimeArtifacts` as covering "currently deployed integration
+  artifacts" generally, and secondary sources specifically describe message mappings as
+  existing as runtime artifacts inside deployed runtime packages alongside integration flows,
+  script collections, and adapters — monitored through that same shared entity. `Deploy` for a
+  message mapping does not return a `TaskId` the way a `BuildAndDeployStatus`-fronted deploy
+  would; it follows the same fire-and-poll-`IntegrationRuntimeArtifacts` shape already
+  implemented for integration flows and value mappings. `runtime_artifact.go` and
+  `runtime_deployment.go` are reused unmodified, since the semantics genuinely match — the same
+  standard already applied when this abstraction was reviewed for value mapping.
+- **Schema and lifecycle**: identical shape to `sapintegrationsuite_value_mapping_deployment` —
+  a required `mapping_version` input (normally wired to
+  `sapintegrationsuite_message_mapping.<name>.version`) that both triggers redeployment when the
+  design-time version changes and, once `Read` writes the actually-deployed version back into
+  it, surfaces drift from an out-of-band redeploy or undeploy. Uses the same context-aware
+  polling with exponential backoff and jitter, never a fixed sleep.
+- **No hidden coupling to referencing integration flows**: confirmed by SAP's own documentation
+  that deploying an integration flow does not automatically deploy a message mapping it
+  references — this provider does the same: `sapintegrationsuite_message_mapping_deployment` is
+  a resource in its own right that a configuration must explicitly create, exactly mirroring
+  SAP's own behavior rather than adding automatic-deployment behavior SAP itself does not
+  provide. The message mapping resource does not scan, own, or modify integration flow content
+  that references it; ownership of that reference stays entirely with whichever integration
+  flow's content contains it.
+- **Import**: `terraform import sapintegrationsuite_message_mapping_deployment.example UTILITIES/customer-mapping`.
+
+## `data.sapintegrationsuite_message_mapping`
+
+- **Purpose**: read-only lookup of an existing message mapping's metadata, mirroring
+  `data.sapintegrationsuite_value_mapping` exactly — useful for brownfield adoption or for a
+  configuration that wants to reference metadata/version of a mapping without owning it.
+- **SAP object**: `GET MessageMappingDesigntimeArtifacts(Id='{mapping_id}',Version='active')`,
+  the same read path the resource uses.
+- Implemented because the read semantics are exactly as stable as
+  `sapintegrationsuite_value_mapping`'s — not added merely for symmetry with every resource
+  having a matching data source.
+
 ## Deferred to v0.2.x and later
 
 `sapintegrationsuite_capability`, `sapintegrationsuite_api_artifact`,
-`sapintegrationsuite_api_artifact_deployment`, script collection / message mapping resources,
-value mapping entry-level management (see above), security material resources (user
-credentials, OAuth credentials, keystore), and Partner Directory resources are designed at the
-API level in `api-capability-matrix.md` but intentionally not implemented yet, to keep each
-release small and high quality (see `ROADMAP.md`).
+`sapintegrationsuite_api_artifact_deployment`, script collection resources, message mapping
+entry-level or dependent-resource management (schema files referenced by a mapping are managed
+as part of the opaque content archive, not as separate Terraform resources), value mapping
+entry-level management (see above), security material resources (user credentials, OAuth
+credentials, keystore), and Partner Directory resources are designed at the API level in
+`api-capability-matrix.md` but intentionally not implemented yet, to keep each release small and
+high quality (see `ROADMAP.md`).
