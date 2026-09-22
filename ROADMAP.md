@@ -15,20 +15,15 @@ matrix.
 
 Development branches from `dev`, in this order, until superseded by an explicit reprioritization:
 
-1. **Security Content** — **Partial.** User Credentials and OAuth2 Client Credentials are
-   implemented (write-only secrets, in-place redeploy via `PUT`). Keystore entries, certificates,
-   key pairs, SSH keys, and certificate chains remain Research required — existence is
-   corroborated but exact `$metadata` field casing is not; see
-   `docs/guides/security-content.md`. Certificate-to-user mapping is Blocked by API for this
-   provider's Cloud Foundry target (Neo environment only). OAuth2 Authorization Code is Out of
-   scope (requires interactive human authorization). Secure Parameter and Known Hosts are
-   Research required.
-2. **Integration Adapter Design-Time Artifacts** — **Next.** `IntegrationAdapterDesigntimeArtifacts`
-   and `DeployIntegrationAdapterDesigntimeArtifacts` (Cloud Foundry-only, per SAP's own Integration
-   Content API resource table) let a tenant administrator import, deploy, and delete a custom
-   integration adapter. Gets its own `feature/integration-adapter-support` branch.
-3. **Message Queues / Data Stores / Variables / Number Ranges** — Research required per object;
-   do not treat operational/monitoring APIs automatically as Terraform resources.
+1. **Custom Tag Configurations** — **Next.** SAP exposes `CustomTagConfigurations` as a public
+   Integration Content API resource for tenant-level, package-classifying tags. Gets its own
+   `feature/custom-tag-configurations` branch.
+2. **Number Ranges / Variables / Data Stores** — Terraform suitability review per object; do not
+   treat operational/monitoring APIs automatically as Terraform resources.
+3. **Remaining Security Content subfeatures** — keystore entries, certificates, key pairs, SSH
+   keys, certificate chains remain Research required — existence is corroborated but exact
+   `$metadata` field casing is not; see `docs/guides/security-content.md`. Secure Parameter and
+   Known Hosts are also Research required.
 4. **Classic API Management** — Planned, after Cloud Integration core support is mature.
 5. **New API Gateway / API Artifacts** — Blocked by API: existence confirmed via UI/feature
    documentation, but no public design-time API confirmed in enough detail for a stable
@@ -50,6 +45,10 @@ runtime reconciliation research, minimal-PATCH update, data sources, import/drif
 see "Implemented" below and `docs/guides/access-policies.md`. Partner Directory is also done —
 see "Implemented" below and `docs/guides/partner-directory.md`. Cloud Integration Service
 Endpoints discovery is also done — see "Implemented" below and `docs/guides/service-endpoints.md`.
+Security Content (User Credentials and OAuth2 Client Credentials) and custom Integration Adapter
+design-time/deployment support are also done, at a `partial` support level each — see
+"Implemented" below, `docs/guides/security-content.md`, and
+`docs/guides/integration-adapters.md`.
 
 This order describes what to work on **next**; it does not retroactively unimplement anything
 already shipped (see "Implemented" below).
@@ -112,6 +111,14 @@ already shipped (see "Implemented" below).
   expansion, `name`/`protocol` filters, full server-driven pagination, deterministic ordering —
   see `docs/guides/service-endpoints.md`):
   - `data.sapintegrationsuite_service_endpoints`
+- Custom Integration Adapter design-time and deployment support (Cloud Foundry only;
+  conservative replace-on-any-change model since SAP documents a duplicate-ID import as an
+  error and no in-place update was confirmed; no `*_version` attribute on the deployment
+  resource, since the confirmed deploy action takes no `Version` parameter — see
+  `docs/guides/integration-adapters.md`):
+  - `sapintegrationsuite_integration_adapter`
+  - `data.sapintegrationsuite_integration_adapter`
+  - `sapintegrationsuite_integration_adapter_deployment`
 - A shared, CSRF-aware HTTP client: every modifying (POST/PUT/PATCH/DELETE) request now
   transparently fetches and retries with an `X-CSRF-Token` if SAP's API asks for one,
   independently of OAuth authentication — see `docs/sap-api-references.md`
@@ -134,10 +141,10 @@ already shipped (see "Implemented" below).
 - Message mapping entry-level or dependent-resource management, if SAP ever exposes one
   independent of the opaque content archive this provider already transports (**Research
   required**)
+- Custom Tag Configurations (**Next**, priority 1 above)
 - Remaining Security Content material (keystore entries, certificates, key pairs, SSH keys,
   certificate chains) once exact OData `$metadata` field names are confirmed (**Research
-  required**, priority 1 above)
-- Integration Adapter Design-Time Artifacts (**Next**, priority 2 above)
+  required**, priority 3 above)
 - Classic API Management resources, once the required scopes and object model are fully
   mapped (**Planned**, priority 4 above)
 - New API Gateway / API Artifact model, once its public API surface is confirmed in enough

@@ -106,6 +106,20 @@ Initial development toward v0.1.0. See `ROADMAP.md` for what is planned and
   domain, using the ✅/⚠️/👁️/🧪/❌ icon legend, and — unlike the README table it
   replaces — shows unsupported and out-of-scope features alongside supported ones, not
   just a curated list of what works.
+- `sapintegrationsuite_integration_adapter`, `data.sapintegrationsuite_integration_adapter`,
+  and `sapintegrationsuite_integration_adapter_deployment` for custom Integration Adapter
+  design-time and runtime management (Cloud Foundry environment only — SAP does not expose this
+  artifact type in Neo). This is the SAP Adapter SDK `*.esa` upload lifecycle, distinct from
+  importing a prebundled SAP Business Accelerator Hub adapter from inside the integration flow
+  editor and from tenant capability activation. SAP's own "Example Requests" documentation for
+  this entity confirms only Delete and Deploy (unlike the complete example set backing every
+  sibling design-time artifact type), which confirmed two structural findings that differ from
+  every other design-time resource in this provider: the entity is keyed by `Id` alone, not a
+  composite `(Id, Version)` key, and the deploy action takes no `Version` query parameter.
+  Because SAP documents that importing a duplicate `Id` is rejected as an error, and no
+  reimport/update example was found, this resource implements no in-place update at all — every
+  attribute is `RequiresReplace`. See `docs/guides/integration-adapters.md` for the full
+  breakdown of what is confirmed versus inferred by analogy.
 
 ### Changed
 
@@ -172,3 +186,12 @@ Initial development toward v0.1.0. See `ROADMAP.md` for what is planned and
   casing (confirmed from SAP's own open-source Piper library), not independently
   confirmed itself. Whether a fresh deployment's service endpoint appears immediately or
   after a propagation delay is also unconfirmed — see `docs/guides/service-endpoints.md`.
+- `sapintegrationsuite_integration_adapter` has no in-place update: every attribute is
+  `RequiresReplace`. Its Create request shape is corroborated by analogy to sibling
+  design-time artifact types rather than confirmed by an SAP-published example for this
+  specific entity, `type`/`application` are not validated against a fixed value set (not
+  confirmed as a closed enum), and there is no `sapintegrationsuite_integration_adapters`
+  collection data source (no confirmed list/filter contract for this entity set). Its
+  deployment resource reuses the shared runtime-artifact status/undeploy mechanism by
+  analogy, not independent confirmation for this artifact type. See
+  `docs/guides/integration-adapters.md`.
