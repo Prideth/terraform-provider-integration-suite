@@ -44,10 +44,10 @@ func TestGetAllPages_FollowsNextLinks(t *testing.T) {
 		switch len(requestedPaths) {
 		case 1:
 			next := "http://" + r.Host + "/StringParameters?$skiptoken=page2"
-			_, _ = w.Write([]byte(fmt.Sprintf(`{"d": {"results": [{"Id":"A","Value":"1"}], "__next": %q}}`, next)))
+			_, _ = fmt.Fprintf(w, `{"d": {"results": [{"Id":"A","Value":"1"}], "__next": %q}}`, next)
 		case 2:
 			next := "http://" + r.Host + "/StringParameters?$skiptoken=page3"
-			_, _ = w.Write([]byte(fmt.Sprintf(`{"d": {"results": [{"Id":"B","Value":"2"}], "__next": %q}}`, next)))
+			_, _ = fmt.Fprintf(w, `{"d": {"results": [{"Id":"B","Value":"2"}], "__next": %q}}`, next)
 		default:
 			_, _ = w.Write([]byte(`{"d": {"results": [{"Id":"C","Value":"3"}]}}`))
 		}

@@ -2,6 +2,7 @@ package partnerdirectory
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 
@@ -78,11 +79,16 @@ func (c *Client) GetBinaryParameter(ctx context.Context, pid, id string) (*Binar
 	return &bp, nil
 }
 
-// CreateBinaryParameter creates a new binary parameter. The Pid it names
-// does not need to exist beforehand, the same implicit-creation semantics
-// as StringParameter.
-func (c *Client) CreateBinaryParameter(ctx context.Context, bp BinaryParameter) (*BinaryParameter, error) {
-	payload, err := json.Marshal(bp)
+// CreateBinaryParameter creates a new binary parameter from raw (not yet
+// base64-encoded) content. The Pid it names does not need to exist
+// beforehand, the same implicit-creation semantics as StringParameter.
+func (c *Client) CreateBinaryParameter(ctx context.Context, pid, id, contentType string, content []byte) (*BinaryParameter, error) {
+	payload, err := json.Marshal(BinaryParameter{
+		Pid:         pid,
+		Id:          id,
+		ContentType: contentType,
+		Value:       base64.StdEncoding.EncodeToString(content),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("partnerdirectory: encoding binary parameter: %w", err)
 	}
@@ -100,9 +106,10 @@ func (c *Client) CreateBinaryParameter(ctx context.Context, bp BinaryParameter) 
 }
 
 // UpdateBinaryParameter replaces the content type and value of an existing
-// binary parameter via PUT, addressed by its (Pid, Id) key, the same
-// full-replace semantics as UpdateStringParameter.
-func (c *Client) UpdateBinaryParameter(ctx context.Context, pid, id, contentType, value string) error {
+// binary parameter via PUT, addressed by its (Pid, Id) key, from raw (not
+// yet base64-encoded) content — the same full-replace semantics as
+// UpdateStringParameter.
+func (c *Client) UpdateBinaryParameter(ctx context.Context, pid, id, contentType string, content []byte) error {
 	key, err := binaryParameterKey(pid, id)
 	if err != nil {
 		return err
@@ -111,7 +118,7 @@ func (c *Client) UpdateBinaryParameter(ctx context.Context, pid, id, contentType
 	payload, err := json.Marshal(struct {
 		ContentType string `json:"ContentType"`
 		Value       string `json:"Value"`
-	}{ContentType: contentType, Value: value})
+	}{ContentType: contentType, Value: base64.StdEncoding.EncodeToString(content)})
 	if err != nil {
 		return fmt.Errorf("partnerdirectory: encoding binary parameter: %w", err)
 	}

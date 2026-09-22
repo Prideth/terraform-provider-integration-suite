@@ -131,7 +131,7 @@ func (c *Client) fetchCSRFToken(originalReq *http.Request) (token, cookie string
 		fetchReq.Header.Set("User-Agent", c.userAgent)
 	}
 
-	resp, err := c.doAuthenticated(fetchReq)
+	resp, err := c.doAuthenticated(fetchReq) //nolint:bodyclose // resp.Body is always closed by drainAndClose below
 	if err != nil {
 		return "", "", fmt.Errorf("http: fetching CSRF token: %w", err)
 	}

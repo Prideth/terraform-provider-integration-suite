@@ -52,7 +52,7 @@ func TestClient_ListPartners_FollowsPagination(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		if requests == 1 {
 			next := fmt.Sprintf("http://%s/api/v1/Partners?$skiptoken=page2", r.Host)
-			_, _ = w.Write([]byte(fmt.Sprintf(`{"d": {"results": [{"Pid":"A"}], "__next": %q}}`, next)))
+			_, _ = fmt.Fprintf(w, `{"d": {"results": [{"Pid":"A"}], "__next": %q}}`, next)
 			return
 		}
 		_, _ = w.Write([]byte(`{"d": {"results": [{"Pid":"B"}]}}`))

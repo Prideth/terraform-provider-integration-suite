@@ -46,9 +46,7 @@ func TestClient_GetCreateUpdateDeleteBinaryParameter(t *testing.T) {
 		t.Errorf("ContentType = %q, want xsd", bp.ContentType)
 	}
 
-	created, err := client.CreateBinaryParameter(context.Background(), BinaryParameter{
-		Pid: "PartnerZ", Id: "OrderSchema", ContentType: "xsd", Value: content,
-	})
+	created, err := client.CreateBinaryParameter(context.Background(), "PartnerZ", "OrderSchema", "xsd", []byte("<xsd>schema</xsd>"))
 	if err != nil {
 		t.Fatalf("CreateBinaryParameter() error: %v", err)
 	}
@@ -56,7 +54,7 @@ func TestClient_GetCreateUpdateDeleteBinaryParameter(t *testing.T) {
 		t.Errorf("created.Id = %q, want OrderSchema", created.Id)
 	}
 
-	if err := client.UpdateBinaryParameter(context.Background(), "PartnerZ", "OrderSchema", "zip", content); err != nil {
+	if err := client.UpdateBinaryParameter(context.Background(), "PartnerZ", "OrderSchema", "zip", []byte("<xsd>schema</xsd>")); err != nil {
 		t.Fatalf("UpdateBinaryParameter() error: %v", err)
 	}
 	if lastMethod != http.MethodPut {

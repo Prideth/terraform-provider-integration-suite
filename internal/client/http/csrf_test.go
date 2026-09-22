@@ -173,7 +173,7 @@ func TestClient_CSRFFetchFailure_ReturnsError(t *testing.T) {
 	client := New(Config{BaseDelay: time.Millisecond, MaxDelay: 5 * time.Millisecond})
 
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, server.URL, nil)
-	if _, err := client.Do(req); err == nil {
+	if _, err := client.Do(req); err == nil { //nolint:bodyclose // err != nil below means resp is always nil here
 		t.Fatal("expected an error when the CSRF token fetch itself fails")
 	}
 }

@@ -8,7 +8,7 @@ import (
 	v2 "github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/odata/v2"
 )
 
-const userCredentialParametersEntitySet = "UserCredentialParameters"
+const userCredentialParametersEntitySet = "UserCredentialParameters" // #nosec G101 -- an OData entity set name, not a credential value
 
 // UserCredentialParameter is the READ/IDENTITY-ONLY wire representation of
 // a UserCredentialParameters entity: deliberately, this struct has no
