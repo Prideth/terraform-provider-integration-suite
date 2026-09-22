@@ -220,15 +220,32 @@ var Catalog = []Feature{
 		Operations:      Operations{Create: true, Read: true, Update: true, Delete: true, Import: true, Deploy: true, Undeploy: true},
 	},
 	{
-		Key:           "cloud_integration.service_endpoints",
-		Domain:        "cloud_integration",
-		Name:          "Service Endpoints",
-		Description:   "Read-only lookup of a deployed integration flow's exposed runtime service endpoint URLs.",
-		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonNotImplemented,
-		PublicAPI:     true,
-		APIProtocol:   "OData V2",
-		Planned:       true,
+		Key:    "cloud_integration.service_endpoints",
+		Domain: "cloud_integration",
+		Name:   "Service Endpoints",
+		Description: "Read-only discovery of the runtime service endpoints (entry point URLs and " +
+			"API definition links) SAP generates for deployed Cloud Integration content.",
+		SupportStatus:   StatusReadOnly,
+		SupportReason:   ReasonUnsafeTerraformLifecycle,
+		DataSourceTypes: []string{"sapintegrationsuite_service_endpoints"},
+		PublicAPI:       true,
+		APIProtocol:     "OData V2",
+		Limitations: []string{
+			"Discovery only, by design: SAP generates service endpoints from deployed content and " +
+				"there is no create/update/delete API for them, so this provider intentionally has " +
+				"no matching resource type — see docs/guides/service-endpoints.md.",
+			"No single-endpoint (sapintegrationsuite_service_endpoint) data source exists: this " +
+				"project could not confirm that Name uniquely and stably identifies exactly one " +
+				"service endpoint, so only the collection data source " +
+				"(sapintegrationsuite_service_endpoints, with optional name/protocol filters) is " +
+				"implemented, to avoid a lookup data source that silently returns the wrong result " +
+				"if more than one endpoint ever matches.",
+			"The EntryPoint/APIDefinition Url property's JSON casing is confirmed from SAP's own " +
+				"open-source Piper library parsing a live response; the ApiDefinitions entity's Url " +
+				"casing specifically is inferred by consistency rather than independently confirmed " +
+				"from an example touching that entity — see docs/sap-api-references.md.",
+		},
+		Operations: Operations{Read: true},
 	},
 	{
 		Key:           "cloud_integration.message_processing_logs",

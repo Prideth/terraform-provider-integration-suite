@@ -664,6 +664,58 @@ the other file-based resources.
   `data.sapintegrationsuite_message_mapping` exactly.
 - **SAP object**: `GET ScriptCollectionDesigntimeArtifacts(Id='{script_collection_id}',Version='active')`.
 
+## `data.sapintegrationsuite_service_endpoints`
+
+- **Purpose**: read-only discovery of the runtime service endpoints (entry point URLs, API
+  definition document links) SAP has generated for deployed Cloud Integration content.
+- **SAP object**: `ServiceEndpoints` (Integration Content API, OData V2), with `EntryPoints` and
+  `ApiDefinitions` expanded in a single combined request. See `docs/sap-api-references.md` for
+  the full field-by-field contract and its confirmation sources.
+- **Why a data source, not a resource (§17 suitability check)**: SAP documents no create,
+  update, or delete operation for `ServiceEndpoints` at all — it is generated automatically from
+  deployed content and removed automatically on undeploy. A Terraform resource needs a
+  Create/Delete pair this provider actually controls; here, the closest thing to "desired state"
+  already has its own resource (`sapintegrationsuite_integration_flow_deployment` and siblings),
+  and `ServiceEndpoints` is purely the runtime *consequence* of that state, the same category of
+  gap as Message Processing Logs and Message Stores (see `docs/provider-scope.md`) but with one
+  difference: unlike those, a service endpoint's *existence* is a direct, deterministic function
+  of desired-state content this provider does manage, which is exactly what makes it a useful
+  discovery data source rather than out-of-scope operational data.
+- **Why no singular `data.sapintegrationsuite_service_endpoint` (§12/§13 suitability check)**:
+  SAP's own example requests filter `ServiceEndpoints` by `Name`, but no source confirms `Name`
+  (or `Name`+`Protocol` together) is guaranteed unique across every possible deployment
+  configuration — for example, one integration flow exposed through more than one adapter at
+  once is plausible and not ruled out by anything this project found. A singular data source
+  that silently picked "the first match" when more than one exists would be actively misleading.
+  This provider only implements the collection form; filtering by `name` narrows results in
+  practice without pretending to guarantee uniqueness SAP itself does not document.
+- **Identity**: this provider invents no synthetic ID for either the data source instance or
+  individual endpoint entries — `name`/`protocol` (the confirmed, filterable properties) identify
+  each entry as returned; there is no `id` attribute anywhere in this schema, following the same
+  precedent as `data.sapintegrationsuite_partner_string_parameters`.
+- **Filters**: `name` and `protocol`, mapping directly to SAP's documented `$filter` support —
+  the only two properties SAP documents as filterable. No raw/arbitrary OData `$filter` passthrough
+  is exposed, consistent with this provider's general policy of only exposing confirmed,
+  documented query capability.
+- **Determinism**: SAP does not document a guaranteed collection order, so the client layer
+  (`internal/client/cloudintegration/service_endpoint.go`) sorts the top-level list by `name`
+  then `protocol`, and each entry's `entry_points`/`api_definitions` by their own fields, before
+  the provider layer ever sees them — Terraform state is therefore stable across applies even if
+  SAP's own response order is not.
+- **No resource invocation**: Read only issues `GET` requests. It never calls a discovered entry
+  point URL, downloads a referenced API definition document, or triggers any deployment,
+  redeployment, or other runtime change.
+- **Dependency pattern**: since this data source is not wired to any specific Terraform resource
+  by reference (it filters by `name`, a plain string), a practitioner must add an explicit
+  `depends_on` pointing at the relevant `sapintegrationsuite_integration_flow_deployment` (or
+  equivalent) resource if they want to guarantee ordering within a single apply. This provider
+  does not attempt to infer that dependency automatically — see `docs/guides/service-endpoints.md`.
+- **Eventual consistency**: no SAP source found confirms or rules out a propagation delay
+  between a deployment completing and its service endpoint becoming visible through this API.
+  This provider does not implement a blind fixed-duration retry to paper over an unconfirmed
+  gap — see `docs/guides/service-endpoints.md` for the reasoning and the practical mitigation
+  (re-plan/re-apply) until a specific, bounded window is confirmed.
+
 ## `sapintegrationsuite_partner_string_parameter` / `..._binary_parameter`
 
 - **Purpose**: manage a single named value (text or binary) scoped to a Partner Directory

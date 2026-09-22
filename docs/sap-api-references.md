@@ -197,6 +197,76 @@ API. This document is that trace.
   modify integration flow content to manage a reference to a script collection, the same
   ownership boundary already established for message mapping.
 
+## `data.sapintegrationsuite_service_endpoints`
+
+- **SAP product area**: Integration Suite / Cloud Integration — runtime discovery of deployed
+  content's exposed endpoints
+- **Official API**: Integration Content API, documented as "Endpoints of Runtime Artifacts" —
+  "You can use resource `ServiceEndpoints` to read all endpoints provided for integration flows
+  and to get the number of endpoints" (confirming `$inlinecount`/count support). Base path
+  `https://<host>/api/v1/ServiceEndpoints`, the same `/api/v1` OData V2 host as every other Cloud
+  Integration resource this provider uses.
+- **Entity set**: `ServiceEndpoints`, with two expandable navigation properties, `EntryPoints`
+  and `ApiDefinitions`
+- **Protocol**: OData V2. GET only — no create/update/delete operation is documented, since SAP
+  generates these entities itself from deployed content.
+- **Primary source**: SAP's own `ServiceEndpoints Example Requests` page (read via the
+  `SAP-docs/btp-integration-suite` GitHub mirror of the official Help Portal content), which
+  gives the complete confirmed contract:
+  - `Name` and `Protocol` are the two documented, filterable top-level properties (`Name eq
+    '...'`, `Protocol eq '...'`).
+  - `EntryPoints` (expand via `$expand=EntryPoints`): an array of `EntryPoint`, with `Name`
+    (required, String), `URL` (required — see casing note below), and `Type` (optional,
+    enumerated String: `DEV`, `TEST`, `PROD`, `SANDBOX`).
+  - `ApiDefinitions` (expand via `$expand=ApiDefinitions`): an array of `APIDefinition`, with
+    `URL` (required) and `Type` (required, enumerated String: `oas-yaml`, `oas-json`, `raml`,
+    `edmx`, `wsdl`).
+  - Protocol values, per the same page's adapter table: SOAP adapter → `SOAP`, IDoc adapter →
+    `SOAP`, OData V2 adapter → `ODATAV2`, AS2 → `AS2`, AS4 → `AS4`, HTTPS → `REST`. This provider
+    exposes exactly this value; it does not reverse-map it back to an adapter type, since the
+    mapping is not one-to-one (SOAP and IDoc both report `SOAP`).
+- **`Url` JSON casing — confirmed from SAP's own Piper (open-source CI/CD) library, not from
+  prose alone**: SAP's documentation prose describes the property's *type* as "URL", which does
+  not by itself establish the wire-format JSON key casing. `github.com/SAP/jenkins-library`'s
+  `cmd/integrationArtifactGetServiceEndpoint.go` parses a real `ServiceEndpoints` response with
+  `entryPoints.Path("results.0.Url")` — confirming the actual JSON property is `Url`, not
+  `URL`. This provider's `EntryPoint.URL` Go field is tagged `json:"Url"` accordingly. The same
+  Piper source also confirms the response envelope shape this provider already assumes
+  everywhere (`{"d": {"results": [...]}}`) and that `EntryPoints`, once expanded, nests its own
+  `{"results": [...]}` array (`internal/client/odata/v2.ExpandedCollection[T]`, a new small
+  shared type distinct from the top-level paged-collection envelope, since SAP does not document
+  paging for an expanded nested navigation property the way it does for a top-level collection
+  request).
+- **`ApiDefinitions[].Url` casing — inferred, not independently confirmed**: no example source
+  touching the `ApiDefinitions` expansion specifically (as opposed to `EntryPoints`) was found.
+  This provider applies `Url` by consistency with the confirmed `EntryPoints` casing and SAP's
+  Pascal-case OData convention elsewhere on this same entity, and records this as an open
+  verification item in `internal/features/catalog.go`'s Limitations for
+  `cloud_integration.service_endpoints`.
+- **Combined `$expand=EntryPoints,ApiDefinitions`**: SAP's example requests demonstrate each
+  expansion separately, never combined in one request. This provider combines them in a single
+  request using OData V2's standard comma-separated `$expand` syntax (the same `Query.Expand
+  []string` mechanism already used for `$select` elsewhere in this codebase) to avoid an N+1
+  request pattern; no documented reason was found that `ServiceEndpoints` would reject a
+  combined expand, and this is standard, unremarkable OData V2 behavior.
+- **Pagination**: `$top`/`$skip`/`$inlinecount` support was added in the February 2020 release
+  (v3.21.x) per SAP's own release notes (community source). This provider always fetches every
+  page via the shared `GetAllPages` helper (the same server-driven `__next`-link paging every
+  other collection-returning client method in this provider uses), rather than assuming a single
+  page.
+- **No confirmed technical ID**: unlike `AccessPolicies` (numeric `Id`) or `IntegrationPackages`
+  (user-assigned `Id`), no SAP source found documents a stable identity field for a
+  `ServiceEndpoints` entry beyond `Name`/`Protocol` together, and even that combination's
+  uniqueness was not confirmed for every possible deployment configuration (see
+  `docs/resource-design.md` for why this rules out a singular `data.sapintegrationsuite_service_endpoint`
+  lookup).
+- **Deterministic ordering**: SAP does not document a guaranteed response order for the
+  collection, or for either expanded nested collection. This provider sorts all three
+  deterministically before writing Terraform state — see `internal/client/cloudintegration/service_endpoint.go`.
+- **Required roles**: not separately confirmed for this research pass; assumed to fall under the
+  same Integration Content read scopes already required for `IntegrationDesigntimeArtifacts`/
+  `IntegrationRuntimeArtifacts`, pending confirmation.
+
 ## `sapintegrationsuite_access_policy` / `..._reference`
 
 - **SAP product area**: Integration Suite / Security

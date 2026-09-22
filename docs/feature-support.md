@@ -20,6 +20,8 @@ data "sapintegrationsuite_provider_feature" "one" {
 }
 ```
 
+See README.md's "Feature Support" section for a compact, high-level dashboard generated from this same catalog (`go run ./cmd/gendocs -readme`); this document is the detailed per-operation matrix.
+
 ## Relationship to the other capability documents
 
 This document, `docs/api-capability-matrix.md`, `docs/provisioning-capability-matrix.md`, and a possible future tenant-capability data source answer three related but distinct questions:
@@ -57,7 +59,7 @@ Do not conflate these: a feature can be fully supported by this provider and sti
 | `cloud_integration.message_stores` | cloud_integration | unsupported (out_of_scope) | Yes | — | — | — | — | — | — | — |
 | `cloud_integration.script_collection` | cloud_integration | supported | Yes | Yes | Yes | Yes | Yes | Yes | — | Resource + Data Source |
 | `cloud_integration.script_collection_deployment` | cloud_integration | supported | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Resource |
-| `cloud_integration.service_endpoints` | cloud_integration | unsupported (not_implemented) | Yes | — | — | — | — | — | — | — |
+| `cloud_integration.service_endpoints` | cloud_integration | read_only (unsafe_terraform_lifecycle) | Yes | — | Yes | — | — | — | — | Data Source |
 | `cloud_integration.value_mapping` | cloud_integration | partial (unsafe_terraform_lifecycle) | Yes | Yes | Yes | — | Yes | Yes | — | Resource + Data Source |
 | `cloud_integration.value_mapping_deployment` | cloud_integration | supported | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Resource |
 | `cloud_integration.value_mapping_entry` | cloud_integration | unsupported (research_required) | Yes | — | — | — | — | — | — | — |
@@ -99,7 +101,6 @@ Grouped by why, not just that. A feature can be `partial` and reachable via one 
 - **`api_management.classic.api_provider`** — A classic API Management backend/API provider system definition.
 - **`api_management.classic.api_proxy`** — A classic API Management API proxy definition.
 - **`api_management.classic.key_value_map`** — A classic API Management key-value map used for runtime configuration lookups.
-- **`cloud_integration.service_endpoints`** — Read-only lookup of a deployed integration flow's exposed runtime service endpoint URLs.
 
 ### Public API details are not fully confirmed
 
@@ -116,6 +117,10 @@ Grouped by why, not just that. A feature can be `partial` and reachable via one 
 
 ### Public lifecycle insufficient for safe Terraform management
 
+- **`cloud_integration.service_endpoints`** — Read-only discovery of the runtime service endpoints (entry point URLs and API definition links) SAP generates for deployed Cloud Integration content.
+  - Discovery only, by design: SAP generates service endpoints from deployed content and there is no create/update/delete API for them, so this provider intentionally has no matching resource type — see docs/guides/service-endpoints.md.
+  - No single-endpoint (sapintegrationsuite_service_endpoint) data source exists: this project could not confirm that Name uniquely and stably identifies exactly one service endpoint, so only the collection data source (sapintegrationsuite_service_endpoints, with optional name/protocol filters) is implemented, to avoid a lookup data source that silently returns the wrong result if more than one endpoint ever matches.
+  - The EntryPoint/APIDefinition Url property's JSON casing is confirmed from SAP's own open-source Piper library parsing a live response; the ApiDefinitions entity's Url casing specifically is inferred by consistency rather than independently confirmed from an example touching that entity — see docs/sap-api-references.md.
 - **`cloud_integration.value_mapping`** — A value mapping design-time artifact's content, managed as file-based content. (partial support already implemented — see Limitations below)
   - No confirmed in-place update: changing name, content, or content_hash replaces the resource (create a new artifact, then delete the old one) instead of calling an unverified PUT.
   - SAP separately documents a ValueMappingDesigntimeArtifactSaveAsVersion action this provider does not yet use.
