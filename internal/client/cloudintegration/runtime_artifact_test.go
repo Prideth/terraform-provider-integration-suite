@@ -2,9 +2,12 @@ package cloudintegration
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/apierror"
 )
 
 func TestClient_GetRuntimeArtifact(t *testing.T) {
@@ -22,6 +25,29 @@ func TestClient_GetRuntimeArtifact(t *testing.T) {
 	}
 	if artifact.Status != StatusStarted {
 		t.Errorf("Status = %q, want %q", artifact.Status, StatusStarted)
+	}
+}
+
+// TestClient_GetRuntimeArtifact_NotFoundIsError covers what a
+// *_deployment resource's Read sees after an external undeploy: something
+// outside Terraform (SAP Cloud Integration UI, another automation) removed
+// the runtime deployment, and GetRuntimeArtifact must surface that as a
+// plain 404 rather than any special-cased error, so the resource's Read can
+// treat it exactly like "already gone" and drop it from state.
+func TestClient_GetRuntimeArtifact_NotFoundIsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"error": {"code": "NOT_FOUND", "message": {"value": "not deployed"}}}`))
+	}))
+	defer server.Close()
+
+	client := New(http.DefaultClient, server.URL)
+
+	_, err := client.GetRuntimeArtifact(context.Background(), "company-codes")
+
+	var apiErr *apierror.Error
+	if !errors.As(err, &apiErr) || !apiErr.IsNotFound() {
+		t.Fatalf("expected a not-found *apierror.Error, got %v", err)
 	}
 }
 
