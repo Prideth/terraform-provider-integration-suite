@@ -35,12 +35,12 @@ type integrationFlowDeploymentResource struct {
 }
 
 type integrationFlowDeploymentModel struct {
-	ID              types.String   `tfsdk:"id"`
-	PackageID       types.String   `tfsdk:"package_id"`
-	FlowID          types.String   `tfsdk:"flow_id"`
-	DeployedVersion types.String   `tfsdk:"deployed_version"`
-	Status          types.String   `tfsdk:"status"`
-	Timeouts        timeouts.Value `tfsdk:"timeouts"`
+	ID          types.String   `tfsdk:"id"`
+	PackageID   types.String   `tfsdk:"package_id"`
+	FlowID      types.String   `tfsdk:"flow_id"`
+	FlowVersion types.String   `tfsdk:"flow_version"`
+	Status      types.String   `tfsdk:"status"`
+	Timeouts    timeouts.Value `tfsdk:"timeouts"`
 }
 
 func (r *integrationFlowDeploymentResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -75,9 +75,13 @@ func (r *integrationFlowDeploymentResource) Schema(_ context.Context, _ resource
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"deployed_version": schema.StringAttribute{
-				Computed:    true,
-				Description: "The design-time version that is currently deployed.",
+			"flow_version": schema.StringAttribute{
+				Required: true,
+				Description: "The design-time version to deploy, typically " +
+					"sapintegrationsuite_integration_flow.<name>.version. Changing it redeploys the " +
+					"flow. After refresh this also reflects whatever version SAP reports as actually " +
+					"deployed, so a redeploy performed outside Terraform (or a failed/stale " +
+					"deployment) shows up as drift on the next plan.",
 			},
 			"status": schema.StringAttribute{
 				Computed:    true,
@@ -121,7 +125,7 @@ func (r *integrationFlowDeploymentResource) Create(ctx context.Context, req reso
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	if err := r.client.DeployIntegrationFlow(ctx, plan.FlowID.ValueString()); err != nil {
+	if err := r.client.DeployIntegrationFlow(ctx, plan.FlowID.ValueString(), plan.FlowVersion.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Failed to deploy SAP Integration Suite integration flow", diagnosticDetail(err))
 		return
 	}
@@ -153,6 +157,11 @@ func (r *integrationFlowDeploymentResource) Read(ctx context.Context, req resour
 		return
 	}
 
+	// artifact.Version reflects whatever SAP actually has deployed right now,
+	// which may differ from state.FlowVersion if someone redeployed a
+	// different version outside Terraform, or if a deployment failed
+	// part-way. Writing it into flow_version (a Required, non-Computed
+	// attribute) is what makes that visible as drift on the next plan.
 	resp.Diagnostics.Append(resp.State.Set(ctx, deploymentToModel(state.PackageID.ValueString(), artifact, state.Timeouts))...)
 }
 
@@ -171,7 +180,7 @@ func (r *integrationFlowDeploymentResource) Update(ctx context.Context, req reso
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	if err := r.client.DeployIntegrationFlow(ctx, plan.FlowID.ValueString()); err != nil {
+	if err := r.client.DeployIntegrationFlow(ctx, plan.FlowID.ValueString(), plan.FlowVersion.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Failed to redeploy SAP Integration Suite integration flow", diagnosticDetail(err))
 		return
 	}
@@ -232,7 +241,11 @@ func (r *integrationFlowDeploymentResource) waitForDeployment(ctx context.Contex
 			case cloudintegration.StatusStarted:
 				return artifact, nil
 			case cloudintegration.StatusError:
-				return nil, fmt.Errorf("deployment failed: %s", artifact.ErrorInfo)
+				errInfo := artifact.ErrorInfo
+				if errInfo == "" {
+					errInfo = "SAP reported status ERROR without further detail on the runtime artifact"
+				}
+				return nil, fmt.Errorf("deployment failed: %s", errInfo)
 			}
 		} else {
 			var apiErr *apierror.Error
@@ -266,11 +279,11 @@ func pollBackoff(attempt int) time.Duration {
 
 func deploymentToModel(packageID string, artifact *cloudintegration.RuntimeArtifact, tf timeouts.Value) integrationFlowDeploymentModel {
 	return integrationFlowDeploymentModel{
-		ID:              types.StringValue(packageID + "/" + artifact.ID),
-		PackageID:       types.StringValue(packageID),
-		FlowID:          types.StringValue(artifact.ID),
-		DeployedVersion: types.StringValue(artifact.Version),
-		Status:          types.StringValue(artifact.Status),
-		Timeouts:        tf,
+		ID:          types.StringValue(packageID + "/" + artifact.ID),
+		PackageID:   types.StringValue(packageID),
+		FlowID:      types.StringValue(artifact.ID),
+		FlowVersion: types.StringValue(artifact.Version),
+		Status:      types.StringValue(artifact.Status),
+		Timeouts:    tf,
 	}
 }

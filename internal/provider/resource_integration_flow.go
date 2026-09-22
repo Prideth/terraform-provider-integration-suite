@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"io"
 	"os"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -183,7 +184,7 @@ func (r *integrationFlowResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 
-	flow, err := r.client.UpdateIntegrationFlow(ctx, plan.PackageID.ValueString(), plan.FlowID.ValueString(), plan.Name.ValueString(), content)
+	flow, err := r.client.UpdateIntegrationFlow(ctx, plan.FlowID.ValueString(), plan.Name.ValueString(), content)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to update SAP Integration Suite integration flow", diagnosticDetail(err))
 		return
@@ -251,7 +252,7 @@ func readBoundedFile(path string, maxBytes int64) ([]byte, error) {
 	}
 
 	data := make([]byte, info.Size())
-	if _, err := f.Read(data); err != nil {
+	if _, err := io.ReadFull(f, data); err != nil {
 		return nil, err
 	}
 	return data, nil

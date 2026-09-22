@@ -20,7 +20,8 @@ API. This document is that trace.
   Accelerator Hub)
 - **Entity set**: `IntegrationPackages`
 - **Protocol**: OData V2
-- **Operations**: GET, POST, DELETE (PUT limited to SAP-permitted metadata fields)
+- **Operations**: GET, POST, PATCH, DELETE (PATCH limited to SAP-permitted metadata fields;
+  used rather than PUT so fields outside the Terraform schema are not reset to their defaults)
 - **Required roles**: `IntegrationOperationServer` / `IntegrationDeveloper` OAuth scopes (role
   collection names vary per tenant; assign the least-privileged Integration Suite role
   collection covering "Integration Content" design-time operations)
@@ -32,7 +33,8 @@ API. This document is that trace.
 - **Entity sets / actions**: `IntegrationDesigntimeArtifacts`, `IntegrationRuntimeArtifacts`,
   `DeployIntegrationDesigntimeArtifact` (action)
 - **Protocol**: OData V2
-- **Operations**: GET, POST, DELETE, plus the `Deploy` action (POST)
+- **Operations**: GET, POST (create), PUT (create a new design-time version of an existing
+  flow), DELETE, plus the `Deploy` action (POST)
 - **Required roles**: as above, plus deploy-specific scopes for the runtime artifact
   operations
 
@@ -45,7 +47,25 @@ API. This document is that trace.
   with both read and write operations)
 - **Entity set**: `AccessPolicies`, with nested artifact references
 - **Protocol**: OData V2
-- **Operations**: GET, POST, PUT/MERGE, DELETE
+- **Operations**: GET, POST, PATCH, DELETE
+- **Supported artifact reference types**: confirmed against SAP KBA 3447540 ("Integration
+  Package" artifact type is explicitly *not* available when maintaining an access policy) and
+  a community post enumerating the supported set, which matches this provider's
+  `SupportedArtifactTypes` list exactly: `IntegrationFlow`, `ODataAPI`, `RestAPI`, `SoapAPI`,
+  `ScriptCollection`, `ValueMapping`, `MessageMapping`, `MessageQueue`, `GlobalDataStore`,
+  `GlobalVariable`. The human-readable UI labels are confirmed (e.g. "REST API"); the exact
+  casing/spelling of the wire-format enum values (`RestAPI` vs. `REST_API` vs. something else)
+  is this provider's best inference from OData naming conventions elsewhere in the same API
+  and still needs verification against a live tenant's `$metadata` or an actual create
+  response.
+- **Role association caveat**: SAP's own documentation on managing access policies states that
+  the role granting access to the artifacts an access policy protects is associated "using SAP
+  Business Technology Platform cockpit" — i.e. through a BTP role collection, which is
+  out of this provider's scope (see `docs/provider-scope.md`). It is not yet confirmed whether
+  the `AccessPolicies` entity's `RoleName` field is simply a label referenced by that
+  BTP-side role collection, or carries additional semantics on the Integration Suite side.
+  Until confirmed, treat `role_name` as write-once-at-creation and avoid relying on renaming
+  it having any particular effect.
 - **Required roles**: Integration Suite "Manage Security" / access-policy administration
   scopes
 

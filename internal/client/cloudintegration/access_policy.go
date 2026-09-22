@@ -9,9 +9,8 @@ import (
 )
 
 const (
-	accessPoliciesEntitySet        = "AccessPolicies"
-	accessPolicyArtifactsRelation  = "ArtifactReferences"
-	accessPolicyReconciliationDone = "SUCCESS"
+	accessPoliciesEntitySet       = "AccessPolicies"
+	accessPolicyArtifactsRelation = "ArtifactReferences"
 )
 
 // AccessPolicy is the wire representation of an AccessPolicies entity
@@ -64,7 +63,8 @@ func (c *Client) CreateAccessPolicy(ctx context.Context, policy AccessPolicy) (*
 
 // UpdateAccessPolicy updates an access policy's mutable fields (currently:
 // description; the role name identifies the policy and is treated as
-// immutable by the Terraform resource).
+// immutable by the Terraform resource). This uses PATCH rather than PUT so
+// that fields outside the Terraform schema are left untouched.
 func (c *Client) UpdateAccessPolicy(ctx context.Context, id string, policy AccessPolicy) error {
 	payload, err := json.Marshal(policy)
 	if err != nil {
@@ -72,7 +72,7 @@ func (c *Client) UpdateAccessPolicy(ctx context.Context, id string, policy Acces
 	}
 
 	path := v2.BuildPath(accessPoliciesEntitySet, v2.KeyPredicate(id), "")
-	_, err = c.odata.Put(ctx, path, payload)
+	_, err = c.odata.Patch(ctx, path, payload)
 	return err
 }
 
@@ -110,11 +110,7 @@ var SupportedArtifactTypes = []string{
 }
 
 func accessPolicyReferencesPath(policyID string) string {
-	return fmt.Sprintf("%s%s/%s", accessPoliciesEntitySet, mustKeyPredicate(policyID), accessPolicyArtifactsRelation)
-}
-
-func mustKeyPredicate(id string) string {
-	return v2.KeyPredicate(id)
+	return fmt.Sprintf("%s%s/%s", accessPoliciesEntitySet, v2.KeyPredicate(policyID), accessPolicyArtifactsRelation)
 }
 
 // GetAccessPolicyReference reads a single artifact reference by its

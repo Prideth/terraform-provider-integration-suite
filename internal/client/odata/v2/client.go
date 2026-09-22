@@ -43,9 +43,23 @@ func (c *Client) Post(ctx context.Context, path string, body []byte) ([]byte, er
 	return c.do(ctx, http.MethodPost, path, body)
 }
 
-// Put issues a PUT request with a JSON body.
+// Put issues a PUT request with a JSON body. PUT replaces the entire entity
+// with the fields provided; any field the caller omits may be reset to its
+// default by the server. For a partial update of a few fields, use Patch
+// instead.
 func (c *Client) Put(ctx context.Context, path string, body []byte) ([]byte, error) {
 	return c.do(ctx, http.MethodPut, path, body)
+}
+
+// Patch issues a PATCH request with a JSON body. SAP's OData V2 services on
+// Cloud Foundry/BTP accept PATCH as the modern equivalent of the legacy
+// OData MERGE verb: only the fields present in body are changed, and every
+// other field on the entity is left untouched. This is almost always the
+// right choice for a Terraform resource's Update, since Terraform only
+// tracks the fields declared in its schema and must not clobber the rest of
+// the entity.
+func (c *Client) Patch(ctx context.Context, path string, body []byte) ([]byte, error) {
+	return c.do(ctx, http.MethodPatch, path, body)
 }
 
 // Delete issues a DELETE request.

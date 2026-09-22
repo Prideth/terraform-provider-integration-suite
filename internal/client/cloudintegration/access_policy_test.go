@@ -41,7 +41,7 @@ func TestClient_GetUpdateDeleteAccessPolicy(t *testing.T) {
 		case http.MethodGet:
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"d": {"Id": "1", "RoleName": "UTILITIES_ARCHITECT", "ReconciliationStatus": "SUCCESS"}}`))
-		case http.MethodPut:
+		case http.MethodPatch:
 			w.WriteHeader(http.StatusNoContent)
 		case http.MethodDelete:
 			w.WriteHeader(http.StatusNoContent)
@@ -62,8 +62,8 @@ func TestClient_GetUpdateDeleteAccessPolicy(t *testing.T) {
 	if err := client.UpdateAccessPolicy(context.Background(), "1", AccessPolicy{RoleName: "UTILITIES_ARCHITECT", Description: "new"}); err != nil {
 		t.Fatalf("UpdateAccessPolicy() error: %v", err)
 	}
-	if lastMethod != http.MethodPut {
-		t.Errorf("last method = %q, want PUT", lastMethod)
+	if lastMethod != http.MethodPatch {
+		t.Errorf("last method = %q, want PATCH", lastMethod)
 	}
 
 	if err := client.DeleteAccessPolicy(context.Background(), "1"); err != nil {

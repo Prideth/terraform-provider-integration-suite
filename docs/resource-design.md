@@ -68,16 +68,22 @@ drift, import) before committing to a schema.
   independent of its design-time content lifecycle.
 - **SAP object**: the `DeployIntegrationDesigntimeArtifact` action plus `IntegrationRuntimeArtifacts`
   for status.
-- **Desired state**: yes — "this version of this flow should be deployed".
+- **Desired state**: yes — "this version of this flow should be deployed". `flow_version` is
+  a Required input (typically wired to `sapintegrationsuite_integration_flow.<name>.version`)
+  precisely so that a new design-time version produces a plannable diff on this resource; the
+  design-time and deployment resources otherwise share no attribute that would change when
+  content changes, so without `flow_version` a redeploy would never be triggered.
 - **Identity**: the flow's `<package_id>/<flow_id>` (a tenant only ever has one active runtime
   deployment per flow id).
-- **Create/Update**: `POST DeployIntegrationDesigntimeArtifact?Id='{flow_id}'&Version='{version}'`,
+- **Create/Update**: `POST DeployIntegrationDesigntimeArtifact?Id='{flow_id}'&Version='{flow_version}'`,
   then poll `IntegrationRuntimeArtifacts(Id='{flow_id}')` until `Status` is `STARTED` or
   `ERROR`, using context-based exponential backoff with jitter and a configurable timeout —
   never a fixed sleep.
 - **Delete**: `DELETE IntegrationRuntimeArtifacts(Id='{flow_id}')` (undeploy). `404` is success.
-- **Drift detection**: `Read` compares the currently deployed `Version` against the version
-  Terraform expects; a flow undeployed or redeployed out-of-band is detected on refresh.
+- **Drift detection**: `Read` writes the actually-deployed `Version` it observes back into
+  `flow_version` (a Required, non-Computed attribute). Since Terraform diffs that against the
+  desired value in configuration, a flow redeployed to a different version or left stale
+  outside Terraform shows up as a plannable change on the next refresh.
 - **Import**: `terraform import sapintegrationsuite_integration_flow_deployment.metering UTILITIES/metering`.
 - **Async model**:
 
@@ -96,16 +102,21 @@ drift, import) before committing to a schema.
   but the provider uses the technical ID as the stable Terraform ID once known, consistent
   with the rest of the Security Content API.
 - **Create**: `POST AccessPolicies` with `RoleName`/`Description`.
-- **Update**: `PUT`/`MERGE AccessPolicies('{id}')` for `description`; `role_name` uses
-  `RequiresReplace()` if SAP does not support renaming (to be confirmed against the tenant's
-  live `$metadata` — see the caveat in `sap-api-references.md`).
+- **Update**: `PATCH AccessPolicies('{id}')` for `description` (PATCH, not PUT, so that fields
+  outside the Terraform schema are left untouched); `role_name` uses `RequiresReplace()` since
+  SAP does not document renaming a policy's role.
 - **Delete**: `DELETE AccessPolicies('{id}')`.
 - **Drift detection**: `Read` re-fetches the policy and its reconciliation/runtime status.
 - **Import**: `terraform import sapintegrationsuite_access_policy.utilities <id>`.
-- **Runtime awareness**: where the API reports per-runtime (Integration Cell / Edge
-  Integration Cell) replication/reconciliation status values (for example `PENDING`,
-  `SUCCESS`, `FAILED`), the provider surfaces them as computed attributes and, on
-  create/update, polls until a terminal state is reached rather than returning immediately.
+- **Runtime awareness (partially implemented)**: `reconciliation_status` is surfaced as a
+  computed attribute whenever the API reports one, but Create/Update currently return as soon
+  as the policy itself is created/updated — they do **not** poll until reconciliation reaches a
+  terminal state. This is deliberate for now: the exact status enum (values, terminal states,
+  per-runtime shape for Integration Cell vs. Edge Integration Cell) has not been confirmed
+  against a live tenant, and polling on an unverified enum risks either hanging on a status
+  value we don't recognize as terminal or returning "success" prematurely. Implementing the
+  poll is tracked as follow-up work once the status model is confirmed; see
+  `docs/sap-api-references.md`.
 
 ## `sapintegrationsuite_access_policy_reference`
 

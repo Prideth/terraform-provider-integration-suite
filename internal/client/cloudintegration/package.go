@@ -67,7 +67,10 @@ func (c *Client) CreatePackage(ctx context.Context, pkg Package) (*Package, erro
 
 // UpdatePackage updates the mutable fields of an existing integration
 // package (SAP only supports updating a subset of fields; the package ID is
-// immutable).
+// immutable). This uses PATCH rather than PUT: Terraform's schema only ever
+// supplies name/description, and a PUT's full-replace semantics would risk
+// resetting fields the schema does not track (ShortText, Vendor, Mode, ...)
+// to their defaults.
 func (c *Client) UpdatePackage(ctx context.Context, id string, pkg Package) error {
 	payload, err := json.Marshal(pkg)
 	if err != nil {
@@ -75,7 +78,7 @@ func (c *Client) UpdatePackage(ctx context.Context, id string, pkg Package) erro
 	}
 
 	path := v2.BuildPath(integrationPackagesEntitySet, v2.KeyPredicate(id), "")
-	_, err = c.odata.Put(ctx, path, payload)
+	_, err = c.odata.Patch(ctx, path, payload)
 	return err
 }
 

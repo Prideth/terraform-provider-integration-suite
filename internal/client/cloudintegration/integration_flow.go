@@ -63,19 +63,6 @@ func (c *Client) GetIntegrationFlow(ctx context.Context, packageID, flowID strin
 // from a ZIP project archive. content must already be the raw (not yet
 // base64-encoded) ZIP bytes.
 func (c *Client) CreateIntegrationFlow(ctx context.Context, packageID, flowID, name string, content []byte) (*IntegrationFlow, error) {
-	return c.saveIntegrationFlow(ctx, packageID, flowID, name, content)
-}
-
-// UpdateIntegrationFlow uploads new content for an existing integration
-// flow. SAP's design-time API is version-based: this creates a new
-// design-time version under the same flow ID rather than editing in place,
-// which is why the flow's identity (packageID/flowID) never changes on
-// update.
-func (c *Client) UpdateIntegrationFlow(ctx context.Context, packageID, flowID, name string, content []byte) (*IntegrationFlow, error) {
-	return c.saveIntegrationFlow(ctx, packageID, flowID, name, content)
-}
-
-func (c *Client) saveIntegrationFlow(ctx context.Context, packageID, flowID, name string, content []byte) (*IntegrationFlow, error) {
 	payload, err := json.Marshal(IntegrationFlow{
 		ID:        flowID,
 		Name:      name,
@@ -87,6 +74,39 @@ func (c *Client) saveIntegrationFlow(ctx context.Context, packageID, flowID, nam
 	}
 
 	body, err := c.odata.Post(ctx, designtimeArtifactsEntitySet, payload)
+	if err != nil {
+		return nil, err
+	}
+
+	var flow IntegrationFlow
+	if err := v2.DecodeEntity(body, &flow); err != nil {
+		return nil, err
+	}
+	return &flow, nil
+}
+
+// UpdateIntegrationFlow uploads new content for an existing integration
+// flow, creating a new design-time version under the same flow ID (SAP's
+// design-time API is version-based, not in-place, which is why the flow's
+// identity — packageID/flowID — never changes on update). Unlike creating a
+// brand new flow, this targets the existing (Id, Version) entity with PUT
+// rather than POSTing to the collection again, which is how OData V2
+// distinguishes "create a new entity" from "update this one".
+func (c *Client) UpdateIntegrationFlow(ctx context.Context, flowID, name string, content []byte) (*IntegrationFlow, error) {
+	payload, err := json.Marshal(IntegrationFlow{
+		Name:    name,
+		Content: base64.StdEncoding.EncodeToString(content),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cloudintegration: encoding integration flow: %w", err)
+	}
+
+	key, err := integrationFlowKey(flowID, activeVersion)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := c.odata.Put(ctx, v2.BuildPath(designtimeArtifactsEntitySet, key, ""), payload)
 	if err != nil {
 		return nil, err
 	}
@@ -110,6 +130,13 @@ func (c *Client) DeleteIntegrationFlow(ctx context.Context, flowID string) error
 
 // RuntimeArtifact is the wire representation of an IntegrationRuntimeArtifacts
 // entity: the deployed state of an integration flow.
+//
+// ErrorInfo is best-effort: SAP's monitoring UI sources failure detail from
+// a separate error-information endpoint rather than always inlining it on
+// this entity, so ErrorInfo may be empty even when Status is StatusError.
+// Callers must not assume it is populated; this needs verification against
+// a live tenant before being relied on for anything beyond a best-effort
+// diagnostic message.
 type RuntimeArtifact struct {
 	ID         string `json:"Id"`
 	Version    string `json:"Version"`
@@ -127,13 +154,20 @@ const (
 	StatusError    = "ERROR"
 )
 
-// DeployIntegrationFlow triggers deployment of the active design-time
+// DeployIntegrationFlow triggers deployment of the given design-time
 // version of an integration flow. It returns immediately once SAP has
 // accepted the deployment request; callers must poll GetRuntimeArtifact for
 // completion, since deployment is asynchronous.
-func (c *Client) DeployIntegrationFlow(ctx context.Context, flowID string) error {
+//
+// version identifies which design-time version to deploy. Passing the
+// literal "active" defers to whichever version is currently active, but the
+// Terraform resource always passes the concrete version it read from the
+// design-time artifact, so that changing the deployed version is a visible,
+// plannable change rather than an implicit side effect of "whatever is
+// active right now".
+func (c *Client) DeployIntegrationFlow(ctx context.Context, flowID, version string) error {
 	path := fmt.Sprintf("DeployIntegrationDesigntimeArtifact?Id='%s'&Version='%s'",
-		v2.EscapeLiteral(flowID), activeVersion)
+		v2.EscapeLiteral(flowID), v2.EscapeLiteral(version))
 	_, err := c.odata.Post(ctx, path, nil)
 	return err
 }

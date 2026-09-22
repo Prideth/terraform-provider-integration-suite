@@ -72,13 +72,37 @@ func TestClient_DeployIntegrationFlow(t *testing.T) {
 
 	client := New(http.DefaultClient, server.URL)
 
-	if err := client.DeployIntegrationFlow(context.Background(), "metering"); err != nil {
+	if err := client.DeployIntegrationFlow(context.Background(), "metering", "active"); err != nil {
+		t.Fatalf("DeployIntegrationFlow() error: %v", err)
+	}
+}
+
+func TestClient_DeployIntegrationFlow_SpecificVersion(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		want := "/api/v1/DeployIntegrationDesigntimeArtifact?Id='metering'&Version='1.0.1'"
+		if r.URL.String() != want {
+			t.Errorf("url = %q, want %q", r.URL.String(), want)
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	client := New(http.DefaultClient, server.URL)
+
+	if err := client.DeployIntegrationFlow(context.Background(), "metering", "1.0.1"); err != nil {
 		t.Fatalf("DeployIntegrationFlow() error: %v", err)
 	}
 }
 
 func TestClient_UpdateIntegrationFlow(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut {
+			t.Errorf("expected PUT, got %s", r.Method)
+		}
+		want := "/api/v1/IntegrationDesigntimeArtifacts(Id='metering',Version='active')"
+		if r.URL.Path != want {
+			t.Errorf("path = %q, want %q", r.URL.Path, want)
+		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"d": {"Id": "metering", "Name": "Metering v2", "PackageId": "UTILITIES", "Version": "1.0.1"}}`))
 	}))
@@ -86,7 +110,7 @@ func TestClient_UpdateIntegrationFlow(t *testing.T) {
 
 	client := New(http.DefaultClient, server.URL)
 
-	flow, err := client.UpdateIntegrationFlow(context.Background(), "UTILITIES", "metering", "Metering v2", []byte("new-content"))
+	flow, err := client.UpdateIntegrationFlow(context.Background(), "metering", "Metering v2", []byte("new-content"))
 	if err != nil {
 		t.Fatalf("UpdateIntegrationFlow() error: %v", err)
 	}

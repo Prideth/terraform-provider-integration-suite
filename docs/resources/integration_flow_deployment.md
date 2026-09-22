@@ -14,8 +14,9 @@ Expresses the desired runtime deployment state of a Cloud Integration integratio
 
 ```terraform
 resource "sapintegrationsuite_integration_flow_deployment" "metering" {
-  package_id = sapintegrationsuite_integration_package.utilities.id
-  flow_id    = sapintegrationsuite_integration_flow.metering.flow_id
+  package_id   = sapintegrationsuite_integration_package.utilities.id
+  flow_id      = sapintegrationsuite_integration_flow.metering.flow_id
+  flow_version = sapintegrationsuite_integration_flow.metering.version
 
   timeouts {
     create = "10m"
@@ -31,6 +32,7 @@ resource "sapintegrationsuite_integration_flow_deployment" "metering" {
 ### Required
 
 - `flow_id` (String) ID of the integration flow to deploy.
+- `flow_version` (String) The design-time version to deploy, typically sapintegrationsuite_integration_flow.<name>.version. Changing it redeploys the flow. After refresh this also reflects whatever version SAP reports as actually deployed, so a redeploy performed outside Terraform (or a failed/stale deployment) shows up as drift on the next plan.
 - `package_id` (String) ID of the integration package the flow belongs to.
 
 ### Optional
@@ -39,7 +41,6 @@ resource "sapintegrationsuite_integration_flow_deployment" "metering" {
 
 ### Read-Only
 
-- `deployed_version` (String) The design-time version that is currently deployed.
 - `id` (String) Composite identifier in the form "<package_id>/<flow_id>".
 - `status` (String) The runtime status SAP reports for this deployment (for example STARTED or ERROR).
 

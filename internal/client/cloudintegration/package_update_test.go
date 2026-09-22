@@ -9,8 +9,8 @@ import (
 
 func TestClient_UpdatePackage(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPut {
-			t.Errorf("expected PUT, got %s", r.Method)
+		if r.Method != http.MethodPatch {
+			t.Errorf("expected PATCH, got %s", r.Method)
 		}
 		if r.URL.Path != "/api/v1/IntegrationPackages('UTILITIES')" {
 			t.Errorf("unexpected path: %s", r.URL.Path)
