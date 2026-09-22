@@ -71,7 +71,7 @@ func (c *Client) GetUserCredentialParameter(ctx context.Context, pid, id string)
 // the reason this entity is never grouped with any other Partner Directory
 // write in a single call.
 func (c *Client) CreateUserCredentialParameter(ctx context.Context, pid, id, user, password string) (*UserCredentialParameter, error) {
-	payload, err := json.Marshal(createUserCredentialParameterRequest{Pid: pid, Id: id, User: user, Password: password})
+	payload, err := json.Marshal(createUserCredentialParameterRequest{Pid: pid, Id: id, User: user, Password: password}) //nolint:gosec // G117: deliberately marshals the password into the request body sent to SAP's Create API -- that is the whole purpose of this call, not a leak; see resource_partner_user_credential_parameter.go for why it never reaches Terraform state or a log line
 	if err != nil {
 		return nil, fmt.Errorf("partnerdirectory: encoding user credential parameter: %w", err)
 	}

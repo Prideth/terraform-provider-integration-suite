@@ -8,7 +8,7 @@ import (
 	v2 "github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/odata/v2"
 )
 
-const oauth2ClientCredentialsEntitySet = "OAuth2ClientCredentials"
+const oauth2ClientCredentialsEntitySet = "OAuth2ClientCredentials" // #nosec G101 -- an OData entity set name, not a credential value
 
 // OAuth2ClientCredential is the READ/IDENTITY-ONLY wire representation of an
 // OAuth2ClientCredentials entity (Security Content API): deliberately, this
@@ -72,7 +72,7 @@ func (c *Client) GetOAuth2ClientCredential(ctx context.Context, name string) (*O
 // OAuth2ClientCredential, whose type has no ClientSecret field to receive
 // it even if SAP's response body happened to include one.
 func (c *Client) CreateOAuth2ClientCredential(ctx context.Context, cred OAuth2ClientCredential, clientSecret string) (*OAuth2ClientCredential, error) {
-	payload, err := json.Marshal(oauth2ClientCredentialWriteRequest{
+	payload, err := json.Marshal(oauth2ClientCredentialWriteRequest{ //nolint:gosec // G117: this deliberately marshals the client secret into the request body sent to SAP's Create API -- that is the whole purpose of this call, not a leak; see the write-only handling in resource_oauth2_client_credential.go for why it never reaches Terraform state or a log line
 		Name:            cred.Name,
 		Description:     cred.Description,
 		TokenServiceURL: cred.TokenServiceURL,
@@ -105,7 +105,7 @@ func (c *Client) CreateOAuth2ClientCredential(ctx context.Context, cred OAuth2Cl
 // replacement. The response body is deliberately not decoded; see
 // UpdateUserCredential's doc comment for why the caller re-reads instead.
 func (c *Client) UpdateOAuth2ClientCredential(ctx context.Context, cred OAuth2ClientCredential, clientSecret string) error {
-	payload, err := json.Marshal(oauth2ClientCredentialWriteRequest{
+	payload, err := json.Marshal(oauth2ClientCredentialWriteRequest{ //nolint:gosec // G117: deliberately marshals the client secret into the redeploy request body, the same documented Create-time requirement — see CreateOAuth2ClientCredential above
 		Name:            cred.Name,
 		Description:     cred.Description,
 		TokenServiceURL: cred.TokenServiceURL,

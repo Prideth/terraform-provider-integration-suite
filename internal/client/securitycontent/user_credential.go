@@ -8,7 +8,7 @@ import (
 	v2 "github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/odata/v2"
 )
 
-const userCredentialsEntitySet = "UserCredentials"
+const userCredentialsEntitySet = "UserCredentials" // #nosec G101 -- an OData entity set name, not a credential value
 
 // UserCredential is the READ/IDENTITY-ONLY wire representation of a
 // UserCredentials entity (Security Content API): deliberately, this struct
@@ -77,7 +77,7 @@ func (c *Client) GetUserCredential(ctx context.Context, name string) (*UserCrede
 // the response is decoded into UserCredential, whose type has no Password
 // field to receive it even if SAP's response body happened to include one.
 func (c *Client) CreateUserCredential(ctx context.Context, cred UserCredential, password string) (*UserCredential, error) {
-	payload, err := json.Marshal(userCredentialWriteRequest{
+	payload, err := json.Marshal(userCredentialWriteRequest{ //nolint:gosec // G117: this deliberately marshals the password into the request body sent to SAP's Create API -- that is the whole purpose of this call, not a leak; see the write-only handling in resource_user_credential.go for why it never reaches Terraform state or a log line
 		Name:        cred.Name,
 		Kind:        cred.Kind,
 		Description: cred.Description,
@@ -119,7 +119,7 @@ func (c *Client) CreateUserCredential(ctx context.Context, cred UserCredential, 
 // the entity with GetUserCredential instead of trusting this call's
 // response shape.
 func (c *Client) UpdateUserCredential(ctx context.Context, cred UserCredential, password string) error {
-	payload, err := json.Marshal(userCredentialWriteRequest{
+	payload, err := json.Marshal(userCredentialWriteRequest{ //nolint:gosec // G117: deliberately marshals the password into the redeploy request body, the same documented Create-time requirement — see CreateUserCredential above
 		Name:        cred.Name,
 		Kind:        cred.Kind,
 		Description: cred.Description,

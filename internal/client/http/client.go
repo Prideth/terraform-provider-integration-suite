@@ -171,7 +171,7 @@ func (c *Client) doWithRetries(req *http.Request) (*http.Response, error) {
 			}
 		}
 
-		resp, err := c.transport.Do(req)
+		resp, err := c.transport.Do(req) //nolint:gosec // G704: req targets the SAP tenant host from this provider's own configuration (the "host" attribute or SAP_INTEGRATION_SUITE_HOST), never a value read from a request the provider itself receives — there is no untrusted caller who supplies this URL at runtime
 		if err != nil {
 			lastErr = err
 			if !shouldRetryError(req.Context(), err) || attempt == c.maxRetries {

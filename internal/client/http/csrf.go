@@ -122,7 +122,7 @@ func (c *Client) doWriteWithCSRF(req *http.Request) (*http.Response, error) {
 // doAuthenticated so OAuth token refresh still applies to it, but never
 // through doWriteWithCSRF itself, since a GET is never CSRF-protected.
 func (c *Client) fetchCSRFToken(originalReq *http.Request) (token, cookie string, err error) {
-	fetchReq, err := http.NewRequestWithContext(originalReq.Context(), http.MethodGet, originalReq.URL.String(), nil)
+	fetchReq, err := http.NewRequestWithContext(originalReq.Context(), http.MethodGet, originalReq.URL.String(), nil) //nolint:gosec // G704: originalReq.URL is this same client's own outbound request to the SAP tenant host, not an untrusted value — fetching a CSRF token from the identical URL the write request targets is the documented protocol, not user-controlled redirection
 	if err != nil {
 		return "", "", fmt.Errorf("http: building CSRF token fetch request: %w", err)
 	}

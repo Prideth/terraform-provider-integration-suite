@@ -73,7 +73,7 @@ func CompositeKeyPredicate(pairs ...string) (string, error) {
 	}
 	parts := make([]string, 0, len(pairs)/2)
 	for i := 0; i < len(pairs); i += 2 {
-		parts = append(parts, fmt.Sprintf("%s='%s'", pairs[i], EscapeLiteral(pairs[i+1])))
+		parts = append(parts, fmt.Sprintf("%s='%s'", pairs[i], EscapeLiteral(pairs[i+1]))) //nolint:gosec // G602: the even-length check above guarantees i+1 < len(pairs) for every i this loop reaches
 	}
 	return "(" + strings.Join(parts, ",") + ")", nil
 }
