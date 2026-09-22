@@ -13,14 +13,14 @@ jobs:
     name: Generated documentation is up to date
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_wrapper: false
 
@@ -29,5 +29,5 @@ jobs:
 
       - name: Fail if documentation is out of date
         run: |
-          git diff --exit-code -- docs/ \
-            || (echo "::error::Generated documentation is out of date. Run 'go generate ./...' and commit the result." && exit 1)
+          git diff --exit-code -- docs/ README.md \
+            || (echo "::error::Generated documentation is out of date. Run 'make docs' and commit the result." && exit 1)

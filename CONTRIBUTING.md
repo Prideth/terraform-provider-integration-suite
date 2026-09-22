@@ -63,15 +63,27 @@ feature merges into `dev`.
 
 ## Development setup
 
-Requirements: Go (version pinned in `go.mod`), Terraform CLI (for
-documentation generation and acceptance tests), `golangci-lint`.
+Requirements: Go (version pinned in `go.mod`; the `tools/` module tracks
+the same version independently, since it is a separate Go module), the
+Terraform CLI (see README.md's Requirements section for the minimum
+supported version — needed for documentation generation and acceptance
+tests), and `golangci-lint` (the exact version this project lints with is
+pinned in `.github/workflows/lint.yml`'s `golangci-lint-action` step; keep
+your local binary on the same major.minor to avoid lint results that only
+reproduce in CI or only reproduce locally).
 
 ```shell
 go build ./...
 go test ./...
 make lint
-make docs   # regenerate docs/ after any schema or description change
+make docs   # regenerate docs/ and README.md's feature table after any schema, description, or catalog change
 ```
+
+`go.mod`, not this file or the README, is this project's single source of
+truth for the required Go version — CI, GoReleaser, and every workflow
+under `.github/workflows/` all read it via `go-version-file: go.mod`
+rather than a separately hardcoded version, specifically so upgrading Go
+in one place upgrades it everywhere.
 
 ## Adding or changing a resource
 
