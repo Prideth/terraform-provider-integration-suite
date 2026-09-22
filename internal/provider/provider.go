@@ -197,6 +197,7 @@ func (p *sapIntegrationSuiteProvider) DataSources(_ context.Context) []func() da
 		NewProviderFeatureDataSource,
 		NewUserCredentialDataSource,
 		NewOAuth2ClientCredentialDataSource,
+		NewServiceEndpointsDataSource,
 	}
 }
 
