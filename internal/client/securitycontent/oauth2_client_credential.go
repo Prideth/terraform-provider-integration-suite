@@ -1,0 +1,128 @@
+package securitycontent
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	v2 "github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/odata/v2"
+)
+
+const oauth2ClientCredentialsEntitySet = "OAuth2ClientCredentials"
+
+// OAuth2ClientCredential is the READ/IDENTITY-ONLY wire representation of an
+// OAuth2ClientCredentials entity (Security Content API): deliberately, this
+// struct has no ClientSecret field, for the same reason UserCredential has
+// no Password field — see that type's doc comment.
+//
+// This client only models the fields SAP's Help Portal documents in prose
+// with a fixed, unambiguous meaning: Name (alias), Description,
+// TokenServiceUrl, ClientId, and Scope. SAP's UI additionally exposes Grant
+// Type, Client Authentication (body vs. header), Resource, Audience, and up
+// to 20 custom Key/Value/"Send as Part of" parameters, but this project
+// could not confirm those fields' exact OData property names or JSON shape
+// against $metadata or a documented example payload, so they are
+// deliberately left unimplemented rather than guessed — see
+// docs/guides/security-content.md.
+type OAuth2ClientCredential struct {
+	Name            string `json:"Name"`
+	Description     string `json:"Description,omitempty"`
+	TokenServiceURL string `json:"TokenServiceUrl"`
+	ClientID        string `json:"ClientId"`
+	Scope           string `json:"Scope,omitempty"`
+}
+
+// oauth2ClientCredentialWriteRequest is the request body shape for creating
+// or redeploying (editing) an OAuth2 client credential artifact. This type
+// exists only to be marshaled — it is never a target of json.Unmarshal, so
+// there is no code path that could accidentally decode a client secret out
+// of an API response into it.
+type oauth2ClientCredentialWriteRequest struct {
+	Name            string `json:"Name"`
+	Description     string `json:"Description,omitempty"`
+	TokenServiceURL string `json:"TokenServiceUrl"`
+	ClientID        string `json:"ClientId"`
+	ClientSecret    string `json:"ClientSecret"`
+	Scope           string `json:"Scope,omitempty"`
+}
+
+func oauth2ClientCredentialPath(name string) string {
+	return v2.BuildPath(oauth2ClientCredentialsEntitySet, v2.KeyPredicate(name), "")
+}
+
+// GetOAuth2ClientCredential reads a single OAuth2 client credential
+// artifact's identity and metadata by its Name (alias). It never requests
+// or decodes a client secret.
+func (c *Client) GetOAuth2ClientCredential(ctx context.Context, name string) (*OAuth2ClientCredential, error) {
+	body, err := c.odata.Get(ctx, oauth2ClientCredentialPath(name))
+	if err != nil {
+		return nil, err
+	}
+
+	var cred OAuth2ClientCredential
+	if err := v2.DecodeEntity(body, &cred); err != nil {
+		return nil, err
+	}
+	return &cred, nil
+}
+
+// CreateOAuth2ClientCredential creates (deploys) a new OAuth2 client
+// credential artifact. clientSecret is sent once, in this single request,
+// and is never returned: the response is decoded into
+// OAuth2ClientCredential, whose type has no ClientSecret field to receive
+// it even if SAP's response body happened to include one.
+func (c *Client) CreateOAuth2ClientCredential(ctx context.Context, cred OAuth2ClientCredential, clientSecret string) (*OAuth2ClientCredential, error) {
+	payload, err := json.Marshal(oauth2ClientCredentialWriteRequest{
+		Name:            cred.Name,
+		Description:     cred.Description,
+		TokenServiceURL: cred.TokenServiceURL,
+		ClientID:        cred.ClientID,
+		ClientSecret:    clientSecret,
+		Scope:           cred.Scope,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("securitycontent: encoding oauth2 client credential: %w", err)
+	}
+
+	body, err := c.odata.Post(ctx, oauth2ClientCredentialsEntitySet, payload)
+	if err != nil {
+		return nil, err
+	}
+
+	var created OAuth2ClientCredential
+	if err := v2.DecodeEntity(body, &created); err != nil {
+		return nil, err
+	}
+	return &created, nil
+}
+
+// UpdateOAuth2ClientCredential redeploys (edits) an existing OAuth2 client
+// credential artifact in place via PUT. SAP documents this explicitly:
+// "You can edit and deploy an OAuth2 Client Credentials artifact" and
+// "Every time you edit an OAuth2 Client Credentials artifact, you must
+// re-enter the Client Secret" — so clientSecret is required on every call,
+// and this provider models a rotation as an in-place update, not a
+// replacement. The response body is deliberately not decoded; see
+// UpdateUserCredential's doc comment for why the caller re-reads instead.
+func (c *Client) UpdateOAuth2ClientCredential(ctx context.Context, cred OAuth2ClientCredential, clientSecret string) error {
+	payload, err := json.Marshal(oauth2ClientCredentialWriteRequest{
+		Name:            cred.Name,
+		Description:     cred.Description,
+		TokenServiceURL: cred.TokenServiceURL,
+		ClientID:        cred.ClientID,
+		ClientSecret:    clientSecret,
+		Scope:           cred.Scope,
+	})
+	if err != nil {
+		return fmt.Errorf("securitycontent: encoding oauth2 client credential: %w", err)
+	}
+
+	_, err = c.odata.Put(ctx, oauth2ClientCredentialPath(cred.Name), payload)
+	return err
+}
+
+// DeleteOAuth2ClientCredential deletes an OAuth2 client credential artifact
+// by its Name.
+func (c *Client) DeleteOAuth2ClientCredential(ctx context.Context, name string) error {
+	return c.odata.Delete(ctx, oauth2ClientCredentialPath(name))
+}

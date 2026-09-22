@@ -1,0 +1,143 @@
+package securitycontent
+
+import (
+	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+)
+
+// syntheticTestSecret is an unmistakably synthetic secret used only against
+// an in-process httptest server; it is never a real credential.
+const syntheticTestSecret = "tf-acc-synthetic-client-secret-not-real" // #nosec G101 -- synthetic test fixture, not a real credential
+
+func TestClient_CreateOAuth2ClientCredential(t *testing.T) {
+	var gotBody []byte
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/OAuth2ClientCredentials" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("reading POST body: %v", err)
+		}
+		gotBody = body
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"d": {"Name": "BACKEND_OAUTH", "TokenServiceUrl": "https://auth.example.com/oauth/token", "ClientId": "integration-client", "Scope": "read write"}}`))
+	}))
+	defer server.Close()
+
+	client := New(http.DefaultClient, server.URL)
+
+	created, err := client.CreateOAuth2ClientCredential(context.Background(), OAuth2ClientCredential{
+		Name:            "BACKEND_OAUTH",
+		TokenServiceURL: "https://auth.example.com/oauth/token",
+		ClientID:        "integration-client",
+		Scope:           "read write",
+	}, syntheticTestSecret)
+	if err != nil {
+		t.Fatalf("CreateOAuth2ClientCredential() error: %v", err)
+	}
+	if created.Name != "BACKEND_OAUTH" {
+		t.Errorf("Name = %q, want BACKEND_OAUTH", created.Name)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(gotBody, &decoded); err != nil {
+		t.Fatalf("decoding POST body: %v", err)
+	}
+	if decoded["ClientSecret"] != syntheticTestSecret {
+		t.Errorf("POST body ClientSecret = %v, want the synthetic test secret", decoded["ClientSecret"])
+	}
+}
+
+func TestClient_CreateOAuth2ClientCredential_ResponseNeverExposesSecret(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"d": {"Name": "BACKEND_OAUTH", "ClientId": "integration-client", "ClientSecret": "` + syntheticTestSecret + `"}}`))
+	}))
+	defer server.Close()
+
+	client := New(http.DefaultClient, server.URL)
+
+	created, err := client.CreateOAuth2ClientCredential(context.Background(), OAuth2ClientCredential{Name: "BACKEND_OAUTH", ClientID: "integration-client"}, syntheticTestSecret)
+	if err != nil {
+		t.Fatalf("CreateOAuth2ClientCredential() error: %v", err)
+	}
+
+	body, err := json.Marshal(created)
+	if err != nil {
+		t.Fatalf("marshaling created OAuth2ClientCredential: %v", err)
+	}
+	if strings.Contains(string(body), syntheticTestSecret) {
+		t.Errorf("CreateOAuth2ClientCredential() result serializes a client secret: %s", body)
+	}
+}
+
+func TestClient_GetUpdateDeleteOAuth2ClientCredential(t *testing.T) {
+	var lastMethod string
+	var putBody []byte
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		lastMethod = r.Method
+		want := "/api/v1/OAuth2ClientCredentials('BACKEND_OAUTH')"
+		if r.URL.Path != want {
+			t.Errorf("path = %q, want %q", r.URL.Path, want)
+		}
+		switch r.Method {
+		case http.MethodGet:
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"d": {"Name": "BACKEND_OAUTH", "TokenServiceUrl": "https://auth.example.com/oauth/token", "ClientId": "integration-client", "Scope": "read"}}`))
+		case http.MethodPut:
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatalf("reading PUT body: %v", err)
+			}
+			putBody = body
+			w.WriteHeader(http.StatusNoContent)
+		case http.MethodDelete:
+			w.WriteHeader(http.StatusNoContent)
+		}
+	}))
+	defer server.Close()
+
+	client := New(http.DefaultClient, server.URL)
+
+	cred, err := client.GetOAuth2ClientCredential(context.Background(), "BACKEND_OAUTH")
+	if err != nil {
+		t.Fatalf("GetOAuth2ClientCredential() error: %v", err)
+	}
+	if cred.ClientID != "integration-client" {
+		t.Errorf("ClientID = %q, want integration-client", cred.ClientID)
+	}
+
+	err = client.UpdateOAuth2ClientCredential(context.Background(), OAuth2ClientCredential{
+		Name: "BACKEND_OAUTH", TokenServiceURL: "https://auth.example.com/oauth/token",
+		ClientID: "integration-client", Scope: "read write",
+	}, syntheticTestSecret)
+	if err != nil {
+		t.Fatalf("UpdateOAuth2ClientCredential() error: %v", err)
+	}
+	if lastMethod != http.MethodPut {
+		t.Errorf("last method = %q, want PUT", lastMethod)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(putBody, &decoded); err != nil {
+		t.Fatalf("decoding PUT body: %v", err)
+	}
+	if decoded["ClientSecret"] != syntheticTestSecret {
+		t.Errorf("PUT body ClientSecret = %v, want the synthetic test secret", decoded["ClientSecret"])
+	}
+	if decoded["Scope"] != "read write" {
+		t.Errorf("PUT body Scope = %v, want \"read write\"", decoded["Scope"])
+	}
+
+	if err := client.DeleteOAuth2ClientCredential(context.Background(), "BACKEND_OAUTH"); err != nil {
+		t.Fatalf("DeleteOAuth2ClientCredential() error: %v", err)
+	}
+}
