@@ -23,9 +23,10 @@ Development branches from `dev`, in this order, until superseded by an explicit 
    provider's Cloud Foundry target (Neo environment only). OAuth2 Authorization Code is Out of
    scope (requires interactive human authorization). Secure Parameter and Known Hosts are
    Research required.
-2. **Cloud Integration Service Endpoints** — **Next.** A confirmed public OData API
-   (`ServiceEndpoints`) already exists; a read-only `data.sapintegrationsuite_service_endpoints`
-   data source is a strong, low-risk next step. See `docs/api-capability-matrix.md`.
+2. **Integration Adapter Design-Time Artifacts** — **Next.** `IntegrationAdapterDesigntimeArtifacts`
+   and `DeployIntegrationAdapterDesigntimeArtifacts` (Cloud Foundry-only, per SAP's own Integration
+   Content API resource table) let a tenant administrator import, deploy, and delete a custom
+   integration adapter. Gets its own `feature/integration-adapter-support` branch.
 3. **Message Queues / Data Stores / Variables / Number Ranges** — Research required per object;
    do not treat operational/monitoring APIs automatically as Terraform resources.
 4. **Classic API Management** — Planned, after Cloud Integration core support is mature.
@@ -47,7 +48,8 @@ Development branches from `dev`, in this order, until superseded by an explicit 
 Access Policies completion (role/identity semantics, artifact reference lifecycle audit,
 runtime reconciliation research, minimal-PATCH update, data sources, import/drift) is done —
 see "Implemented" below and `docs/guides/access-policies.md`. Partner Directory is also done —
-see "Implemented" below and `docs/guides/partner-directory.md`.
+see "Implemented" below and `docs/guides/partner-directory.md`. Cloud Integration Service
+Endpoints discovery is also done — see "Implemented" below and `docs/guides/service-endpoints.md`.
 
 This order describes what to work on **next**; it does not retroactively unimplement anything
 already shipped (see "Implemented" below).
@@ -105,6 +107,11 @@ already shipped (see "Implemented" below).
   - `data.sapintegrationsuite_user_credential`
   - `sapintegrationsuite_oauth2_client_credential`
   - `data.sapintegrationsuite_oauth2_client_credential`
+- Cloud Integration Service Endpoints discovery (read-only by design — SAP generates these from
+  deployed content, so there is no matching resource; combined `EntryPoints`/`ApiDefinitions`
+  expansion, `name`/`protocol` filters, full server-driven pagination, deterministic ordering —
+  see `docs/guides/service-endpoints.md`):
+  - `data.sapintegrationsuite_service_endpoints`
 - A shared, CSRF-aware HTTP client: every modifying (POST/PUT/PATCH/DELETE) request now
   transparently fetches and retries with an `X-CSRF-Token` if SAP's API asks for one,
   independently of OAuth authentication — see `docs/sap-api-references.md`
@@ -127,13 +134,14 @@ already shipped (see "Implemented" below).
 - Message mapping entry-level or dependent-resource management, if SAP ever exposes one
   independent of the opaque content archive this provider already transports (**Research
   required**)
-- Security material resources (user credentials, OAuth2 client credentials, keystore
-  entries, certificate-user mappings) with write-only/sensitive-value semantics (**Planned**,
-  priority 1 above)
+- Remaining Security Content material (keystore entries, certificates, key pairs, SSH keys,
+  certificate chains) once exact OData `$metadata` field names are confirmed (**Research
+  required**, priority 1 above)
+- Integration Adapter Design-Time Artifacts (**Next**, priority 2 above)
 - Classic API Management resources, once the required scopes and object model are fully
-  mapped (**Planned**, priority 3 above)
+  mapped (**Planned**, priority 4 above)
 - New API Gateway / API Artifact model, once its public API surface is confirmed in enough
-  detail for a stable schema (**Blocked by API**, priority 4 above):
+  detail for a stable schema (**Blocked by API**, priority 5 above):
   - `sapintegrationsuite_api_artifact`
   - `sapintegrationsuite_api_artifact_deployment`
 - API Policies, if a typed, stable policy schema is achievable (**Blocked by API**)

@@ -45,69 +45,146 @@ SAP/btp                              Prideth/sap-integration-suite
                                          public APIs are confirmed)
 ```
 
-## Supported capabilities (v0.1.0)
+## Feature Support
 
-| Resource / Data Source | Purpose |
-|---|---|
-| `sapintegrationsuite_integration_package` | Cloud Integration content package |
-| `sapintegrationsuite_integration_flow` | Integration flow design-time content (file-based) |
-| `sapintegrationsuite_integration_flow_deployment` | Integration flow runtime deployment |
-| `sapintegrationsuite_access_policy` | Access policy |
-| `sapintegrationsuite_access_policy_reference` | A single artifact reference on an access policy |
-| `data.sapintegrationsuite_access_policy` | Read-only lookup of an existing access policy |
-| `data.sapintegrationsuite_access_policy_reference` | Read-only lookup of an existing access policy reference |
-| `sapintegrationsuite_value_mapping` | Value mapping design-time content (file-based) |
-| `sapintegrationsuite_value_mapping_deployment` | Value mapping runtime deployment |
-| `sapintegrationsuite_message_mapping` | Reusable message mapping design-time content (file-based) |
-| `sapintegrationsuite_message_mapping_deployment` | Message mapping runtime deployment |
-| `data.sapintegrationsuite_message_mapping` | Read-only lookup of an existing message mapping |
-| `sapintegrationsuite_script_collection` | Reusable script collection design-time content (file-based) |
-| `sapintegrationsuite_script_collection_deployment` | Script collection runtime deployment |
-| `data.sapintegrationsuite_script_collection` | Read-only lookup of an existing script collection |
-| `sapintegrationsuite_partner_string_parameter` | Partner Directory string parameter |
-| `sapintegrationsuite_partner_binary_parameter` | Partner Directory binary parameter (file-based) |
-| `sapintegrationsuite_alternative_partner` | Partner Directory alternative partner mapping |
-| `sapintegrationsuite_partner_authorized_user` | Partner Directory authorized user mapping |
-| `sapintegrationsuite_partner_user_credential_parameter` | Partner Directory user credential (write-only password) |
-| `sapintegrationsuite_user_credential` | Security Content user credential (write-only password) |
-| `data.sapintegrationsuite_user_credential` | Read-only lookup of an existing user credential (no password) |
-| `sapintegrationsuite_oauth2_client_credential` | Security Content OAuth2 client credential (write-only client secret) |
-| `data.sapintegrationsuite_oauth2_client_credential` | Read-only lookup of an existing OAuth2 client credential (no secret) |
-| `data.sapintegrationsuite_partner` | Confirms whether a Partner ID exists |
-| `data.sapintegrationsuite_partners` | Lists every Partner ID in the tenant |
-| `data.sapintegrationsuite_partner_string_parameter` | Read-only lookup of an existing string parameter |
-| `data.sapintegrationsuite_partner_string_parameters` | Lists every string parameter for a partner |
-| `data.sapintegrationsuite_partner_binary_parameter` | Read-only lookup of an existing binary parameter |
-| `data.sapintegrationsuite_alternative_partner` | Read-only lookup of an existing alternative partner mapping |
-| `data.sapintegrationsuite_partner_authorized_user` | Read-only lookup of an existing authorized user mapping |
-| `data.sapintegrationsuite_provider_features` | The full provider feature support catalog |
-| `data.sapintegrationsuite_provider_feature` | Support information for exactly one feature |
-
-Every resource here is backed by a currently documented, SAP-supported
-public API — see [`docs/sap-api-references.md`](docs/sap-api-references.md)
-for the exact API behind each one, and
+Every resource and data source here is backed by a currently documented,
+SAP-supported public API — see
+[`docs/sap-api-references.md`](docs/sap-api-references.md) for the exact
+API behind each one, and
 [`docs/api-capability-matrix.md`](docs/api-capability-matrix.md) /
 [`docs/provisioning-capability-matrix.md`](docs/provisioning-capability-matrix.md)
 for the full discovery behind what is and is not implemented yet.
 
-## Feature support
+The table below is this provider's complete, canonical feature-support
+dashboard — every Integration Suite capability area this project has
+evaluated, supported or not, grouped by area.
 
-This provider ships a machine-readable feature support catalog, queryable
-directly from Terraform with no SAP host or credentials — it describes
-what this provider *version* implements, not what is active in any
-particular tenant:
+<!-- BEGIN GENERATED FEATURE SUPPORT -->
+
+Generated from `internal/features/catalog.go` by `go run ./cmd/gendocs -readme` — do not hand-edit the table below; regenerate it instead (`make docs` does this automatically). See [`docs/feature-support.md`](docs/feature-support.md) for the full per-operation matrix and every feature's detailed limitations.
+
+Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁️ Read-only / data source only · 🧪 Experimental · ❌ Unsupported / not implemented
+
+### Cloud Integration
+
+| Feature | Status | Terraform Support |
+|---|:---:|---|
+| Integration Flow | ✅ | Resource |
+| Integration Flow Deployment | ✅ | Resource |
+| Integration Package | ✅ | Resource + Data Source |
+| Message Mapping | ✅ | Resource + Data Source |
+| Message Mapping Deployment | ✅ | Resource |
+| Message Processing Logs | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
+| Message Stores / Data Stores | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
+| Script Collection | ✅ | Resource + Data Source |
+| Script Collection Deployment | ✅ | Resource |
+| Service Endpoints | 👁️ | Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
+| Value Mapping | ⚠️ | Resource + Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
+| Value Mapping Deployment | ✅ | Resource |
+| Value Mapping Entry | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+
+### Security & Access Policies
+
+| Feature | Status | Terraform Support |
+|---|:---:|---|
+| Access Policy | ✅ | Resource + Data Source |
+| Access Policy Reference | ✅ | Resource + Data Source |
+| Certificate | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+| Certificate Chain | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+| Certificate-User Mapping | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
+| Key Pair | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+| Keystore Entry | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+| Known Hosts (SSH) | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+| OAuth2 Client Credential | ⚠️ | Resource + Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
+| Secure Parameter | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+| SSH Key | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+| User Credential | ⚠️ | Resource + Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
+
+### Partner Directory
+
+| Feature | Status | Terraform Support |
+|---|:---:|---|
+| Alternative Partner | ✅ | Resource + Data Source |
+| Partner Directory Authorized User | ✅ | Resource + Data Source |
+| Partner Directory Binary Parameter | ✅ | Resource + Data Source |
+| Partner | 👁️ | Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
+| Partner Directory String Parameter | ✅ | Resource + Data Source |
+| Partner Directory User Credential Parameter | ⚠️ | Resource — see [feature-support.md](docs/feature-support.md#all-features) |
+
+### Classic API Management
+
+| Feature | Status | Terraform Support |
+|---|:---:|---|
+| API Product (classic API Management) | ❌ | Planned — see [feature-support.md](docs/feature-support.md#all-features) |
+| API Provider (classic API Management) | ❌ | Planned — see [feature-support.md](docs/feature-support.md#all-features) |
+| API Proxy (classic API Management) | ❌ | Planned — see [feature-support.md](docs/feature-support.md#all-features) |
+| Key Value Map (classic API Management) | ❌ | Planned — see [feature-support.md](docs/feature-support.md#all-features) |
+
+### API Gateway / API Artifacts
+
+| Feature | Status | Terraform Support |
+|---|:---:|---|
+| API Artifact (API Gateway) | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+| API Artifact Deployment (API Gateway) | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+| API Policy (API Gateway) | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+
+### Integration Cell
+
+| Feature | Status | Terraform Support |
+|---|:---:|---|
+| Integration Cell Runtime | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
+
+### Edge Integration Cell
+
+| Feature | Status | Terraform Support |
+|---|:---:|---|
+| Edge Integration Cell Registration | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
+
+### Capability Provisioning
+
+| Feature | Status | Terraform Support |
+|---|:---:|---|
+| API Gateway Capability Activation | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
+| API Management Capability Activation | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
+| Cloud Integration Capability Activation | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
+| Edge Integration Cell Capability Activation | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
+| Integration Cell Capability Activation | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
+
+### Additional Integration Suite Capabilities
+
+| Feature | Status | Terraform Support |
+|---|:---:|---|
+| Data Space Integration | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+| Event Mesh | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
+| Integration Advisor | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+| Integration Assessment | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+| Migration Assessment | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+| Open Connectors | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+| Trading Partner Management | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+
+14 supported · 4 partial · 2 read-only · 0 experimental · 32 unsupported, out of 52 evaluated Integration Suite features.
+
+<!-- END GENERATED FEATURE SUPPORT -->
+
+The catalog behind this table is also queryable directly from Terraform,
+with no SAP host or credentials required — useful for scripting a
+compliance check or a support-status gate in CI:
 
 ```hcl
 data "sapintegrationsuite_provider_features" "all" {}
+
+output "supported_features" {
+  value = [
+    for feature in data.sapintegrationsuite_provider_features.all.features :
+    feature.key
+    if feature.support_status == "supported"
+  ]
+}
 
 data "sapintegrationsuite_provider_feature" "value_mapping" {
   key = "cloud_integration.value_mapping"
 }
 ```
-
-See [`docs/feature-support.md`](docs/feature-support.md) for the full,
-generated table of every feature this project has evaluated — supported,
-partial, or not implemented, and why.
 
 ## Requirements
 

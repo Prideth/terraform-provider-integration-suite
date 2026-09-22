@@ -1,15 +1,24 @@
-// Command gendocs regenerates docs/feature-support.md from the canonical
+// Command gendocs regenerates generated documentation from the canonical
 // feature catalog in internal/features. It is the single place that turns
 // features.Catalog into prose and tables, so that catalog and
 // documentation cannot drift apart the way independently hand-maintained
 // copies would — see CONTRIBUTING.md for the rule that every feature
-// change updates the catalog and regenerates this file in the same
+// change updates the catalog and regenerates this output in the same
 // change.
 //
-// Usage: go run ./cmd/gendocs > docs/feature-support.md
+// Usage:
+//
+//	go run ./cmd/gendocs > docs/feature-support.md
+//	go run ./cmd/gendocs -readme
+//
+// The second form rewrites the generated block of README.md in place
+// (everything between the "<!-- BEGIN GENERATED FEATURE SUPPORT -->" and
+// "<!-- END GENERATED FEATURE SUPPORT -->" markers); it does not touch any
+// other part of README.md.
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"sort"
@@ -33,7 +42,58 @@ var reasonOrder = []struct {
 	{features.ReasonOutOfScope, "Out of provider scope"},
 }
 
+// domainOrder fixes the display order and heading of each catalog Domain in
+// the README's generated feature overview. A domain present in the catalog
+// but missing from this list is never dropped — see domainHeading — it is
+// just appended after every named domain, alphabetically, so a newly added
+// Domain value always shows up somewhere without requiring this list to be
+// updated in lockstep.
+var domainOrder = []struct {
+	domain  string
+	heading string
+}{
+	{"cloud_integration", "Cloud Integration"},
+	{"security", "Security & Access Policies"},
+	{"partner_directory", "Partner Directory"},
+	{"api_management_classic", "Classic API Management"},
+	{"api_gateway", "API Gateway / API Artifacts"},
+	{"integration_cell", "Integration Cell"},
+	{"edge_integration_cell", "Edge Integration Cell"},
+	{"capability_provisioning", "Capability Provisioning"},
+	{"other_capability", "Additional Integration Suite Capabilities"},
+}
+
+const (
+	readmeMarkerBegin = "<!-- BEGIN GENERATED FEATURE SUPPORT -->"
+	readmeMarkerEnd   = "<!-- END GENERATED FEATURE SUPPORT -->"
+)
+
 func main() {
+	readme := flag.Bool("readme", false, "rewrite the generated feature table in README.md in place, instead of printing docs/feature-support.md to stdout")
+	flag.Parse()
+
+	if *readme {
+		if err := regenerateReadme("README.md"); err != nil {
+			fmt.Fprintln(os.Stderr, "gendocs:", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if _, err := os.Stdout.WriteString(featureSupportDoc()); err != nil {
+		fmt.Fprintln(os.Stderr, "gendocs:", err)
+		os.Exit(1)
+	}
+}
+
+func sortedCatalog() []features.Feature {
+	sorted := make([]features.Feature, len(features.Catalog))
+	copy(sorted, features.Catalog)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Key < sorted[j].Key })
+	return sorted
+}
+
+func featureSupportDoc() string {
 	var b strings.Builder
 
 	fmt.Fprintln(&b, "# Feature Support")
@@ -61,6 +121,11 @@ func main() {
 	fmt.Fprintln(&b, "```")
 	fmt.Fprintln(&b)
 
+	fmt.Fprintln(&b, "See README.md's \"Feature Support\" section for a compact, high-level dashboard "+
+		"generated from this same catalog (`go run ./cmd/gendocs -readme`); this document is the "+
+		"detailed per-operation matrix.")
+	fmt.Fprintln(&b)
+
 	fmt.Fprintln(&b, "## Relationship to the other capability documents")
 	fmt.Fprintln(&b)
 	fmt.Fprintln(&b, "This document, `docs/api-capability-matrix.md`, `docs/provisioning-capability-matrix.md`, "+
@@ -83,10 +148,7 @@ func main() {
 	fmt.Fprintln(&b, "| Feature | Domain | Status | Public API | Create | Read | Update | Delete | Import | Deploy | Terraform |")
 	fmt.Fprintln(&b, "|---|---|---|---|---|---|---|---|---|---|---|")
 
-	sorted := make([]features.Feature, len(features.Catalog))
-	copy(sorted, features.Catalog)
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Key < sorted[j].Key })
-
+	sorted := sortedCatalog()
 	for _, f := range sorted {
 		fmt.Fprintf(&b, "| `%s` | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n",
 			f.Key, f.Domain, statusCell(f), boolCell(f.PublicAPI),
@@ -129,10 +191,7 @@ func main() {
 		fmt.Fprintln(&b)
 	}
 
-	if _, err := os.Stdout.WriteString(b.String()); err != nil {
-		fmt.Fprintln(os.Stderr, "gendocs:", err)
-		os.Exit(1)
-	}
+	return b.String()
 }
 
 func boolCell(b bool) string {
@@ -169,4 +228,168 @@ func terraformCell(f features.Feature) string {
 	default:
 		return "—"
 	}
+}
+
+// statusIcon maps a SupportStatus to the single emoji this provider uses
+// consistently for it everywhere a compact overview is needed (currently
+// only the README's generated table). Kept in exactly one place so the
+// mapping in CONTRIBUTING.md/README.md's legend can never drift from what
+// this generator actually emits.
+func statusIcon(status features.SupportStatus) string {
+	switch status {
+	case features.StatusSupported:
+		return "✅"
+	case features.StatusPartial:
+		return "⚠️"
+	case features.StatusReadOnly:
+		return "👁️"
+	case features.StatusExperimental:
+		return "🧪"
+	case features.StatusUnsupported:
+		return "❌"
+	default:
+		return "?"
+	}
+}
+
+// reasonNote gives a very short, human phrase for why a feature with no
+// Terraform resource or data source at all is not supported, used as the
+// README table's "Terraform Support" cell for such rows so it never reads
+// as a bare, unexplained em dash.
+func reasonNote(reason features.SupportReason) string {
+	switch reason {
+	case features.ReasonNotImplemented:
+		return "Planned"
+	case features.ReasonPublicAPIIncomplete:
+		return "Planned — API details unconfirmed"
+	case features.ReasonNoPublicAPI:
+		return "No suitable public API"
+	case features.ReasonResearchRequired:
+		return "Research required"
+	case features.ReasonOutOfScope:
+		return "Out of scope"
+	case features.ReasonUnsafeTerraformLifecycle:
+		return "No safe Terraform lifecycle confirmed"
+	default:
+		return "Not implemented"
+	}
+}
+
+// readmeTerraformCell renders the README table's compact "Terraform
+// Support" cell: the same Resource/Data Source summary as
+// docs/feature-support.md when at least one Terraform type exists, a short
+// reason phrase when none exists, and — for anything short of full support
+// — a trailing pointer to the detailed matrix, satisfying the rule that a
+// partial/read-only/unsupported row must never leave a reader guessing why.
+func readmeTerraformCell(f features.Feature) string {
+	cell := terraformCell(f)
+	if cell == "—" {
+		cell = reasonNote(f.SupportReason)
+	}
+	if f.SupportStatus != features.StatusSupported {
+		cell += " — see [feature-support.md](docs/feature-support.md#all-features)"
+	}
+	return cell
+}
+
+func domainHeading(domain string) string {
+	for _, d := range domainOrder {
+		if d.domain == domain {
+			return d.heading
+		}
+	}
+	return domain
+}
+
+// readmeFeatureOverview renders the README's compact, generated feature
+// dashboard: one small table per catalog Domain (in domainOrder's fixed
+// sequence, then any unlisted domain alphabetically), one row per catalog
+// Feature — every feature, supported or not, since a practitioner needs to
+// see gaps as clearly as capabilities. This is intentionally more compact
+// than docs/feature-support.md (three columns instead of eleven, no inline
+// Limitations prose) and is generated purely from features.Catalog, with
+// no independently maintained content of its own.
+func readmeFeatureOverview() string {
+	var b strings.Builder
+
+	fmt.Fprintln(&b, "Generated from `internal/features/catalog.go` by `go run ./cmd/gendocs -readme` — "+
+		"do not hand-edit the table below; regenerate it instead (`make docs` does this "+
+		"automatically). See [`docs/feature-support.md`](docs/feature-support.md) for the full "+
+		"per-operation matrix and every feature's detailed limitations.")
+	fmt.Fprintln(&b)
+	fmt.Fprintln(&b, "Legend: ✅ Supported · ⚠️ Partial support / important limitations · "+
+		"👁️ Read-only / data source only · 🧪 Experimental · ❌ Unsupported / not implemented")
+	fmt.Fprintln(&b)
+
+	sorted := sortedCatalog()
+	byDomain := make(map[string][]features.Feature)
+	var domains []string
+	for _, f := range sorted {
+		if _, seen := byDomain[f.Domain]; !seen {
+			domains = append(domains, f.Domain)
+		}
+		byDomain[f.Domain] = append(byDomain[f.Domain], f)
+	}
+
+	orderedDomains := make([]string, 0, len(domains))
+	seen := make(map[string]bool, len(domains))
+	for _, d := range domainOrder {
+		if _, ok := byDomain[d.domain]; ok {
+			orderedDomains = append(orderedDomains, d.domain)
+			seen[d.domain] = true
+		}
+	}
+	var remaining []string
+	for _, d := range domains {
+		if !seen[d] {
+			remaining = append(remaining, d)
+		}
+	}
+	sort.Strings(remaining)
+	orderedDomains = append(orderedDomains, remaining...)
+
+	var counts = map[features.SupportStatus]int{}
+
+	for _, domain := range orderedDomains {
+		fmt.Fprintf(&b, "### %s\n\n", domainHeading(domain))
+		fmt.Fprintln(&b, "| Feature | Status | Terraform Support |")
+		fmt.Fprintln(&b, "|---|:---:|---|")
+		for _, f := range byDomain[domain] {
+			counts[f.SupportStatus]++
+			fmt.Fprintf(&b, "| %s | %s | %s |\n", f.Name, statusIcon(f.SupportStatus), readmeTerraformCell(f))
+		}
+		fmt.Fprintln(&b)
+	}
+
+	fmt.Fprintf(&b, "%d supported · %d partial · %d read-only · %d experimental · %d unsupported, "+
+		"out of %d evaluated Integration Suite features.\n",
+		counts[features.StatusSupported], counts[features.StatusPartial], counts[features.StatusReadOnly],
+		counts[features.StatusExperimental], counts[features.StatusUnsupported], len(sorted))
+
+	return strings.TrimRight(b.String(), "\n") + "\n"
+}
+
+// regenerateReadme replaces the content strictly between readmeMarkerBegin
+// and readmeMarkerEnd in path with a freshly generated feature overview,
+// leaving every other line of the file untouched. It fails loudly if
+// either marker is missing or out of order, rather than silently doing
+// nothing or corrupting the file.
+func regenerateReadme(path string) error {
+	original, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", path, err)
+	}
+
+	begin := strings.Index(string(original), readmeMarkerBegin)
+	end := strings.Index(string(original), readmeMarkerEnd)
+	if begin == -1 || end == -1 || end < begin {
+		return fmt.Errorf("%s is missing matching %q/%q markers", path, readmeMarkerBegin, readmeMarkerEnd)
+	}
+
+	before := string(original)[:begin+len(readmeMarkerBegin)]
+	after := string(original)[end:]
+
+	updated := before + "\n\n" + readmeFeatureOverview() + "\n" + after
+
+	return os.WriteFile(path, []byte(updated), 0o644)
 }

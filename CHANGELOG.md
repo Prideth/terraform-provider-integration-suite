@@ -76,6 +76,36 @@ Initial development toward v0.1.0. See `ROADMAP.md` for what is planned and
   and data source instead reports a clear, specific error when actually
   used without one. See `docs/feature-support.md`.
 - Provider scope, boundary, architecture, and API discovery documentation.
+- `sapintegrationsuite_user_credential` and `sapintegrationsuite_oauth2_client_credential`
+  resources (plus matching data sources) for SAP's Security Content API, the first
+  Security Content credential artifacts this provider manages. Both use write-only
+  `password_wo`/`client_secret_wo` attributes paired with a `_wo_version` marker (the
+  same pattern as `sapintegrationsuite_partner_user_credential_parameter`), but unlike
+  that resource, both have a confirmed in-place Update via `PUT` (SAP documents an
+  "Edit and redeploy" action for Credentials artifacts), so rotating a secret redeploys
+  the credential rather than replacing the resource. A dedicated
+  `internal/client/securitycontent` client package backs both. See
+  `docs/guides/security-content.md` for the full security model, which fields could and
+  could not be confirmed, and why most other Security Content artifact types (keystore
+  entries, certificates, key pairs, SSH keys, certificate chains, secure parameters,
+  known hosts) are not implemented yet.
+- `data.sapintegrationsuite_service_endpoints`, a read-only discovery data source for
+  SAP's `ServiceEndpoints` API: the runtime entry point URLs and API definition links
+  SAP generates for deployed Cloud Integration content. Supports the documented `name`/
+  `protocol` filters, combines `EntryPoints`/`ApiDefinitions` expansion into a single
+  request, fetches every page via server-driven paging, and sorts its result
+  deterministically since SAP does not document a guaranteed response order. There is
+  deliberately no matching resource (SAP offers no create/update/delete API for these)
+  and no singular per-endpoint lookup (uniqueness of `name` is not confirmed) — see
+  `docs/guides/service-endpoints.md`.
+- A generated "Feature Support" dashboard in `README.md`, between
+  `<!-- BEGIN GENERATED FEATURE SUPPORT -->`/`<!-- END GENERATED FEATURE SUPPORT -->`
+  markers, produced by `go run ./cmd/gendocs -readme` (also run by `make docs`) from the
+  same `internal/features/catalog.go` that already generates `docs/feature-support.md`,
+  so the two can never drift apart into independently maintained copies. Grouped by
+  domain, using the ✅/⚠️/👁️/🧪/❌ icon legend, and — unlike the README table it
+  replaces — shows unsupported and out-of-scope features alongside supported ones, not
+  just a curated list of what works.
 
 ### Changed
 
@@ -90,6 +120,11 @@ Initial development toward v0.1.0. See `ROADMAP.md` for what is planned and
 - `sapintegrationsuite_access_policy`'s Update now sends a PATCH payload
   containing only `Description`, instead of resending the immutable
   `RoleName` unchanged on every description update.
+- The `security.certificate_user_mapping` feature catalog entry is corrected from
+  `public_api: true` / `not_implemented` to `public_api: false` / `no_public_api`:
+  reverifying it found SAP's certificate-to-user mapping documentation exists only for
+  the Neo environment, with no Cloud Foundry equivalent, and this provider targets
+  Cloud Foundry.
 
 ### Known limitations
 
@@ -126,3 +161,14 @@ Initial development toward v0.1.0. See `ROADMAP.md` for what is planned and
   confirmed create operation for `Partners`, and deleting one is
   documented as capable of cascading to every entity that belongs to it —
   see `docs/guides/partner-directory.md`.
+- `sapintegrationsuite_user_credential` and `sapintegrationsuite_oauth2_client_credential`
+  never read a password/client secret back from SAP — a permanent property of their
+  security model. `sapintegrationsuite_oauth2_client_credential` also only exposes name,
+  description, token service URL, client ID, client secret, and scope; grant type
+  placement, client authentication mode, resource, audience, and custom parameters are
+  documented by SAP but not yet implemented. See `docs/guides/security-content.md`.
+- `data.sapintegrationsuite_service_endpoints`'s `ApiDefinitions[].url` JSON property
+  casing is inferred by consistency with the independently confirmed `EntryPoints[].url`
+  casing (confirmed from SAP's own open-source Piper library), not independently
+  confirmed itself. Whether a fresh deployment's service endpoint appears immediately or
+  after a propagation delay is also unconfirmed — see `docs/guides/service-endpoints.md`.
