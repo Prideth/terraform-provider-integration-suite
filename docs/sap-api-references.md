@@ -38,6 +38,40 @@ API. This document is that trace.
 - **Required roles**: as above, plus deploy-specific scopes for the runtime artifact
   operations
 
+## `sapintegrationsuite_value_mapping` / `..._deployment`
+
+- **SAP product area**: Integration Suite / Cloud Integration
+- **Official API**: Integration Content API
+- **Entity sets / actions**: `ValueMappingDesigntimeArtifacts`,
+  `ValueMappingDesigntimeArtifactSaveAsVersion` (action, not currently used — see the open
+  question below), `IntegrationRuntimeArtifacts` (the same shared runtime-artifacts entity
+  `sapintegrationsuite_integration_flow_deployment` uses — confirmed via SAP's own "Runtime
+  Status API" description as covering "currently deployed integration artifacts" generally,
+  not one entity per design-time artifact type), `DeployValueMappingDesigntimeArtifact` (action)
+- **Protocol**: OData V2
+- **Operations**: GET, POST (create), PUT (this provider's Update implementation — see the open
+  question below), DELETE, plus the `Deploy` action (POST)
+- **Required roles**: `WorkspacePackagesConfigure`, `WorkspacePackagesEdit`,
+  `WorkspaceArtifactsDeploy`
+- **Confirmed constraint**: a value mapping cannot be created with zero entries — at least one
+  mapping entry must be part of the artifact's content at creation time.
+- **Open question — Update semantics**: SAP documents a distinct
+  `ValueMappingDesigntimeArtifactSaveAsVersion` action (POST, taking the artifact's technical
+  ID and a caller-supplied new version identifier) alongside plain `POST`/`PUT`. Whether normal
+  content updates should go through `PUT` (as implemented, by analogy with
+  `IntegrationDesigntimeArtifacts`) or through this action instead has not been confirmed:
+  `help.sap.com`, `api.sap.com`, `community.sap.com`, and `blogs.sap.com` were all unreachable
+  from this development environment, and no other reachable source gave the exact
+  request/response shape needed to decide with confidence. Verify against a live tenant before
+  relying on `Update` in production; see `docs/resource-design.md` for the full reasoning.
+- **Deferred — entry-level operations**: `UpsertValMaps` (POST, insert/update individual
+  mapping rows — confirmed to 404 if the target source/target agency-identifier scheme does not
+  already exist), `UpdateDefaultValMap` (POST, sets a scheme's default value via a `ValMapId`
+  GUID obtained from a separate lookup), and `DeleteValMaps` (exact deletion granularity
+  unconfirmed) are real, existing APIs that this phase does not implement — see
+  `docs/resource-design.md` for why guessing their wire format was rejected in favor of
+  documenting the gap.
+
 ## `sapintegrationsuite_access_policy` / `..._reference`
 
 - **SAP product area**: Integration Suite / Security
@@ -77,6 +111,7 @@ API. This document is that trace.
 | New API Gateway / API Artifacts | Design-time API for API-centric artifacts with Runtime Profile (Integration Cell / Edge Integration Cell) | Existence confirmed via UI/feature docs; exact public API surface not yet confirmed in enough detail for a stable Terraform schema — deferred to v0.2.x |
 | Partner Directory | Partner Directory API (part of the same `CloudIntegrationAPI` package) | Confirmed public, deferred — not yet schema-designed |
 | Security material (user credentials, OAuth2 client credentials, keystore entries) | Security Content API | Confirmed public, deferred — needs write-only/sensitive-value design pass first |
+| Value mapping entry-level management | `UpsertValMaps`, `UpdateDefaultValMap`, `DeleteValMaps` | Confirmed public, deferred — exact payload/path shapes and delete granularity not confirmed against a reachable primary source; see `docs/resource-design.md` |
 
 ## Explicitly ruled out
 
