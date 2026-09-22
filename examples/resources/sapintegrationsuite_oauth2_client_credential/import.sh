@@ -1,0 +1,1 @@
+terraform import sapintegrationsuite_oauth2_client_credential.backend BACKEND_OAUTH

@@ -1,0 +1,238 @@
+package provider
+
+import (
+	"context"
+	"errors"
+
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/apierror"
+	"github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/securitycontent"
+)
+
+// NewOAuth2ClientCredentialResource returns a fresh resource.Resource
+// implementation for sapintegrationsuite_oauth2_client_credential.
+func NewOAuth2ClientCredentialResource() resource.Resource {
+	return &oauth2ClientCredentialResource{}
+}
+
+type oauth2ClientCredentialResource struct {
+	client *securitycontent.Client
+}
+
+// oauth2ClientCredentialModel follows the same write-only pattern as
+// userCredentialModel; see that type's doc comment for why ClientSecretWO
+// exists as a struct field despite never being read from it.
+type oauth2ClientCredentialModel struct {
+	ID                    types.String `tfsdk:"id"`
+	Description           types.String `tfsdk:"description"`
+	TokenServiceURL       types.String `tfsdk:"token_service_url"`
+	ClientID              types.String `tfsdk:"client_id"`
+	Scope                 types.String `tfsdk:"scope"`
+	ClientSecretWO        types.String `tfsdk:"client_secret_wo"`
+	ClientSecretWOVersion types.String `tfsdk:"client_secret_wo_version"`
+}
+
+func (r *oauth2ClientCredentialResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_oauth2_client_credential"
+}
+
+func (r *oauth2ClientCredentialResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		Description: "Manages a Security Content \"OAuth2 Client Credentials\" artifact: the client " +
+			"ID, client secret, and token service URL an integration flow adapter uses to obtain an " +
+			"OAuth2 access token for outbound requests (RFC 6749 client credentials grant). Backed by " +
+			"the public Security Content OData V2 API (OAuth2ClientCredentials). This provider only " +
+			"exposes the fields SAP's Help Portal documents unambiguously (name, description, token " +
+			"service URL, client ID, client secret, scope); grant-type placement, client " +
+			"authentication mode (body vs. header), resource, audience, and custom parameters are not " +
+			"yet implemented — see docs/guides/security-content.md. The client secret is a write-only " +
+			"attribute: Terraform never stores it in plan or state, and SAP documents that it must be " +
+			"re-entered on every edit, so this provider resends it on every apply that touches the " +
+			"resource. Requires Terraform CLI 1.11 or later for write-only attribute support.",
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Required: true,
+				Description: "The credential artifact's name, also called its alias when used in an " +
+					"adapter. This is also this resource's OData key. Immutable: SAP does not " +
+					"document renaming a security material artifact, only deleting and recreating it.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"description": schema.StringAttribute{
+				Optional:    true,
+				Description: "A free-text description of the credential artifact.",
+			},
+			"token_service_url": schema.StringAttribute{
+				Required:    true,
+				Description: "URL of the OAuth2 authorization server that issues the access token.",
+			},
+			"client_id": schema.StringAttribute{
+				Required:    true,
+				Description: "The OAuth2 client ID registered with the token service.",
+			},
+			"scope": schema.StringAttribute{
+				Optional:    true,
+				Description: "OAuth2 scope to request, if the token service requires one.",
+			},
+			"client_secret_wo": schema.StringAttribute{
+				Required:  true,
+				Sensitive: true,
+				WriteOnly: true,
+				Description: "The OAuth2 client secret. Write-only: Terraform never stores this " +
+					"value in plan or state, and it is never read back from SAP. Required on every " +
+					"apply that creates or redeploys this resource, since SAP documents that editing " +
+					"an OAuth2 Client Credentials artifact requires re-entering the client secret " +
+					"every time.",
+			},
+			"client_secret_wo_version": schema.StringAttribute{
+				Required: true,
+				Description: "An arbitrary value (for example a counter or timestamp) that a " +
+					"practitioner changes to signal that client_secret_wo's value has changed and " +
+					"the credential should be rotated. Changing it redeploys the credential in " +
+					"place (SAP's documented \"Edit and deploy\" action) rather than replacing the " +
+					"resource.",
+			},
+		},
+	}
+}
+
+func (r *oauth2ClientCredentialResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	data, ok := req.ProviderData.(*Data)
+	if !ok {
+		resp.Diagnostics.AddError("Unexpected provider data type", "Expected *provider.Data")
+		return
+	}
+	if !requireHTTPClient(data, "resource", &resp.Diagnostics) {
+		return
+	}
+	r.client = securitycontent.New(data.HTTPClient, data.Host)
+}
+
+func (r *oauth2ClientCredentialResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan oauth2ClientCredentialModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var clientSecret types.String
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, pathRoot("client_secret_wo"), &clientSecret)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	created, err := r.client.CreateOAuth2ClientCredential(ctx, securitycontent.OAuth2ClientCredential{
+		Name:            plan.ID.ValueString(),
+		Description:     plan.Description.ValueString(),
+		TokenServiceURL: plan.TokenServiceURL.ValueString(),
+		ClientID:        plan.ClientID.ValueString(),
+		Scope:           plan.Scope.ValueString(),
+	}, clientSecret.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to create SAP Integration Suite OAuth2 client credential", diagnosticDetail(err))
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, oauth2ClientCredentialToModel(created, plan.ClientSecretWOVersion))...)
+}
+
+func (r *oauth2ClientCredentialResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state oauth2ClientCredentialModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	cred, err := r.client.GetOAuth2ClientCredential(ctx, state.ID.ValueString())
+	if err != nil {
+		var apiErr *apierror.Error
+		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
+			resp.State.RemoveResource(ctx)
+			return
+		}
+		resp.Diagnostics.AddError("Failed to read SAP Integration Suite OAuth2 client credential", diagnosticDetail(err))
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, oauth2ClientCredentialToModel(cred, state.ClientSecretWOVersion))...)
+}
+
+func (r *oauth2ClientCredentialResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan oauth2ClientCredentialModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var clientSecret types.String
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, pathRoot("client_secret_wo"), &clientSecret)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	err := r.client.UpdateOAuth2ClientCredential(ctx, securitycontent.OAuth2ClientCredential{
+		Name:            plan.ID.ValueString(),
+		Description:     plan.Description.ValueString(),
+		TokenServiceURL: plan.TokenServiceURL.ValueString(),
+		ClientID:        plan.ClientID.ValueString(),
+		Scope:           plan.Scope.ValueString(),
+	}, clientSecret.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to update SAP Integration Suite OAuth2 client credential", diagnosticDetail(err))
+		return
+	}
+
+	cred, err := r.client.GetOAuth2ClientCredential(ctx, plan.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to read back SAP Integration Suite OAuth2 client credential after update", diagnosticDetail(err))
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, oauth2ClientCredentialToModel(cred, plan.ClientSecretWOVersion))...)
+}
+
+func (r *oauth2ClientCredentialResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state oauth2ClientCredentialModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	err := r.client.DeleteOAuth2ClientCredential(ctx, state.ID.ValueString())
+	if err != nil {
+		var apiErr *apierror.Error
+		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
+			return
+		}
+		resp.Diagnostics.AddError("Failed to delete SAP Integration Suite OAuth2 client credential", diagnosticDetail(err))
+	}
+}
+
+// ImportState only recovers id: client_secret_wo can never be recovered,
+// and client_secret_wo_version is a practitioner-chosen marker with no
+// server-side equivalent — see userCredentialResource.ImportState's doc
+// comment, which applies identically here.
+func (r *oauth2ClientCredentialResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, pathRootID(), req, resp)
+}
+
+func oauth2ClientCredentialToModel(cred *securitycontent.OAuth2ClientCredential, clientSecretWOVersion types.String) oauth2ClientCredentialModel {
+	return oauth2ClientCredentialModel{
+		ID:                    types.StringValue(cred.Name),
+		Description:           stringOrNull(cred.Description),
+		TokenServiceURL:       types.StringValue(cred.TokenServiceURL),
+		ClientID:              types.StringValue(cred.ClientID),
+		Scope:                 stringOrNull(cred.Scope),
+		ClientSecretWO:        types.StringNull(),
+		ClientSecretWOVersion: clientSecretWOVersion,
+	}
+}
