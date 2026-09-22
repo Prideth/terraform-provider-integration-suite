@@ -9,15 +9,7 @@ import (
 	v2 "github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/odata/v2"
 )
 
-const (
-	designtimeArtifactsEntitySet = "IntegrationDesigntimeArtifacts"
-	runtimeArtifactsEntitySet    = "IntegrationRuntimeArtifacts"
-
-	// activeVersion is the OData V2 key literal SAP's Integration Content
-	// API accepts to mean "the current active design-time version" without
-	// the caller needing to track version numbers itself.
-	activeVersion = "active"
-)
+const integrationDesigntimeArtifactsEntitySet = "IntegrationDesigntimeArtifacts"
 
 // IntegrationFlow is the wire representation of an
 // IntegrationDesigntimeArtifacts entity.
@@ -33,21 +25,15 @@ type IntegrationFlow struct {
 	Content string `json:"ArtifactContent,omitempty"`
 }
 
-// integrationFlowKey builds the composite (Id, Version) key predicate used
-// by the design-time artifact entity set.
-func integrationFlowKey(id, version string) (string, error) {
-	return v2.CompositeKeyPredicate("Id", id, "Version", version)
-}
-
 // GetIntegrationFlow reads the active design-time version's metadata for
 // the flow identified by flowID within packageID.
 func (c *Client) GetIntegrationFlow(ctx context.Context, packageID, flowID string) (*IntegrationFlow, error) {
-	key, err := integrationFlowKey(flowID, activeVersion)
+	key, err := designtimeArtifactKey(flowID, activeVersion)
 	if err != nil {
 		return nil, err
 	}
 
-	body, err := c.odata.Get(ctx, v2.BuildPath(designtimeArtifactsEntitySet, key, ""))
+	body, err := c.odata.Get(ctx, v2.BuildPath(integrationDesigntimeArtifactsEntitySet, key, ""))
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +59,7 @@ func (c *Client) CreateIntegrationFlow(ctx context.Context, packageID, flowID, n
 		return nil, fmt.Errorf("cloudintegration: encoding integration flow: %w", err)
 	}
 
-	body, err := c.odata.Post(ctx, designtimeArtifactsEntitySet, payload)
+	body, err := c.odata.Post(ctx, integrationDesigntimeArtifactsEntitySet, payload)
 	if err != nil {
 		return nil, err
 	}
@@ -101,12 +87,12 @@ func (c *Client) UpdateIntegrationFlow(ctx context.Context, flowID, name string,
 		return nil, fmt.Errorf("cloudintegration: encoding integration flow: %w", err)
 	}
 
-	key, err := integrationFlowKey(flowID, activeVersion)
+	key, err := designtimeArtifactKey(flowID, activeVersion)
 	if err != nil {
 		return nil, err
 	}
 
-	body, err := c.odata.Put(ctx, v2.BuildPath(designtimeArtifactsEntitySet, key, ""), payload)
+	body, err := c.odata.Put(ctx, v2.BuildPath(integrationDesigntimeArtifactsEntitySet, key, ""), payload)
 	if err != nil {
 		return nil, err
 	}
@@ -121,38 +107,12 @@ func (c *Client) UpdateIntegrationFlow(ctx context.Context, flowID, name string,
 // DeleteIntegrationFlow deletes an integration flow design-time artifact
 // (all versions).
 func (c *Client) DeleteIntegrationFlow(ctx context.Context, flowID string) error {
-	key, err := integrationFlowKey(flowID, activeVersion)
+	key, err := designtimeArtifactKey(flowID, activeVersion)
 	if err != nil {
 		return err
 	}
-	return c.odata.Delete(ctx, v2.BuildPath(designtimeArtifactsEntitySet, key, ""))
+	return c.odata.Delete(ctx, v2.BuildPath(integrationDesigntimeArtifactsEntitySet, key, ""))
 }
-
-// RuntimeArtifact is the wire representation of an IntegrationRuntimeArtifacts
-// entity: the deployed state of an integration flow.
-//
-// ErrorInfo is best-effort: SAP's monitoring UI sources failure detail from
-// a separate error-information endpoint rather than always inlining it on
-// this entity, so ErrorInfo may be empty even when Status is StatusError.
-// Callers must not assume it is populated; this needs verification against
-// a live tenant before being relied on for anything beyond a best-effort
-// diagnostic message.
-type RuntimeArtifact struct {
-	ID         string `json:"Id"`
-	Version    string `json:"Version"`
-	Status     string `json:"Status"`
-	DeployedBy string `json:"DeployedBy,omitempty"`
-	DeployedOn string `json:"DeployedOn,omitempty"`
-	ErrorInfo  string `json:"ErrorInformation,omitempty"`
-}
-
-// Runtime deployment status values reported by IntegrationRuntimeArtifacts.
-const (
-	StatusStarted  = "STARTED"
-	StatusStarting = "STARTING"
-	StatusStopped  = "STOPPED"
-	StatusError    = "ERROR"
-)
 
 // DeployIntegrationFlow triggers deployment of the given design-time
 // version of an integration flow. It returns immediately once SAP has
@@ -170,28 +130,4 @@ func (c *Client) DeployIntegrationFlow(ctx context.Context, flowID, version stri
 		v2.EscapeLiteral(flowID), v2.EscapeLiteral(version))
 	_, err := c.odata.Post(ctx, path, nil)
 	return err
-}
-
-// GetRuntimeArtifact reads the current runtime deployment status of an
-// integration flow. A missing deployment surfaces as a 404 *apierror.Error.
-func (c *Client) GetRuntimeArtifact(ctx context.Context, flowID string) (*RuntimeArtifact, error) {
-	path := v2.BuildPath(runtimeArtifactsEntitySet, v2.KeyPredicate(flowID), "")
-
-	body, err := c.odata.Get(ctx, path)
-	if err != nil {
-		return nil, err
-	}
-
-	var artifact RuntimeArtifact
-	if err := v2.DecodeEntity(body, &artifact); err != nil {
-		return nil, err
-	}
-	return &artifact, nil
-}
-
-// UndeployIntegrationFlow removes the runtime deployment of an integration
-// flow. A 404 means it was already undeployed.
-func (c *Client) UndeployIntegrationFlow(ctx context.Context, flowID string) error {
-	path := v2.BuildPath(runtimeArtifactsEntitySet, v2.KeyPredicate(flowID), "")
-	return c.odata.Delete(ctx, path)
 }
