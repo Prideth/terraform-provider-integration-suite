@@ -17,7 +17,11 @@ Initial development toward v0.1.0. See `ROADMAP.md` for what is planned and
 - `sapintegrationsuite_integration_flow_deployment` resource, with
   context-aware polling instead of fixed sleeps.
 - `sapintegrationsuite_access_policy` and
-  `sapintegrationsuite_access_policy_reference` resources.
+  `sapintegrationsuite_access_policy_reference` resources, plus matching
+  `data.sapintegrationsuite_access_policy` and
+  `data.sapintegrationsuite_access_policy_reference` data sources. See
+  `docs/guides/access-policies.md` for role/BTP semantics, supported
+  artifact types/attributes/operators, and runtime reconciliation findings.
 - `sapintegrationsuite_value_mapping` resource and data source (file-based
   content), and `sapintegrationsuite_value_mapping_deployment`, sharing the
   runtime-artifact polling and status model already proven for integration
@@ -57,6 +61,9 @@ Initial development toward v0.1.0. See `ROADMAP.md` for what is planned and
   changing any of them replaces the resource instead of relying on an
   unverified `PUT`. See `docs/sap-api-references.md` for the full
   reasoning and `docs/resource-design.md` for what was checked.
+- `sapintegrationsuite_access_policy`'s Update now sends a PATCH payload
+  containing only `Description`, instead of resending the immutable
+  `RoleName` unchanged on every description update.
 
 ### Known limitations
 
@@ -71,3 +78,14 @@ Initial development toward v0.1.0. See `ROADMAP.md` for what is planned and
   a primary source.
 - Individual value mapping entries are not yet manageable through this
   provider — see `docs/resource-design.md`.
+- `sapintegrationsuite_access_policy`'s `reconciliation_status` is
+  best-effort and not polled to a terminal state: SAP's documentation
+  confirms access policies can be replicated to the Cloud Integration
+  runtime, Integration Cell, and Edge Integration Cell with a per-runtime
+  `Fail`/`Success`/`Pending` reconciliation status, but this project could
+  not confirm that mechanism is exposed through the public `AccessPolicies`
+  OData API as opposed to being UI-only. See
+  `docs/guides/access-policies.md`.
+- The exact wire-format casing SAP's `AccessPolicies` OData API expects for
+  `Attribute` (`Name`/`Id`) and `Operator` (`EQUALS`/`MATCHES`) enum values
+  has not been confirmed against a live tenant or `$metadata`.

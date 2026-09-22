@@ -102,21 +102,30 @@ drift, import) before committing to a schema.
   but the provider uses the technical ID as the stable Terraform ID once known, consistent
   with the rest of the Security Content API.
 - **Create**: `POST AccessPolicies` with `RoleName`/`Description`.
-- **Update**: `PATCH AccessPolicies('{id}')` for `description` (PATCH, not PUT, so that fields
-  outside the Terraform schema are left untouched); `role_name` uses `RequiresReplace()` since
-  SAP does not document renaming a policy's role.
+- **Update**: `PATCH AccessPolicies('{id}')` with a payload containing only `Description`
+  (PATCH, not PUT, so fields outside the Terraform schema are left untouched, and the payload
+  is deliberately minimal rather than resending `RoleName` unchanged — see
+  `internal/client/cloudintegration/access_policy.go`); `role_name` uses `RequiresReplace()`
+  since SAP does not document renaming a policy's role.
 - **Delete**: `DELETE AccessPolicies('{id}')`.
 - **Drift detection**: `Read` re-fetches the policy and its reconciliation/runtime status.
 - **Import**: `terraform import sapintegrationsuite_access_policy.utilities <id>`.
-- **Runtime awareness (partially implemented)**: `reconciliation_status` is surfaced as a
-  computed attribute whenever the API reports one, but Create/Update currently return as soon
-  as the policy itself is created/updated — they do **not** poll until reconciliation reaches a
-  terminal state. This is deliberate for now: the exact status enum (values, terminal states,
-  per-runtime shape for Integration Cell vs. Edge Integration Cell) has not been confirmed
-  against a live tenant, and polling on an unverified enum risks either hanging on a status
-  value we don't recognize as terminal or returning "success" prematurely. Implementing the
-  poll is tracked as follow-up work once the status model is confirmed; see
-  `docs/sap-api-references.md`.
+- **Data source**: `data.sapintegrationsuite_access_policy` reads an existing policy by ID —
+  useful for attaching `sapintegrationsuite_access_policy_reference` resources to a policy
+  this provider does not itself manage.
+- **Runtime awareness (best-effort, not polled)**: `reconciliation_status` is surfaced as a
+  computed attribute whenever the API returns one, but Create/Update return as soon as the
+  policy itself is created/updated — they do **not** poll until reconciliation reaches a
+  terminal state. SAP's own "Manage Access Policies" UI documentation confirms a real
+  replication/reconciliation concept exists (a policy can be replicated to one or more
+  runtimes — Cloud Integration runtime, Integration Cell, Edge Integration Cell — and each
+  replication target reports a `Fail`/`Success`/`Pending` reconciliation status, checked via
+  an icon in the UI's "Runtimes" column), but this research pass could not confirm that this
+  is exposed as a property of the public `AccessPolicies` OData entity as opposed to being
+  UI-only, nor that it is a single scalar value rather than a per-runtime status list. Given
+  that uncertainty, this provider does not add a runtime-association resource or attempt to
+  poll reconciliation to a terminal state; `reconciliation_status` stays a best-effort,
+  informational field. See `docs/sap-api-references.md` for the sourcing.
 
 ## `sapintegrationsuite_access_policy_reference`
 
@@ -152,6 +161,19 @@ drift, import) before committing to a schema.
   what SAP documents are accepted by the validator.
 - **Create/Delete**: `POST`/`DELETE` against the nested collection.
 - **Import**: `terraform import sapintegrationsuite_access_policy_reference.utilities_flows <access_policy_id>/<reference_id>`.
+- **Data source**: `data.sapintegrationsuite_access_policy_reference` reads a single existing
+  reference by `access_policy_id` and its own `reference_id`.
+- **Ownership boundary**: this resource manages exactly the references Terraform creates.
+  Deleting the parent `sapintegrationsuite_access_policy` resource never implicitly deletes
+  references Terraform did not create (an externally-added reference is simply left alone),
+  and Terraform never enumerates or reconciles a policy's full reference set — each reference
+  is independently created, read, and deleted by its own ID.
+- **`operator = "MATCHES"` semantics**: confirmed by SAP's own documentation as requiring "a
+  valid Java Regular Expression" supported by `java.util.regex.Pattern` — not a wildcard or
+  glob pattern. `"UTIL_.*"` is a correct, idiomatic MATCHES value; a wildcard-style value like
+  `"UTIL_*"` also happens to be valid Java regex syntax (matching `UTIL` followed by zero or
+  more trailing underscores), but is easy to misread as a glob, so this project's examples
+  prefer the unambiguous `.*` form.
 
 ## Value Mapping API model
 

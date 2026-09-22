@@ -15,32 +15,31 @@ matrix.
 
 Development branches from `dev`, in this order, until superseded by an explicit reprioritization:
 
-1. **Access Policies** — **Next.** Completing and hardening
-   `sapintegrationsuite_access_policy` / `..._reference` (audit existing implementation, verify
-   role/identity semantics, artifact reference lifecycle, runtime reconciliation, data sources,
-   import/drift) takes priority over starting further Cloud Integration artifact families or
-   any other new area. See `feature/access-policy-completion`.
-2. **Cloud Integration core artifact completeness** — Implemented, revisited for hardening as
-   needed: Integration Packages, Integration Flows, Integration Flow Deployment, Value
-   Mappings, Script Collections, Message Mappings. Extend/harden existing implementations
-   rather than duplicating them.
-3. **Partner Directory** — Planned. Investigate publicly supported declarative Partner
+1. **Partner Directory** — **Next.** Investigate publicly supported declarative Partner
    Directory objects where Terraform semantics are appropriate.
-4. **Security Content** — Planned. User Credentials, OAuth Credentials, Certificates, Keystore
+2. **Security Content** — Planned. User Credentials, OAuth Credentials, Certificates, Keystore
    material. Only resources where secrets and read-back semantics are safe for Terraform.
-5. **Message Queues / Data Stores / Variables / Number Ranges** — Research required per object;
+3. **Message Queues / Data Stores / Variables / Number Ranges** — Research required per object;
    do not treat operational/monitoring APIs automatically as Terraform resources.
-6. **Classic API Management** — Planned, after Cloud Integration core support is mature.
-7. **New API Gateway / API Artifacts** — Blocked by API: existence confirmed via UI/feature
+4. **Classic API Management** — Planned, after Cloud Integration core support is mature.
+5. **New API Gateway / API Artifacts** — Blocked by API: existence confirmed via UI/feature
    documentation, but no public design-time API confirmed in enough detail for a stable
    schema. API Artifacts, API Artifact Deployment, API Policies, Runtime Profiles.
-8. **Integration Cell** — Blocked by API for SAP-side lifecycle/configuration; no public
-   activation or status API found yet.
-9. **Edge Integration Cell** — Blocked by API for SAP control-plane/runtime-specific
-   configuration; never a Kubernetes/Helm replacement.
-10. **Additional Integration Suite capabilities** — Research required: Integration Advisor,
-    Trading Partner Management, Integration Assessment, Migration Assessment, and others, only
-    where public APIs justify Terraform management.
+6. **Integration Cell** — Blocked by API for SAP-side lifecycle/configuration; no public
+   activation or status API found yet. Access policy replication/reconciliation to Integration
+   Cell is a documented Integration Suite UI capability, but no public API surface for it was
+   confirmed during the access-policy completion pass — see
+   `docs/sap-api-references.md`.
+7. **Edge Integration Cell** — Blocked by API for SAP control-plane/runtime-specific
+   configuration; never a Kubernetes/Helm replacement. Same access-policy-replication caveat
+   as Integration Cell above.
+8. **Additional Integration Suite capabilities** — Research required: Integration Advisor,
+   Trading Partner Management, Integration Assessment, Migration Assessment, and others, only
+   where public APIs justify Terraform management.
+
+Access Policies completion (role/identity semantics, artifact reference lifecycle audit,
+runtime reconciliation research, minimal-PATCH update, data sources, import/drift) is done —
+see "Implemented" below and `docs/guides/access-policies.md`.
 
 This order describes what to work on **next**; it does not retroactively unimplement anything
 already shipped (see "Implemented" below).
@@ -56,10 +55,13 @@ already shipped (see "Implemented" below).
   - `sapintegrationsuite_integration_package`
   - `sapintegrationsuite_integration_flow`
   - `sapintegrationsuite_integration_flow_deployment`
-- Access Policies (existing implementation; see "Current development priority" above for the
-  completion/hardening pass now underway):
+- Access Policies (role/artifact-reference lifecycle audited and completed; minimal-PATCH
+  update, data sources, and runtime-reconciliation research documented — see
+  `docs/guides/access-policies.md`):
   - `sapintegrationsuite_access_policy`
   - `sapintegrationsuite_access_policy_reference`
+  - `data.sapintegrationsuite_access_policy`
+  - `data.sapintegrationsuite_access_policy_reference`
 - Value Mappings:
   - `sapintegrationsuite_value_mapping`
   - `sapintegrationsuite_value_mapping_deployment`

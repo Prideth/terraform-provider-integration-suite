@@ -218,15 +218,56 @@ API. This document is that trace.
   and still needs verification against a live tenant's `$metadata` or an actual create
   response.
 - **Role association caveat**: SAP's own documentation on managing access policies states that
-  the role granting access to the artifacts an access policy protects is associated "using SAP
-  Business Technology Platform cockpit" — i.e. through a BTP role collection, which is
-  out of this provider's scope (see `docs/provider-scope.md`). It is not yet confirmed whether
-  the `AccessPolicies` entity's `RoleName` field is simply a label referenced by that
-  BTP-side role collection, or carries additional semantics on the Integration Suite side.
-  Until confirmed, treat `role_name` as write-once-at-creation and avoid relying on renaming
-  it having any particular effect.
+  "to give dedicated users access to the artifacts protected by the access policy, you define
+  a role and associate it with the access policy using SAP Business Technology Platform
+  cockpit, and only users that are assigned to that role can access the artifacts". Read
+  literally, this describes a BTP **role** (for example a custom role built from a role
+  template in the subaccount's Security > Roles area), not the BTP **role collection** itself
+  — a role collection bundling that role is what actually gets assigned to users. This
+  provider does not manage the BTP-side role or role collection (see
+  `docs/provider-scope.md`); it treats `role_name` as an opaque string the practitioner
+  supplies and never interprets, resolves, or cross-checks against BTP. It is still not
+  confirmed against OData `$metadata` whether `AccessPolicies.RoleName` is simply a label
+  matched against that BTP-side role's name, or carries additional Integration
+  Suite-specific semantics. Until confirmed, `role_name` stays `RequiresReplace()` (immutable)
+  and this provider avoids relying on renaming it having any particular effect.
+- **`operator` semantics — confirmed**: SAP's documentation states plainly that choosing the
+  "equals" operator requires the exact artifact name/ID as the value, while "matches" requires
+  "a valid Java Regular Expression" that must be "supported by the Java Pattern class" — i.e.
+  `java.util.regex.Pattern`, not a wildcard or glob syntax. This resolves a prior open
+  question in this document; see `docs/resource-design.md` for the resulting example-value
+  guidance. The exact wire-format casing of the `Operator` property's values
+  (`EQUALS`/`MATCHES`, as currently coded, versus `equals`/`matches` or another casing) remains
+  unconfirmed — SAP's prose and UI labels do not by themselves establish the OData enum's wire
+  casing, and this project could not reach `$metadata` or a live tenant to confirm it in this
+  research pass.
+- **`attribute` values — confirmed set, unconfirmed casing**: SAP's documentation confirms
+  exactly two attribute choices, "Name" and "ID" (referencing an artifact by name or by its
+  technical ID). The exact wire-format casing (`Id` vs. `ID`, as currently coded) is likewise
+  unconfirmed against `$metadata` or a live tenant.
+- **Runtime replication and reconciliation — confirmed as a real Integration Suite feature,
+  unconfirmed as part of the public API surface**: SAP's "Manage Access Policies" application
+  documentation (including the Edge Integration Cell-specific variant of that page) describes
+  replicating an access policy to one or more runtimes — the Cloud Integration runtime,
+  Integration Cell, and Edge Integration Cell are all named as replication targets — and
+  checking each target's reconciliation status, one of `Fail`, `Success`, or `Pending`, via an
+  icon in the UI's "Runtimes" column. This confirms the underlying concept is real and not
+  this provider's invention. It does **not** confirm that this behavior (viewing or triggering
+  replication, reading per-runtime reconciliation status) is exposed through the public
+  `AccessPolicies` OData API this provider uses, as distinct from being an application-UI-only
+  capability layered on top of it; every attempt to reach a primary source describing the
+  `AccessPolicies` entity's actual OData properties for this research pass was blocked
+  (`help.sap.com`, `api.sap.com`, and `community.sap.com` are all unreachable from this
+  project's environment) or returned no result naming a `ReconciliationStatus`-shaped
+  property. Given that, this provider keeps `reconciliation_status` as an existing,
+  best-effort `Computed` field (harmless if SAP's API never populates it) but does not add any
+  Integration Cell- or Edge Integration Cell-specific resource, and does not implement polling
+  to a terminal reconciliation state — see `docs/resource-design.md`. This remains the single
+  largest confirmed gap between what the SAP application can do and what this provider's
+  public API access can verify.
 - **Required roles**: Integration Suite "Manage Security" / access-policy administration
-  scopes
+  scopes; SAP's documentation additionally names the `PI_Administrator` role collection as
+  required to create and edit access policies through the application UI.
 
 ## Deferred APIs (tracked, not yet implemented)
 
