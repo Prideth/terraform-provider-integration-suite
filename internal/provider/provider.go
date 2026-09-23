@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -34,11 +35,24 @@ type sapIntegrationSuiteProvider struct {
 
 // providerModel mirrors the provider block's schema.
 type providerModel struct {
-	Host  types.String `tfsdk:"host"`
-	OAuth *oauthModel  `tfsdk:"oauth"`
+	Host          types.String        `tfsdk:"host"`
+	OAuth         *oauthModel         `tfsdk:"oauth"`
+	APIManagement *apiManagementModel `tfsdk:"api_management"`
 }
 
 type oauthModel struct {
+	TokenURL     types.String `tfsdk:"token_url"`
+	ClientID     types.String `tfsdk:"client_id"`
+	ClientSecret types.String `tfsdk:"client_secret"`
+}
+
+// apiManagementModel mirrors the provider block's optional api_management
+// nested block: Classic API Management (the API Portal) authenticates
+// against its own application URL and OAuth client (the apiportal-apiaccess
+// service plan), entirely independent of the oauth block above, which only
+// ever authenticates Cloud Integration and current API Management calls.
+type apiManagementModel struct {
+	Host         types.String `tfsdk:"host"`
 	TokenURL     types.String `tfsdk:"token_url"`
 	ClientID     types.String `tfsdk:"client_id"`
 	ClientSecret types.String `tfsdk:"client_secret"`
@@ -53,6 +67,16 @@ type Data struct {
 	Host       string
 	HTTPClient *sapthttp.Client
 	Version    string
+
+	// APIManagementClassicHost and APIManagementClassicHTTPClient are the
+	// Classic API Management (API Portal) equivalents of Host/HTTPClient
+	// above, populated only when provider.api_management (or the
+	// corresponding SAP_INTEGRATION_SUITE_API_MANAGEMENT_* environment
+	// variables) is fully configured. They are never derived from, or
+	// substituted with, the Cloud Integration Host/HTTPClient: SAP does not
+	// document the two credential sets as interchangeable.
+	APIManagementClassicHost       string
+	APIManagementClassicHTTPClient *sapthttp.Client
 }
 
 func (p *sapIntegrationSuiteProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -92,6 +116,44 @@ func (p *sapIntegrationSuiteProvider) Schema(_ context.Context, _ provider.Schem
 						Optional:    true,
 						Sensitive:   true,
 						Description: "OAuth 2.0 client secret. Can also be set via the SAP_INTEGRATION_SUITE_CLIENT_SECRET environment variable.",
+					},
+				},
+			},
+			"api_management": schema.SingleNestedBlock{
+				Description: "Optional, and independent of the oauth block above. Classic API Management " +
+					"(API Providers, API Proxies, API Products, Key Value Maps) authenticates against its " +
+					"own API Portal application URL and its own OAuth 2.0 client, generated from the " +
+					"apiportal-apiaccess service plan — never the Cloud Integration credentials configured " +
+					"above. Leave this entire block out if you do not use any sapintegrationsuite_api_provider, " +
+					"sapintegrationsuite_api_product, sapintegrationsuite_api_key_value_map, or " +
+					"sapintegrationsuite_api_management_certificate_store_reference resource or data source. " +
+					"All four values (or their SAP_INTEGRATION_SUITE_API_MANAGEMENT_* environment variable " +
+					"equivalents) must be supplied together, or all left unset.",
+				Attributes: map[string]schema.Attribute{
+					"host": schema.StringAttribute{
+						Optional: true,
+						Description: "Base URL of the API Portal application, for example " +
+							"https://<tenant>.prod-eu10.apiportal.cfapps.eu10.hana.ondemand.com, as returned " +
+							"by the apiportal-apiaccess service key's \"url\" field. Can also be set via the " +
+							"SAP_INTEGRATION_SUITE_API_MANAGEMENT_HOST environment variable.",
+					},
+					"token_url": schema.StringAttribute{
+						Optional: true,
+						Description: "OAuth 2.0 token endpoint URL from the apiportal-apiaccess service key's " +
+							"\"tokenUrl\" field. Can also be set via the " +
+							"SAP_INTEGRATION_SUITE_API_MANAGEMENT_TOKEN_URL environment variable.",
+					},
+					"client_id": schema.StringAttribute{
+						Optional: true,
+						Description: "OAuth 2.0 client ID from the apiportal-apiaccess service key. Can also " +
+							"be set via the SAP_INTEGRATION_SUITE_API_MANAGEMENT_CLIENT_ID environment variable.",
+					},
+					"client_secret": schema.StringAttribute{
+						Optional:  true,
+						Sensitive: true,
+						Description: "OAuth 2.0 client secret from the apiportal-apiaccess service key. Can " +
+							"also be set via the SAP_INTEGRATION_SUITE_API_MANAGEMENT_CLIENT_SECRET " +
+							"environment variable.",
 					},
 				},
 			},
@@ -151,8 +213,73 @@ func (p *sapIntegrationSuiteProvider) Configure(ctx context.Context, req provide
 		})
 	}
 
+	if !p.configureAPIManagementClassic(ctx, config.APIManagement, data, &resp.Diagnostics) {
+		return
+	}
+
 	resp.DataSourceData = data
 	resp.ResourceData = data
+}
+
+// configureAPIManagementClassic resolves the optional api_management block
+// (or its environment variable equivalents) and, when fully supplied,
+// builds a dedicated authenticated HTTP client for Classic API Management —
+// entirely independent of the Cloud Integration client above. It returns
+// false (after recording a diagnostic) only when some but not all of the
+// four required values are present; an empty configuration is not an
+// error, since api_management is optional and every existing resource and
+// data source must keep working unaffected by its absence.
+func (p *sapIntegrationSuiteProvider) configureAPIManagementClassic(ctx context.Context, cfg *apiManagementModel, data *Data, diags *diag.Diagnostics) bool {
+	var host, tokenURL, clientID, clientSecret types.String
+	if cfg != nil {
+		host = cfg.Host
+		tokenURL = cfg.TokenURL
+		clientID = cfg.ClientID
+		clientSecret = cfg.ClientSecret
+	}
+
+	resolvedHost := stringOrEnv(host, "SAP_INTEGRATION_SUITE_API_MANAGEMENT_HOST")
+	resolvedTokenURL := stringOrEnv(tokenURL, "SAP_INTEGRATION_SUITE_API_MANAGEMENT_TOKEN_URL")
+	resolvedClientID := stringOrEnv(clientID, "SAP_INTEGRATION_SUITE_API_MANAGEMENT_CLIENT_ID")
+	resolvedClientSecret := stringOrEnv(clientSecret, "SAP_INTEGRATION_SUITE_API_MANAGEMENT_CLIENT_SECRET")
+
+	present := 0
+	for _, v := range []string{resolvedHost, resolvedTokenURL, resolvedClientID, resolvedClientSecret} {
+		if v != "" {
+			present++
+		}
+	}
+	if present == 0 {
+		return true
+	}
+	if present < 4 {
+		diags.AddError(
+			"Incomplete Classic API Management configuration",
+			"provider.api_management requires host, token_url, client_id, and client_secret (or their "+
+				"SAP_INTEGRATION_SUITE_API_MANAGEMENT_* environment variable equivalents) to be supplied "+
+				"together. Supply all four, or omit the block entirely to leave Classic API Management "+
+				"resources and data sources unconfigured.",
+		)
+		return false
+	}
+
+	authenticatedClient, invalidateToken, err := auth.Config{
+		TokenURL:     resolvedTokenURL,
+		ClientID:     resolvedClientID,
+		ClientSecret: resolvedClientSecret,
+	}.HTTPClient(ctx, http.DefaultClient)
+	if err != nil {
+		diags.AddError("Unable to configure Classic API Management authentication", err.Error())
+		return false
+	}
+
+	data.APIManagementClassicHost = resolvedHost
+	data.APIManagementClassicHTTPClient = sapthttp.New(sapthttp.Config{
+		Transport:       authenticatedClient,
+		UserAgent:       sapthttp.UserAgent(p.version),
+		InvalidateToken: invalidateToken,
+	})
+	return true
 }
 
 func (p *sapIntegrationSuiteProvider) Resources(_ context.Context) []func() resource.Resource {
@@ -181,6 +308,10 @@ func (p *sapIntegrationSuiteProvider) Resources(_ context.Context) []func() reso
 		NewNumberRangeResource,
 		NewCertificateResource,
 		NewKeyPairResource,
+		NewAPIProviderResource,
+		NewAPIProductResource,
+		NewAPIManagementCertificateStoreReferenceResource,
+		NewAPIKeyValueMapResource,
 	}
 }
 
@@ -208,6 +339,11 @@ func (p *sapIntegrationSuiteProvider) DataSources(_ context.Context) []func() da
 		NewCustomTagConfigurationDataSource,
 		NewKeystoreEntryDataSource,
 		NewKeystoreEntriesDataSource,
+		NewAPIProviderDataSource,
+		NewAPIProvidersDataSource,
+		NewAPIProductDataSource,
+		NewAPIManagementCertificateStoreReferenceDataSource,
+		NewAPIKeyValueMapDataSource,
 	}
 }
 

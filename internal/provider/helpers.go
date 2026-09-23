@@ -40,6 +40,23 @@ func requireHTTPClient(data *Data, noun string, diags *diag.Diagnostics) bool {
 	return false
 }
 
+// requireAPIManagementClassicHTTPClient is the Classic API Management
+// (API Portal) counterpart of requireHTTPClient: every Classic API
+// Management resource and data source calls this from its own Configure
+// method, since provider.api_management is optional and the provider's own
+// Configure never fails just because it is absent.
+func requireAPIManagementClassicHTTPClient(data *Data, noun string, diags *diag.Diagnostics) bool {
+	if data.APIManagementClassicHTTPClient != nil {
+		return true
+	}
+	diags.AddError(
+		"Classic API Management configuration is required for this "+noun+".",
+		"Configure provider.api_management (host, token_url, client_id, client_secret) or the "+
+			"corresponding SAP_INTEGRATION_SUITE_API_MANAGEMENT_* environment variables.",
+	)
+	return false
+}
+
 // diagnosticDetail renders an error for a Terraform diagnostic detail
 // string. For a SAP API error it surfaces the status code, SAP error code,
 // and message so the user sees what SAP actually reported rather than a bare
