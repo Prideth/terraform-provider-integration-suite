@@ -38,9 +38,11 @@ Do not conflate these: a feature can be fully supported by this provider and sti
 
 | Feature | Domain | Status | Public API | Create | Read | Update | Delete | Import | Deploy | Terraform |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `api_gateway.api_artifact` | api_gateway | unsupported (research_required) | No | — | — | — | — | — | — | — |
-| `api_gateway.api_artifact_deployment` | api_gateway | unsupported (research_required) | No | — | — | — | — | — | — | — |
-| `api_gateway.api_policy` | api_gateway | unsupported (research_required) | No | — | — | — | — | — | — | — |
+| `api_gateway.api_artifact` | api_gateway | unsupported (no_public_api) | No | — | — | — | — | — | — | — |
+| `api_gateway.api_artifact_deployment` | api_gateway | unsupported (no_public_api) | No | — | — | — | — | — | — | — |
+| `api_gateway.api_policy` | api_gateway | unsupported (no_public_api) | No | — | — | — | — | — | — | — |
+| `api_gateway.reusable_api_artifact` | api_gateway | unsupported (no_public_api) | No | — | — | — | — | — | — | — |
+| `api_gateway.runtime_profile` | api_gateway | unsupported (no_public_api) | No | — | — | — | — | — | — | — |
 | `api_management.classic.api_product` | api_management_classic | unsupported (not_implemented) | Yes | — | — | — | — | — | — | — |
 | `api_management.classic.api_provider` | api_management_classic | unsupported (not_implemented) | Yes | — | — | — | — | — | — | — |
 | `api_management.classic.api_proxy` | api_management_classic | unsupported (not_implemented) | Yes | — | — | — | — | — | — | — |
@@ -76,6 +78,7 @@ Do not conflate these: a feature can be fully supported by this provider and sti
 | `integration_advisor` | other_capability | unsupported (research_required) | No | — | — | — | — | — | — | — |
 | `integration_assessment` | other_capability | unsupported (research_required) | No | — | — | — | — | — | — | — |
 | `integration_cell.runtime` | integration_cell | unsupported (no_public_api) | No | — | — | — | — | — | — | — |
+| `integration_cell.virtual_host` | integration_cell | unsupported (no_public_api) | No | — | — | — | — | — | — | — |
 | `migration_assessment` | other_capability | unsupported (research_required) | No | — | — | — | — | — | — | — |
 | `open_connectors` | other_capability | unsupported (research_required) | No | — | — | — | — | — | — | — |
 | `partner_directory.alternative_partner` | partner_directory | supported | Yes | Yes | Yes | Yes | Yes | Yes | — | Resource + Data Source |
@@ -172,7 +175,17 @@ Grouped by why, not just that. A feature can be `partial` and reachable via one 
 
 ### No suitable public SAP API
 
-- **`capabilities.api_gateway`** — Activating the newer API Gateway / API Artifacts capability itself within an Integration Suite tenant.
+- **`api_gateway.api_artifact`** — A design-time API configuration (endpoints, policies, security, runtime behavior) in SAP's current, API-centric integration model, created under Design > Integrations and APIs.
+  - Reverified thoroughly for this feature family, not merely re-asserted: the canonical Integration Content OData API's own exhaustive resource table (the same one this provider already relies on for IntegrationDesigntimeArtifacts and every sibling entity) does not list API Artifacts at all, ruling out the hypothesis that they are just a new IntegrationDesigntimeArtifacts Type value. Over twenty documentation pages covering every stage of the artifact lifecycle (four creation methods, configuration, versioning, access management, deletion, deployment, monitoring) were read in full; none mentions a REST/OData endpoint, entity set, or SAP Business Accelerator Hub link. Corrected from research_required to no_public_api: this is a confirmed absence, not an open question.
+- **`api_gateway.api_artifact_deployment`** — The runtime deployment state of an API Artifact on Integration Cell or Edge Integration Cell.
+  - Same reverification and same conclusion as api_gateway.api_artifact: no deployment or undeploy API was found documented anywhere. Confirmed from SAP's own documentation, for whenever a public API does exist: runtime profile is effectively immutable once an API artifact is created (RequiresReplace territory), with a documented exception only for reassigning the target Edge Integration Cell node; and the virtual host selected at deployment time can differ from the one configured at design time, with the deployed endpoint URL reflecting whichever was actually used to deploy — see docs/sap-api-references.md and docs/guides/current-api-management.md.
+- **`api_gateway.api_policy`** — A policy or mediation step (authentication, authorization, quota, rate limiting, transformation, and so on) attached to an API Artifact.
+  - Whether policies are persisted as opaque content nested inside the artifact or as independently addressable entities could not be determined, since no public API exists for API Artifacts at all to inspect either representation against.
+- **`api_gateway.reusable_api_artifact`** — A modular, internal-only API Artifact variant with no external HTTP endpoint of its own, invoked by other API Artifacts through the API Direct adapter.
+  - SAP's own documentation confirms this is a variant of the general API Artifact concept (not accessible via HTTP endpoint, invoked only via API Direct, cannot recursively call other reusable APIs, requires a unique base path), which is why this is its own catalog entry rather than folded silently into api_gateway.api_artifact — but the underlying blocker is identical: no public API exists for API Artifacts of any kind.
+- **`api_gateway.runtime_profile`** — The target integration platform (Cloud Integration, Integration Cell, Edge Integration Cell, SAP Process Orchestration) an API Artifact or integration flow is designed and deployed for.
+  - Configured and displayed only under Settings > Integrations; no API was found for reading or managing this list. Even setting the missing API aside, this provider judges the profile list a weak data-source candidate on its own merits: it is small, stable, effectively enum-like platform metadata, better served by documentation than a live API call. SAP's own "Runtime Profiles" reference page does not list a distinct "Integration Cell" row at all, despite Integration Cell being offered as a runtime profile choice elsewhere in the same documentation set — an inconsistency in SAP's own documentation this provider records rather than resolves by guessing.
+- **`capabilities.api_gateway`** — Activating SAP's current, API-centric API Management capability (API Artifacts, Integration Cell) itself within an Integration Suite tenant.
 - **`capabilities.api_management`** — Activating the classic API Management capability itself within an Integration Suite tenant.
   - Documented as a UI step (Integration Suite → Manage Capabilities → activate API Management); no public API found.
 - **`capabilities.cloud_integration`** — Activating the Cloud Integration capability itself within an Integration Suite tenant.
@@ -183,7 +196,9 @@ Grouped by why, not just that. A feature can be `partial` and reachable via one 
 - **`edge_integration_cell.registration`** — SAP-side registration and runtime association of an Edge Integration Cell, never the customer-managed Kubernetes workloads themselves.
   - Registration is a guided UI plus Helm-based bootstrap process; no public capability-activation or registration API was found.
 - **`integration_cell.runtime`** — Runtime status and configuration of an already-activated Integration Cell, distinct from activating the capability itself.
-  - No public status or configuration API was found for Integration Cell runtime content, only UI-facing operations.
+  - Reconfirmed for this feature family: Integration Cell activation is a Settings > Runtime UI step, and runtime content/status is visible only through Monitor > Integrations and APIs, its own monitoring surface distinct from Cloud Integration's. No public status or configuration API was found for Integration Cell runtime content, only UI-facing operations.
+- **`integration_cell.virtual_host`** — The public-facing host name and base path through which API Artifacts (and MCP Servers) deployed to Integration Cell are exposed.
+  - Managed under Monitor > Manage Virtual Host by an administrator holding the PI_Administrator role collection; no Create/Read/Update/Delete API was found documented anywhere, despite dedicated UI-procedure pages existing for configuring, editing, and deleting an eligible virtual host. If a public API is ever confirmed, the default virtual host would need read-only treatment rather than an ordinary mutable resource — SAP documents it as having restricted editability compared to an administrator-created additional virtual host.
 - **`security.certificate_user_mapping`** — A mapping from a client certificate to an inbound user identity, used for inbound client certificate authentication.
   - Reverified for this feature family: SAP's own documentation ("Managing Certificate-to-User Mappings", "Client Certificate Authentication and Certificate-to-User Mapping (Inbound)", "Setting Up Inbound HTTP Connections with Certificate-to-User Mapping") exists only under the Neo environment, with no Cloud Foundry equivalent found in SAP's published documentation set. This provider targets the Cloud Foundry environment (its other Security Content resources use the Cloud Foundry "/api/v1" OData host), so this catalog entry is corrected from its previous "not_implemented"/PublicAPI:true state to "no_public_api": the feature cannot be implemented for this provider's target environment, not merely unimplemented yet. If SAP publishes a Cloud Foundry certificate-to-user-mapping API in the future, re-open this entry.
 - **`security.known_hosts`** — The SSH "known_hosts" file artifact used to validate SFTP server host keys for outbound SFTP connections.
@@ -191,10 +206,6 @@ Grouped by why, not just that. A feature can be `partial` and reachable via one 
 
 ### Further research required
 
-- **`api_gateway.api_artifact`** — An API-artifact-centric design-time object in SAP's newer API Gateway model.
-  - Existence confirmed via UI/feature documentation only; a public design-time API has not been confirmed in enough detail for a stable Terraform schema.
-- **`api_gateway.api_artifact_deployment`** — The runtime deployment state of an API Gateway API artifact.
-- **`api_gateway.api_policy`** — A policy attached to an API Gateway API artifact.
 - **`cloud_integration.value_mapping_entry`** — Individual source/target value pairs inside a value mapping scheme, managed through UpsertValMaps, UpdateDefaultValMap, and DeleteValMaps.
   - Exact request/response payload shapes and DeleteValMaps' delete granularity are not confirmed against a reachable primary source.
   - UpsertValMaps requires an already-existing source/target agency-identifier scheme, so entries cannot be managed independently of the artifact's own content.

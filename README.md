@@ -2,9 +2,9 @@
 
 A Terraform provider for configuring, provisioning, and administering
 content and capabilities **inside an already-provisioned** SAP Integration
-Suite tenant — Cloud Integration, Access Policies, API Management, and (as
-their public APIs are confirmed) the newer API Gateway model, Integration
-Cell, and Edge Integration Cell.
+Suite tenant — Cloud Integration, Access Policies, Classic API Management,
+and (as their public APIs are confirmed) SAP's current API Management
+model (API Artifacts, Integration Cell), and Edge Integration Cell.
 
 > **This project is an independent open-source Terraform provider and is
 > not an official SAP product**, unless and until SAP formally adopts or
@@ -51,9 +51,10 @@ SAP/btp                              Prideth/sap-integration-suite
   Entitlements                         Integration Packages
   Integration Suite subscription  -->  Integration Flows
   Service instances / bindings         Integration Flow Deployments
-  Destinations                         (API Gateway, Integration Cell,
-  Role collections / assignments        Edge Integration Cell as their
-                                         public APIs are confirmed)
+  Destinations                         (Current API Management,
+  Role collections / assignments        Integration Cell, Edge Integration
+                                         Cell as their public APIs are
+                                         confirmed)
 ```
 
 ## Feature Support
@@ -138,19 +139,22 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | API Proxy (classic API Management) | ❌ | Planned — see [feature-support.md](docs/feature-support.md#all-features) |
 | Key Value Map (classic API Management) | ❌ | Planned — see [feature-support.md](docs/feature-support.md#all-features) |
 
-### API Gateway / API Artifacts
+### Current API Management / API Artifacts
 
 | Feature | Status | Terraform Support |
 |---|:---:|---|
-| API Artifact (API Gateway) | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
-| API Artifact Deployment (API Gateway) | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
-| API Policy (API Gateway) | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+| API Artifact — Current API Management | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
+| API Artifact Deployment — Integration Cell | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
+| API Artifact Policy | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
+| Reusable API Artifact | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
+| Runtime Profile | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 
 ### Integration Cell
 
 | Feature | Status | Terraform Support |
 |---|:---:|---|
 | Integration Cell Runtime | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
+| Integration Cell Virtual Host | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 
 ### Edge Integration Cell
 
@@ -162,7 +166,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 
 | Feature | Status | Terraform Support |
 |---|:---:|---|
-| API Gateway Capability Activation | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
+| Current API Management Capability Activation | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 | API Management Capability Activation | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 | Cloud Integration Capability Activation | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 | Edge Integration Cell Capability Activation | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
@@ -180,7 +184,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Open Connectors | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
 | Trading Partner Management | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
 
-15 supported · 9 partial · 3 read-only · 0 experimental · 32 unsupported, out of 59 evaluated Integration Suite features.
+15 supported · 9 partial · 3 read-only · 0 experimental · 35 unsupported, out of 62 evaluated Integration Suite features.
 
 <!-- END GENERATED FEATURE SUPPORT -->
 
@@ -359,9 +363,11 @@ See [`ROADMAP.md`](ROADMAP.md).
   artifact is unconfirmed for `sapintegrationsuite_value_mapping`,
   `sapintegrationsuite_message_mapping`, and
   `sapintegrationsuite_script_collection` — see `docs/sap-api-references.md`.
-- API Gateway / API Artifacts, classic API Management, Integration Cell,
-  and Edge Integration Cell resources are not yet implemented — see
-  `ROADMAP.md`.
+- Current API Management (API Artifacts, Integration Cell, Virtual Hosts,
+  Runtime Profiles), Classic API Management, and Edge Integration Cell
+  resources are not implemented: no public API was found for any current
+  API Management object after a thorough research pass — see
+  `docs/guides/current-api-management.md` and `ROADMAP.md`.
 - There is no `sapintegrationsuite_partner` resource: SAP documents no
   confirmed create operation for Partner Directory `Partners`, and
   deleting one is documented as cascading to every entity that belongs to
