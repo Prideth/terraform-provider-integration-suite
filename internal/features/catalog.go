@@ -629,24 +629,33 @@ var Catalog = []Feature{
 		Key:    "security.keystore_entry",
 		Domain: "security",
 		Name:   "Keystore Entry",
-		Description: "A certificate or key pair entry in the tenant's keystore (KeystoreEntries, " +
-			"Keystores, KeystoreResources, HistoryKeystoreEntries in SAP's Security Content API).",
-		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonResearchRequired,
-		PublicAPI:     true,
-		APIProtocol:   "OData V2",
-		Planned:       true,
+		Description: "Any entry (certificate, SAP-generated key pair, or other RSA/DSA/EC-keyed " +
+			"entry) in the tenant's keystore, read-only.",
+		SupportStatus: StatusReadOnly,
+		SupportReason: ReasonUnsafeTerraformLifecycle,
+		DataSourceTypes: []string{
+			"sapintegrationsuite_keystore_entry",
+			"sapintegrationsuite_keystore_entries",
+		},
+		PublicAPI:   true,
+		APIProtocol: "OData V2",
 		Limitations: []string{
-			"SAP's UI documentation (Keystore Monitor) and independent technical sources confirm a " +
-				"public KeystoreEntries OData entity set exists with fields resembling Alias, Type, " +
-				"ValidUntil/ValidNotAfter, SubjectDN, IssuerDN, KeyType, KeySize, SerialNumber, " +
-				"SignatureAlgorithm, and one or more Fingerprints, but this project could not confirm " +
-				"the exact property names and casing against $metadata, so no resource or data source " +
-				"is implemented yet rather than shipping a guessed field mapping. Read-only metadata " +
-				"discovery (a data source, not a resource) is the recommended next step: see " +
-				"docs/guides/security-content.md and ROADMAP.md.",
-			"HistoryKeystoreEntries is audit/history information, not a mutable artifact, and should " +
-				"only ever become a read-only data source if implemented, never a resource.",
+			"Confirmed fields (verbatim from SAP's own \"Get All Keystore Entries\"/\"Get Keystore " +
+				"Entry by Alias\" documented example): Hexalias, Alias, KeyType, KeySize, " +
+				"ValidNotBefore, ValidNotAfter. SAP's own example response is truncated (\"....\"), " +
+				"and prose elsewhere mentions Subject DN/Issuer DN/last-modified information existing " +
+				"without giving their exact JSON property names, so those are not exposed as raw SAP " +
+				"fields — sapintegrationsuite_certificate derives subject/issuer/serial/fingerprint " +
+				"locally instead, by parsing the certificate bytes with Go's crypto/x509.",
+			"No API field distinguishes SAP-owned from tenant-administrator-owned entries. This " +
+				"provider does not guess at ownership; sapintegrationsuite_certificate and " +
+				"sapintegrationsuite_key_pair rely on and surface SAP's own server-side protection " +
+				"when an Update/Delete is attempted against a protected entry, rather than trying to " +
+				"detect it in advance — see docs/guides/security-content.md.",
+			"No resource: this entity represents fundamentally different object types (plain " +
+				"certificates, generated key pairs) with different lifecycles, so a single mutable " +
+				"sapintegrationsuite_keystore_entry resource was deliberately not created — see " +
+				"security.certificate and security.key_pair instead.",
 		},
 	},
 	{
@@ -655,70 +664,101 @@ var Catalog = []Feature{
 		Name:   "Certificate",
 		Description: "A standalone X.509 certificate keystore entry (as opposed to a key pair), " +
 			"typically an uploaded root or intermediate CA certificate.",
-		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonResearchRequired,
+		SupportStatus: StatusSupported,
+		ResourceTypes: []string{"sapintegrationsuite_certificate"},
 		PublicAPI:     true,
 		APIProtocol:   "OData V2",
 		Planned:       true,
 		Limitations: []string{
-			"SAP's UI documents uploading a certificate to the keystore, but this project could not " +
-				"confirm the OData create/update request shape (entity set name, PEM/DER encoding " +
-				"expectations, alias field) with enough confidence to implement it safely.",
+			"Create/Update both confirmed via SAP's own \"Import and Update Certificate\" " +
+				"documentation: PUT CertificateResources('<hexalias>')/$value, raw PEM body — SAP's " +
+				"documentation explicitly flags the PUT-creates-an-entity quirk. SAP's documented " +
+				"example body is enclosed in literal square brackets; this project treats those as " +
+				"documentation formatting, not literal bytes to send, since no other example in SAP's " +
+				"documentation uses that convention.",
+			"Delete uses the documented keystore mass-deletion operation (PUT " +
+				"KeystoreResources('system')?deleteEntries=true) with exactly the one alias this " +
+				"resource owns — there is no documented per-entry DELETE for this entity.",
+			"Drift detection compares a locally-computed SHA-256 fingerprint of the certificate's DER " +
+				"bytes, not raw PEM text, so line-wrapping/line-ending differences between your " +
+				"configuration and SAP's own re-serialization never produce a spurious diff; a " +
+				"genuinely different certificate does surface as drift.",
+			"certificate is intentionally not Sensitive: public X.509 certificate content is not " +
+				"confidential. This resource never handles a private key.",
 		},
+		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},
 	},
 	{
 		Key:    "security.key_pair",
 		Domain: "security",
 		Name:   "Key Pair",
-		Description: "An SAP-generated key pair keystore entry (private key plus X.509 certificate " +
-			"chain), as opposed to one uploaded from outside the tenant.",
-		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonResearchRequired,
+		Description: "An SAP-generated key pair keystore entry (private key plus X.509 certificate), " +
+			"as opposed to one uploaded from outside the tenant.",
+		SupportStatus: StatusPartial,
+		SupportReason: ReasonUnsafeTerraformLifecycle,
+		ResourceTypes: []string{"sapintegrationsuite_key_pair"},
 		PublicAPI:     true,
 		APIProtocol:   "OData V2",
 		Planned:       true,
 		Limitations: []string{
-			"SAP's UI documents key pair generation (KeyPairGenerationRequests / KeyPairResources per " +
-				"the public API catalog), and private keys generated this way are never downloadable, " +
-				"which would make this a safe design (the resource can manage a key pair's existence " +
-				"and metadata without ever handling private key material). This project could not " +
-				"confirm the generation request's exact fields (key algorithm, key size, distinguished " +
-				"name) or its synchronous-vs-asynchronous lifecycle against $metadata or a documented " +
-				"example, so it is not yet implemented.",
+			"Create confirmed field-for-field via SAP's own \"Generate a Key Pair\" documentation: " +
+				"POST KeyPairGenerationRequests. The private key never leaves SAP — this resource has " +
+				"no field for it and never requests one.",
+			"No update operation is documented for a generated key pair: every attribute that defines " +
+				"the generated key material is RequiresReplace.",
+			"Only the subset SAP confirms KeystoreEntries returns (key_type, key_size, " +
+				"valid_not_before, valid_not_after) is read back and refreshed on every plan; " +
+				"generation-only parameters SAP does not confirm returning (signature_algorithm, " +
+				"key_algorithm_parameter, the subject DN fields) are trusted from the last successful " +
+				"write, not re-verified — the same reason this is `partial`, not `supported`.",
+			"Delete uses the same documented keystore mass-deletion operation as " +
+				"sapintegrationsuite_certificate, with exactly the one alias this resource owns.",
+		},
+		Operations: Operations{Create: true, Read: true, Delete: true, Import: true},
+	},
+	{
+		Key:           "security.ssh_key",
+		Domain:        "security",
+		Name:          "SSH Key",
+		Description:   "An SSH-capable key pair used for SFTP public-key authentication.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonOutOfScope,
+		PublicAPI:     true,
+		APIProtocol:   "OData V2",
+		Limitations: []string{
+			"Reverified for this feature family and corrected: SAP's Security Content API overview " +
+				"lists no independent \"SSH Key\" resource, and the tenant keystore's own \"Creating a " +
+				"Key Pair/SSH Key Pair\" UI documentation uses the identical Key Pair attribute set " +
+				"(alias, key type, key size, signature algorithm, subject DN fields, validity) for " +
+				"both — \"Create > Key Pair\" and \"Create > SSH Key\" are the same underlying " +
+				"mechanism with a different label. No separate SSHKeyGenerationRequests field " +
+				"contract (mandatory/optional fields, example body) was found documented anywhere.",
+			"An RSA or DSA sapintegrationsuite_key_pair's public key can be exported in OpenSSH " +
+				"format via public_key_openssh, backed by SAP's confirmed " +
+				"KeystoreEntries('<hexalias>')/Sshkey/$value — this covers the SSH use case without a " +
+				"separate resource. EC key pairs are documented as unsupported for this export.",
 		},
 	},
 	{
-		Key:    "security.ssh_key",
-		Domain: "security",
-		Name:   "SSH Key",
-		Description: "An SAP-generated SSH key pair keystore entry, used for SFTP public-key " +
-			"authentication (SSHKeyGenerationRequests per the public API catalog).",
+		Key:           "security.certificate_chain",
+		Domain:        "security",
+		Name:          "Certificate Chain",
+		Description:   "A certificate chain associated with a key pair.",
 		SupportStatus: StatusUnsupported,
 		SupportReason: ReasonResearchRequired,
 		PublicAPI:     true,
 		APIProtocol:   "OData V2",
 		Planned:       true,
 		Limitations: []string{
-			"Same reasoning as security.key_pair: SAP's UI documents SSH key pair creation and this " +
-				"provider's standing policy prefers modeling a declarative, persistent resource over a " +
-				"one-shot \"generate\" action, but this project could not confirm the request/response " +
-				"contract well enough to implement it yet.",
-		},
-	},
-	{
-		Key:    "security.certificate_chain",
-		Domain: "security",
-		Name:   "Certificate Chain",
-		Description: "A certificate chain resource associated with a key pair (CertificateChainResources " +
-			"per the public API catalog).",
-		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonResearchRequired,
-		PublicAPI:     true,
-		APIProtocol:   "OData V2",
-		Planned:       true,
-		Limitations: []string{
-			"This project could not confirm this entity's identity, upload/download semantics, or " +
-				"relationship to security.key_pair against $metadata or documented examples.",
+			"Reverified for this feature family: SAP's Security Content API overview describes " +
+				"certificate chain import/export as part of the Key Pair resource's own capabilities " +
+				"(\"create a certificate signing request, or import and export the related certificate " +
+				"chain\"), not an independently documented CertificateChainResources contract — no " +
+				"example request, field table, or worked response was found for it anywhere in SAP's " +
+				"published documentation, unlike Certificate and Key Pair. Not implemented this phase; " +
+				"if a concrete contract is confirmed, this would likely be scoped by key-pair alias " +
+				"(for example sapintegrationsuite_key_pair_certificate_chain) rather than a standalone " +
+				"global resource, matching that ownership relationship.",
 		},
 	},
 	{
@@ -755,16 +795,18 @@ var Catalog = []Feature{
 		PublicAPI:     false,
 		Planned:       false,
 		Limitations: []string{
-			"SAP's Manage Security Material UI documents creating and deploying a Secure Parameter " +
-				"artifact, but this project found third-party evidence of at least one practitioner " +
-				"receiving an OData error (\"could not find an entity set or function import for " +
-				"SecureParameters\") when attempting to call it through the Security Content API, " +
-				"suggesting the entity set name is different from the obvious guess, is not exposed in " +
-				"every API version, or is not publicly documented at all. Marked PublicAPI: false " +
-				"pending confirmation, not because the UI feature doesn't exist, but because a callable " +
-				"public OData contract for it was not confirmed. If a public contract is confirmed, this " +
-				"would be a strong write-only-attribute candidate (value_wo/value_wo_version), the same " +
-				"shape as security.user_credential's password.",
+			"Reverified for this feature family: SAP's own Security Content API overview lists " +
+				"\"Secure Parameter\" as a resource conceptually covered by the same OData API as " +
+				"User Credentials/OAuth2 Client Credentials, but the curated \"Security Content " +
+				"Example Requests\" index (the same authoritative per-entity page this project used " +
+				"to confirm every other Security Content operation) lists zero example requests for " +
+				"it, and its own \"Deploying a Secure Parameter Artifact\" page describes only the " +
+				"Eclipse/Node-Explorer deployment wizard, not a REST contract. Combined with prior " +
+				"third-party evidence of an OData error resolving a SecureParameters entity set, this " +
+				"remains unconfirmed rather than either \"no public API\" (the overview page does " +
+				"list it) or \"public API\" (nothing about it is actually callable-confirmed). If a " +
+				"public contract is confirmed, this would be a strong write-only-attribute candidate " +
+				"(value_wo/value_wo_version), the same shape as security.user_credential's password.",
 		},
 	},
 	{
@@ -774,14 +816,18 @@ var Catalog = []Feature{
 		Description: "The SSH \"known_hosts\" file artifact used to validate SFTP server host keys for " +
 			"outbound SFTP connections.",
 		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonResearchRequired,
+		SupportReason: ReasonNoPublicAPI,
 		PublicAPI:     false,
 		Planned:       false,
 		Limitations: []string{
-			"SAP's Manage Security Material UI documents uploading and downloading a Known Hosts " +
-				"artifact (file content, not a structured entity with individually settable fields), " +
-				"but this project could not confirm a public OData entity set or REST endpoint for it " +
-				"with enough confidence to implement create/update/delete safely.",
+			"Reverified for this feature family and strengthened from research_required to " +
+				"no_public_api: unlike Secure Parameter (at least conceptually listed in SAP's " +
+				"Security Content API overview's resource table), Known Hosts does not appear in " +
+				"that table at all. SAP's \"Deploying an SSH Known Hosts Artifact\" documentation " +
+				"describes only the Manage Security Material UI (Create > Known Hosts (SSH), " +
+				"Browse/Add/Deploy), with no REST endpoint mentioned anywhere. No public OData " +
+				"entity set or REST endpoint was found for it in any documentation this project could " +
+				"reach.",
 		},
 	},
 

@@ -107,15 +107,15 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 |---|:---:|---|
 | Access Policy | ✅ | Resource + Data Source |
 | Access Policy Reference | ✅ | Resource + Data Source |
-| Certificate | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+| Certificate | ✅ | Resource |
 | Certificate Chain | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
 | Certificate-User Mapping | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
-| Key Pair | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
-| Keystore Entry | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
-| Known Hosts (SSH) | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+| Key Pair | ⚠️ | Resource — see [feature-support.md](docs/feature-support.md#all-features) |
+| Keystore Entry | 👁️ | Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
+| Known Hosts (SSH) | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 | OAuth2 Client Credential | ⚠️ | Resource + Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
 | Secure Parameter | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
-| SSH Key | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+| SSH Key | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | User Credential | ⚠️ | Resource + Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
 
 ### Partner Directory
@@ -180,7 +180,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Open Connectors | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
 | Trading Partner Management | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
 
-14 supported · 8 partial · 2 read-only · 0 experimental · 35 unsupported, out of 59 evaluated Integration Suite features.
+15 supported · 9 partial · 3 read-only · 0 experimental · 32 unsupported, out of 59 evaluated Integration Suite features.
 
 <!-- END GENERATED FEATURE SUPPORT -->
 
