@@ -269,6 +269,8 @@ func statusIcon(status features.SupportStatus) string {
 		return "🧪"
 	case features.StatusUnsupported:
 		return "❌"
+	case features.StatusSeparateProvider:
+		return "↗️"
 	default:
 		return "?"
 	}
@@ -340,7 +342,8 @@ func readmeFeatureOverview() string {
 		"per-operation matrix and every feature's detailed limitations.")
 	fmt.Fprintln(&b)
 	fmt.Fprintln(&b, "Legend: ✅ Supported · ⚠️ Partial support / important limitations · "+
-		"👁️ Read-only / data source only · 🧪 Experimental · ❌ Unsupported / not implemented")
+		"👁️ Read-only / data source only · 🧪 Experimental · ❌ Unsupported / not implemented · "+
+		"↗️ Planned as a separate Terraform provider")
 	fmt.Fprintln(&b)
 
 	sorted := sortedCatalog()
@@ -383,10 +386,10 @@ func readmeFeatureOverview() string {
 		fmt.Fprintln(&b)
 	}
 
-	fmt.Fprintf(&b, "%d supported · %d partial · %d read-only · %d experimental · %d unsupported, "+
-		"out of %d evaluated Integration Suite features.\n",
+	fmt.Fprintf(&b, "%d supported · %d partial · %d read-only · %d experimental · %d unsupported · "+
+		"%d planned as a separate provider, out of %d evaluated Integration Suite features.\n",
 		counts[features.StatusSupported], counts[features.StatusPartial], counts[features.StatusReadOnly],
-		counts[features.StatusExperimental], counts[features.StatusUnsupported], len(sorted))
+		counts[features.StatusExperimental], counts[features.StatusUnsupported], counts[features.StatusSeparateProvider], len(sorted))
 
 	return strings.TrimRight(b.String(), "\n") + "\n"
 }

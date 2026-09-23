@@ -41,12 +41,20 @@ const (
 	// StatusUnsupported means this provider does not implement the
 	// feature at all today. Feature.SupportReason explains why.
 	StatusUnsupported SupportStatus = "unsupported"
+	// StatusSeparateProvider means this feature is deliberately excluded
+	// from this provider not because of a missing API or an unsafe
+	// lifecycle, but because it belongs to a different, independently
+	// versioned Terraform provider (existing or planned) with its own
+	// API boundary, credentials, and release cadence. This is distinct
+	// from a generic StatusUnsupported: the gap is not something this
+	// provider's own engineering effort would ever close, by design.
+	StatusSeparateProvider SupportStatus = "separate_provider"
 )
 
 // Valid reports whether s is one of the enumerated SupportStatus values.
 func (s SupportStatus) Valid() bool {
 	switch s {
-	case StatusSupported, StatusPartial, StatusReadOnly, StatusExperimental, StatusUnsupported:
+	case StatusSupported, StatusPartial, StatusReadOnly, StatusExperimental, StatusUnsupported, StatusSeparateProvider:
 		return true
 	}
 	return false

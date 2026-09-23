@@ -73,6 +73,7 @@ Do not conflate these: a feature can be fully supported by this provider and sti
 | `cloud_integration.value_mapping_entry` | cloud_integration | unsupported (research_required) | Yes | — | — | — | — | — | — | — |
 | `cloud_integration.variable` | cloud_integration | unsupported (out_of_scope) | Yes | — | — | — | — | — | — | — |
 | `data_space_integration` | other_capability | unsupported (research_required) | No | — | — | — | — | — | — | — |
+| `developer_hub` | other_capability | separate_provider (out_of_scope) | Yes | — | — | — | — | — | — | — |
 | `edge_integration_cell.registration` | edge_integration_cell | unsupported (no_public_api) | No | — | — | — | — | — | — | — |
 | `event_mesh` | other_capability | unsupported (out_of_scope) | No | — | — | — | — | — | — | — |
 | `integration_advisor` | other_capability | unsupported (research_required) | No | — | — | — | — | — | — | — |
@@ -236,6 +237,10 @@ Grouped by why, not just that. A feature can be `partial` and reachable via one 
 - **`cloud_integration.variable`** — A tenant-persisted runtime value written by an integration flow's "Write Variables" step, shared across steps of the same flow (local) or across every flow deployed on the tenant (global).
   - SAP documents exactly one public operation for this entity: GET .../Variables(...)/$value, which downloads the raw value with no structured metadata (no Visibility/ UpdatedAt/RetainUntil fields are returned by this endpoint). There is no collection GET, no POST, no PUT, and no confirmed DELETE — Variables are created and updated exclusively by deployed integration flow content, an entirely different ownership domain than Terraform-managed infrastructure.
   - A read-only data source was deliberately not implemented: the only confirmed read operation returns nothing but the raw runtime value itself, with no safer metadata-only alternative available, and this provider does not place arbitrary runtime business values into Terraform state merely because an API can return them — see docs/provider-scope.md.
+- **`developer_hub`** — SAP's API/Event/MCP Server catalog, publication, and subscription capability for Integration Suite, reachable through its own /api/1.0 REST API and its own devportal-apiaccess OAuth credentials, separate from every Cloud Integration and current API Management endpoint this provider otherwise talks to.
+  - Developer Hub has its own API boundary, its own OAuth client credentials, and a consumer/catalog object lifecycle (Products, Applications, Subscriptions) distinct in shape from this provider's Integration Suite content and capability model.
+  - Planned as a separate, independently versioned Terraform provider (working name Prideth/terraform-provider-sap-developer-hub) rather than a domain inside this one, so its release cadence and credential surface never entangle with this provider's.
+  - This entry intentionally represents the whole Developer Hub capability as a single scope statement; individual Developer Hub objects (Product, Application, Subscription, and so on) are not separately cataloged here.
 - **`event_mesh`** — SAP's event broker service for asynchronous, event-driven integration.
   - Likely a separate BTP service outside this provider's Integration Suite content/capability boundary rather than a Cloud Integration design-time concern.
 - **`security.ssh_key`** — An SSH-capable key pair used for SFTP public-key authentication.

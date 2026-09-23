@@ -75,6 +75,20 @@ unsuitable for the same reason Message Processing Logs are unsuitable. See
 `docs/resource-design.md` and `docs/api-capability-matrix.md` for the full per-object
 suitability analysis this provider went through before reaching these conclusions.
 
+## Developer Hub is a separate, future provider
+
+Developer Hub — Integration Suite's API/Event/MCP Server catalog, publication, and subscription
+capability — is intentionally outside this provider's scope. It authenticates against its own
+`/api/1.0` REST API with its own `devportal-apiaccess` OAuth client, entirely separate from every
+Cloud Integration and current API Management endpoint this provider talks to, and its object model
+(Products, Applications, Subscriptions) is a consumer/catalog lifecycle rather than Integration
+Suite design-time content. Rather than stretching this provider's credential and release surface
+to cover a genuinely separate API boundary, Developer Hub is planned as its own, independently
+versioned Terraform provider (working name `Prideth/terraform-provider-sap-developer-hub`). This
+provider carries no Developer Hub configuration, client, resources, or data sources; see the
+`developer_hub` entry in `docs/feature-support.md` for the single, high-level catalog statement of
+this boundary.
+
 ## Out of Scope
 
 The following belong to the SAP BTP control plane, to Kubernetes/Helm, or to other existing
@@ -89,6 +103,7 @@ Terraform providers, and are intentionally **not** implemented here:
 - Cloud Foundry Organizations and Spaces
 - Kyma, Kubernetes objects, Helm releases
 - General BTP account/identity management
+- Developer Hub (planned as a separate Terraform provider — see above)
 
 For all BTP control-plane concerns, use the official
 [`SAP/btp`](https://registry.terraform.io/providers/SAP/btp/latest) Terraform provider. For

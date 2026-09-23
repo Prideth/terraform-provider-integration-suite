@@ -1224,6 +1224,20 @@ var Catalog = []Feature{
 
 	// --- Other Integration Suite capability areas (research status only) ---
 	{
+		Key:           "developer_hub",
+		Domain:        "other_capability",
+		Name:          "Developer Hub",
+		Description:   "SAP's API/Event/MCP Server catalog, publication, and subscription capability for Integration Suite, reachable through its own /api/1.0 REST API and its own devportal-apiaccess OAuth credentials, separate from every Cloud Integration and current API Management endpoint this provider otherwise talks to.",
+		SupportStatus: StatusSeparateProvider,
+		SupportReason: ReasonOutOfScope,
+		PublicAPI:     true,
+		Limitations: []string{
+			"Developer Hub has its own API boundary, its own OAuth client credentials, and a consumer/catalog object lifecycle (Products, Applications, Subscriptions) distinct in shape from this provider's Integration Suite content and capability model.",
+			"Planned as a separate, independently versioned Terraform provider (working name Prideth/terraform-provider-sap-developer-hub) rather than a domain inside this one, so its release cadence and credential surface never entangle with this provider's.",
+			"This entry intentionally represents the whole Developer Hub capability as a single scope statement; individual Developer Hub objects (Product, Application, Subscription, and so on) are not separately cataloged here.",
+		},
+	},
+	{
 		Key:           "integration_advisor",
 		Domain:        "other_capability",
 		Name:          "Integration Advisor",

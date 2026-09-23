@@ -75,7 +75,7 @@ evaluated, supported or not, grouped by area.
 
 Generated from `internal/features/catalog.go` by `go run ./cmd/gendocs -readme` — do not hand-edit the table below; regenerate it instead (`make docs` does this automatically). See [`docs/feature-support.md`](docs/feature-support.md) for the full per-operation matrix and every feature's detailed limitations.
 
-Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁️ Read-only / data source only · 🧪 Experimental · ❌ Unsupported / not implemented
+Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁️ Read-only / data source only · 🧪 Experimental · ❌ Unsupported / not implemented · ↗️ Planned as a separate Terraform provider
 
 ### Cloud Integration
 
@@ -177,6 +177,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Feature | Status | Terraform Support |
 |---|:---:|---|
 | Data Space Integration | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+| Developer Hub | ↗️ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Event Mesh | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Integration Advisor | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
 | Integration Assessment | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
@@ -184,7 +185,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Open Connectors | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
 | Trading Partner Management | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
 
-15 supported · 9 partial · 3 read-only · 0 experimental · 35 unsupported, out of 62 evaluated Integration Suite features.
+15 supported · 9 partial · 3 read-only · 0 experimental · 35 unsupported · 1 planned as a separate provider, out of 63 evaluated Integration Suite features.
 
 <!-- END GENERATED FEATURE SUPPORT -->
 
