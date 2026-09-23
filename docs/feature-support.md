@@ -43,10 +43,13 @@ Do not conflate these: a feature can be fully supported by this provider and sti
 | `api_gateway.api_policy` | api_gateway | unsupported (no_public_api) | No | — | — | — | — | — | — | — |
 | `api_gateway.reusable_api_artifact` | api_gateway | unsupported (no_public_api) | No | — | — | — | — | — | — | — |
 | `api_gateway.runtime_profile` | api_gateway | unsupported (no_public_api) | No | — | — | — | — | — | — | — |
-| `api_management.classic.api_product` | api_management_classic | unsupported (not_implemented) | Yes | — | — | — | — | — | — | — |
-| `api_management.classic.api_provider` | api_management_classic | unsupported (not_implemented) | Yes | — | — | — | — | — | — | — |
-| `api_management.classic.api_proxy` | api_management_classic | unsupported (not_implemented) | Yes | — | — | — | — | — | — | — |
-| `api_management.classic.key_value_map` | api_management_classic | unsupported (not_implemented) | Yes | — | — | — | — | — | — | — |
+| `api_management.classic.api_product` | api_management_classic | supported | Yes | Yes | Yes | Yes | Yes | Yes | — | Resource + Data Source |
+| `api_management.classic.api_provider` | api_management_classic | partial (unsafe_terraform_lifecycle) | Yes | Yes | Yes | — | Yes | Yes | — | Resource + Data Source |
+| `api_management.classic.api_proxy` | api_management_classic | unsupported (public_api_incomplete) | Yes | — | — | — | — | — | — | — |
+| `api_management.classic.api_proxy_deployment` | api_management_classic | unsupported (public_api_incomplete) | Yes | — | — | — | — | — | — | — |
+| `api_management.classic.certificate_store_reference` | api_management_classic | supported | Yes | Yes | Yes | Yes | Yes | Yes | — | Resource + Data Source |
+| `api_management.classic.key_value_map` | api_management_classic | partial (unsafe_terraform_lifecycle) | Yes | Yes | Yes | — | Yes | Yes | — | Resource + Data Source |
+| `api_management.classic.policy` | api_management_classic | unsupported (public_api_incomplete) | Yes | — | — | — | — | — | — | — |
 | `capabilities.api_gateway` | capability_provisioning | unsupported (no_public_api) | No | — | — | — | — | — | — | — |
 | `capabilities.api_management` | capability_provisioning | unsupported (no_public_api) | No | — | — | — | — | — | — | — |
 | `capabilities.cloud_integration` | capability_provisioning | unsupported (no_public_api) | No | — | — | — | — | — | — | — |
@@ -110,15 +113,15 @@ Do not conflate these: a feature can be fully supported by this provider and sti
 
 Grouped by why, not just that. A feature can be `partial` and reachable via one of these reasons too — see docs/feature-support.md's per-feature `Limitations` (the `limitations` attribute in Terraform) for exactly what is and is not covered.
 
-### Public API exists but provider implementation is pending
-
-- **`api_management.classic.api_product`** — A classic API Management API product bundling one or more API proxies.
-- **`api_management.classic.api_provider`** — A classic API Management backend/API provider system definition.
-- **`api_management.classic.api_proxy`** — A classic API Management API proxy definition.
-- **`api_management.classic.key_value_map`** — A classic API Management key-value map used for runtime configuration lookups.
-
 ### Public API details are not fully confirmed
 
+- **`api_management.classic.api_proxy`** — A classic API Management API proxy definition: the ZIP-bundled design-time content (proxy endpoint, target endpoint, policies, resources) deployed as a callable API.
+  - The APIProxies entity set, its GET, and its DELETE are confirmed (SAP's own documentation and worked examples reference "Management.svc/APIProxies" and "APIProxies('<name>')" directly), and the proxy content bundle's ZIP structure is confirmed field-for-field from SAP's own public sample repository (SAP/apibusinesshub-api-recipes) — but the exact wire mechanism for uploading that ZIP content through a Create/Update REST call (multipart form data, a base64 JSON field, or something else) is not confirmed from any reachable primary source. SAP's own official user guide describes only the UI-based import wizard for this operation.
+  - Depends on api_management.classic.api_provider already existing: SAP's own sample repository documents that importing a proxy fails if the API Provider it references does not already exist on the target tenant by name.
+- **`api_management.classic.api_proxy_deployment`** — The runtime deployment state of a classic API Proxy, potentially independent of its design-time content.
+  - Depends on api_management.classic.api_proxy, which this provider does not implement in this phase — see that entry. SAP's own documentation states that a proxy transported or exported, individually or as part of a product, "by default gets imported to the target in the deployed state," suggesting deployment may be a Create-time side effect rather than an independent action, but this was not confirmed further given the unconfirmed Create mechanism itself.
+- **`api_management.classic.policy`** — An individual mediation policy (for example VerifyAPIKey, Quota, AssignMessage) attached to a classic API Proxy's proxy or target endpoint flow.
+  - Confirmed to be XML content embedded inside the API Proxy ZIP bundle (a <policies> element in the proxy's root XML, referencing named files under a Policy/ folder), not an independently addressable OData entity with its own Create/Read/Update/Delete — so individual policies are not a separate resource candidate; they would be managed as part of api_management.classic.api_proxy's opaque content, once that entity's own Create mechanism is confirmed.
 - **`cloud_integration.integration_adapter`** — A custom Integration Adapter design-time artifact (a *.esa archive built with the SAP Adapter SDK), imported into a Cloud Integration package. Cloud Foundry environment only. (partial support already implemented — see Limitations below)
   - This provider's evidence base for this entity is thinner than for the sibling design-time artifact types it manages: SAP's own "Integration Adapter Example Requests, Cloud Foundry Environment" documentation shows only Delete (confirming the entity is keyed by Id alone, not the composite (Id, Version) key every other design-time artifact type in this API uses) and the Deploy action — no Create or Read example was found. Create is implemented by strong analogy to every sibling artifact type's confirmed PackageId/ArtifactContent POST body shape, corroborated by a third-party technical source, not by an SAP-published example request for this specific entity. See docs/guides/integration-adapters.md.
   - No in-place update: SAP documents that importing an ID that already exists on the tenant is rejected as an error, which is positive evidence against a working reimport-to-update flow, so every attribute is RequiresReplace rather than an unverified PUT/PATCH.
@@ -142,6 +145,13 @@ Grouped by why, not just that. A feature can be `partial` and reachable via one 
 
 ### Public lifecycle insufficient for safe Terraform management
 
+- **`api_management.classic.api_provider`** — A classic API Management backend/API provider system definition — the connection an API Proxy targets. (partial support already implemented — see Limitations below)
+  - Only the "Internet" connection type is supported (direct host/port, optionally over SSL). SAP documents three further connection types (On Premise via Cloud Connector, Open Connectors, Cloud Integration) with distinct field sets this provider could not confirm a field-level JSON mapping for from a reachable primary source.
+  - No Update operation: SAP's own official Piper apiProviderUpload tooling documents that only Create is supported through this API; every attribute is RequiresReplace.
+  - Eventual consistency: SAP documents up to approximately 20 seconds of caching before a just-created or just-deleted provider is reliably visible to GET; Create polls with bounded, jittered backoff to reduce (not eliminate) this window.
+- **`api_management.classic.key_value_map`** — A classic API Management key-value map used for runtime configuration lookups, readable through the Key Value Map Operations policy. (partial support already implemented — see Limitations below)
+  - No Update: SAP's documentation confirms a full Create/Update-entries/Delete UI lifecycle exists, but only Create's REST payload is shown verbatim anywhere reachable; every attribute, including entries, is RequiresReplace.
+  - Encrypted maps are not supported: SAP's isEncrypted field is real and documented, but this provider could not confirm whether GET returns an encrypted entry's plaintext value back, a masked placeholder, or nothing at all. This resource always sends isEncrypted = false and rejects a configuration that sets encrypted = true.
 - **`cloud_integration.custom_tag_configuration`** — The tenant-wide set of custom tags integration package owners are asked, or required, to classify their packages with. (partial support already implemented — see Limitations below)
   - No confirmed delete or clear operation exists for this entity anywhere in SAP's public documentation. Destroying this resource in Terraform returns an explicit error rather than guessing that an empty overwrite means delete, or silently dropping Terraform state while leaving the tenant's configuration untouched — see docs/guides/custom-tag-configurations.md.
   - Create and Update both use the same confirmed POST .../CustomTagConfigurations?Overwrite=true operation (SAP documents no separate plain-POST-without-Overwrite path this provider relies on), sending the complete desired tag list every time. Whether Overwrite=true is a full replace (removing tags not present in the new list) is strongly implied by the word "Overwrite" and by the fact the documented payload is the complete configuration, not a delta, but SAP's documentation never uses the word "replace" explicitly.

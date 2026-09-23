@@ -966,48 +966,162 @@ var Catalog = []Feature{
 
 	// --- Classic API Management ---
 	{
-		Key:           "api_management.classic.api_provider",
-		Domain:        "api_management_classic",
-		Name:          "API Provider (classic API Management)",
-		Description:   "A classic API Management backend/API provider system definition.",
-		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonNotImplemented,
-		PublicAPI:     true,
-		APIProtocol:   "REST/OData mixed",
-		Planned:       true,
+		Key:    "api_management.classic.api_provider",
+		Domain: "api_management_classic",
+		Name:   "API Provider (classic API Management)",
+		Description: "A classic API Management backend/API provider system definition — the " +
+			"connection an API Proxy targets.",
+		SupportStatus:   StatusPartial,
+		SupportReason:   ReasonUnsafeTerraformLifecycle,
+		ResourceTypes:   []string{"sapintegrationsuite_api_provider"},
+		DataSourceTypes: []string{"sapintegrationsuite_api_provider", "sapintegrationsuite_api_providers"},
+		PublicAPI:       true,
+		APIProtocol:     "OData V2 (Management.svc)",
+		Limitations: []string{
+			"Only the \"Internet\" connection type is supported (direct host/port, optionally over " +
+				"SSL). SAP documents three further connection types (On Premise via Cloud Connector, " +
+				"Open Connectors, Cloud Integration) with distinct field sets this provider could not " +
+				"confirm a field-level JSON mapping for from a reachable primary source.",
+			"No Update operation: SAP's own official Piper apiProviderUpload tooling documents that " +
+				"only Create is supported through this API; every attribute is RequiresReplace.",
+			"Eventual consistency: SAP documents up to approximately 20 seconds of caching before a " +
+				"just-created or just-deleted provider is reliably visible to GET; Create polls with " +
+				"bounded, jittered backoff to reduce (not eliminate) this window.",
+		},
+		Operations: Operations{Create: true, Read: true, Delete: true, Import: true},
 	},
 	{
-		Key:           "api_management.classic.api_proxy",
-		Domain:        "api_management_classic",
-		Name:          "API Proxy (classic API Management)",
-		Description:   "A classic API Management API proxy definition.",
+		Key:    "api_management.classic.api_proxy",
+		Domain: "api_management_classic",
+		Name:   "API Proxy (classic API Management)",
+		Description: "A classic API Management API proxy definition: the ZIP-bundled design-time " +
+			"content (proxy endpoint, target endpoint, policies, resources) deployed as a callable API.",
 		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonNotImplemented,
+		SupportReason: ReasonPublicAPIIncomplete,
 		PublicAPI:     true,
-		APIProtocol:   "REST/OData mixed",
+		APIProtocol:   "OData V2 (Management.svc/APIProxies)",
 		Planned:       true,
+		Limitations: []string{
+			"The APIProxies entity set, its GET, and its DELETE are confirmed (SAP's own " +
+				"documentation and worked examples reference \"Management.svc/APIProxies\" and " +
+				"\"APIProxies('<name>')\" directly), and the proxy content bundle's ZIP structure is " +
+				"confirmed field-for-field from SAP's own public sample repository " +
+				"(SAP/apibusinesshub-api-recipes) — but the exact wire mechanism for uploading that " +
+				"ZIP content through a Create/Update REST call (multipart form data, a base64 JSON " +
+				"field, or something else) is not confirmed from any reachable primary source. SAP's " +
+				"own official user guide describes only the UI-based import wizard for this operation.",
+			"Depends on api_management.classic.api_provider already existing: SAP's own sample " +
+				"repository documents that importing a proxy fails if the API Provider it references " +
+				"does not already exist on the target tenant by name.",
+		},
 	},
 	{
-		Key:           "api_management.classic.api_product",
-		Domain:        "api_management_classic",
-		Name:          "API Product (classic API Management)",
-		Description:   "A classic API Management API product bundling one or more API proxies.",
+		Key:    "api_management.classic.api_proxy_deployment",
+		Domain: "api_management_classic",
+		Name:   "API Proxy Deployment (classic API Management)",
+		Description: "The runtime deployment state of a classic API Proxy, potentially independent " +
+			"of its design-time content.",
 		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonNotImplemented,
+		SupportReason: ReasonPublicAPIIncomplete,
 		PublicAPI:     true,
-		APIProtocol:   "REST/OData mixed",
-		Planned:       true,
+		Limitations: []string{
+			"Depends on api_management.classic.api_proxy, which this provider does not implement in " +
+				"this phase — see that entry. SAP's own documentation states that a proxy transported " +
+				"or exported, individually or as part of a product, \"by default gets imported to the " +
+				"target in the deployed state,\" suggesting deployment may be a Create-time side effect " +
+				"rather than an independent action, but this was not confirmed further given the " +
+				"unconfirmed Create mechanism itself.",
+		},
 	},
 	{
-		Key:           "api_management.classic.key_value_map",
-		Domain:        "api_management_classic",
-		Name:          "Key Value Map (classic API Management)",
-		Description:   "A classic API Management key-value map used for runtime configuration lookups.",
+		Key:    "api_management.classic.policy",
+		Domain: "api_management_classic",
+		Name:   "Policy (classic API Management)",
+		Description: "An individual mediation policy (for example VerifyAPIKey, Quota, " +
+			"AssignMessage) attached to a classic API Proxy's proxy or target endpoint flow.",
 		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonNotImplemented,
+		SupportReason: ReasonPublicAPIIncomplete,
 		PublicAPI:     true,
-		APIProtocol:   "REST/OData mixed",
-		Planned:       true,
+		Limitations: []string{
+			"Confirmed to be XML content embedded inside the API Proxy ZIP bundle (a <policies> " +
+				"element in the proxy's root XML, referencing named files under a Policy/ folder), not " +
+				"an independently addressable OData entity with its own Create/Read/Update/Delete — so " +
+				"individual policies are not a separate resource candidate; they would be managed as " +
+				"part of api_management.classic.api_proxy's opaque content, once that entity's own " +
+				"Create mechanism is confirmed.",
+		},
+	},
+	{
+		Key:    "api_management.classic.api_product",
+		Domain: "api_management_classic",
+		Name:   "API Product (classic API Management)",
+		Description: "A classic API Management API product bundling one or more API proxies for " +
+			"subscription, with optional custom attributes and request quotas.",
+		SupportStatus:   StatusSupported,
+		ResourceTypes:   []string{"sapintegrationsuite_api_product"},
+		DataSourceTypes: []string{"sapintegrationsuite_api_product"},
+		PublicAPI:       true,
+		APIProtocol:     "OData V2 (Management.svc)",
+		Limitations: []string{
+			"api_proxy_names is only sent on Create: SAP's own documented Update (PUT) worked " +
+				"example never includes the apiProxies association, so this provider treats it as " +
+				"RequiresReplace rather than guess at an unconfirmed way to add or remove proxies " +
+				"from an existing product.",
+			"Referenced API proxies are expected to already exist through some other means (the SAP " +
+				"Integration Suite UI, or a future sapintegrationsuite_api_proxy once its Create " +
+				"mechanism is confirmed — see api_management.classic.api_proxy).",
+			"DELETE is inferred from the consistent key-predicate DELETE convention confirmed " +
+				"directly for APIProviders and CertificateStoreReferences within this same " +
+				"Management.svc API family, not independently verified for APIProducts specifically.",
+		},
+		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},
+	},
+	{
+		Key:    "api_management.classic.certificate_store_reference",
+		Domain: "api_management_classic",
+		Name:   "Certificate Store Reference (classic API Management)",
+		Description: "A named pointer to an already-existing API Management keystore or " +
+			"truststore, used so a virtual host's TLS configuration can be repointed at a new store " +
+			"(for certificate rotation) without editing the virtual host itself.",
+		SupportStatus: StatusSupported,
+		ResourceTypes: []string{"sapintegrationsuite_api_management_certificate_store_reference"},
+		DataSourceTypes: []string{
+			"sapintegrationsuite_api_management_certificate_store_reference",
+		},
+		PublicAPI:   true,
+		APIProtocol: "OData V2 (Management.svc)",
+		Limitations: []string{
+			"Manages only the reference (a name pointing at a store name); the keystore/truststore " +
+				"and its certificate content are confirmed to be a UI-only upload with no accompanying " +
+				"REST API, so this provider requires the referenced store to already exist.",
+			"This is the best-confirmed Classic API Management resource in this provider: full " +
+				"Create/Read/Update/Delete, request and response bodies, and error codes are all " +
+				"confirmed verbatim from SAP's own official documentation.",
+		},
+		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},
+	},
+	{
+		Key:    "api_management.classic.key_value_map",
+		Domain: "api_management_classic",
+		Name:   "Key Value Map (classic API Management)",
+		Description: "A classic API Management key-value map used for runtime configuration " +
+			"lookups, readable through the Key Value Map Operations policy.",
+		SupportStatus:   StatusPartial,
+		SupportReason:   ReasonUnsafeTerraformLifecycle,
+		ResourceTypes:   []string{"sapintegrationsuite_api_key_value_map"},
+		DataSourceTypes: []string{"sapintegrationsuite_api_key_value_map"},
+		PublicAPI:       true,
+		APIProtocol:     "OData V2 (Management.svc/GenericKeyMapEntries)",
+		Limitations: []string{
+			"No Update: SAP's documentation confirms a full Create/Update-entries/Delete UI " +
+				"lifecycle exists, but only Create's REST payload is shown verbatim anywhere " +
+				"reachable; every attribute, including entries, is RequiresReplace.",
+			"Encrypted maps are not supported: SAP's isEncrypted field is real and documented, but " +
+				"this provider could not confirm whether GET returns an encrypted entry's plaintext " +
+				"value back, a masked placeholder, or nothing at all. This resource always sends " +
+				"isEncrypted = false and rejects a configuration that sets encrypted = true.",
+		},
+		Operations: Operations{Create: true, Read: true, Delete: true, Import: true},
 	},
 
 	// --- Current API Management (API Artifacts / Integration Cell) — distinct from Classic

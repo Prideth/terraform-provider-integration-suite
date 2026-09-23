@@ -134,10 +134,13 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 
 | Feature | Status | Terraform Support |
 |---|:---:|---|
-| API Product (classic API Management) | ❌ | Planned — see [feature-support.md](docs/feature-support.md#all-features) |
-| API Provider (classic API Management) | ❌ | Planned — see [feature-support.md](docs/feature-support.md#all-features) |
-| API Proxy (classic API Management) | ❌ | Planned — see [feature-support.md](docs/feature-support.md#all-features) |
-| Key Value Map (classic API Management) | ❌ | Planned — see [feature-support.md](docs/feature-support.md#all-features) |
+| API Product (classic API Management) | ✅ | Resource + Data Source |
+| API Provider (classic API Management) | ⚠️ | Resource + Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
+| API Proxy (classic API Management) | ❌ | Planned — API details unconfirmed — see [feature-support.md](docs/feature-support.md#all-features) |
+| API Proxy Deployment (classic API Management) | ❌ | Planned — API details unconfirmed — see [feature-support.md](docs/feature-support.md#all-features) |
+| Certificate Store Reference (classic API Management) | ✅ | Resource + Data Source |
+| Key Value Map (classic API Management) | ⚠️ | Resource + Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
+| Policy (classic API Management) | ❌ | Planned — API details unconfirmed — see [feature-support.md](docs/feature-support.md#all-features) |
 
 ### Current API Management / API Artifacts
 
@@ -189,7 +192,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Open Connectors | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
 | Trading Partner Management | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
 
-15 supported · 9 partial · 3 read-only · 0 experimental · 39 unsupported · 1 planned as a separate provider, out of 67 evaluated Integration Suite features.
+17 supported · 11 partial · 3 read-only · 0 experimental · 38 unsupported · 1 planned as a separate provider, out of 70 evaluated Integration Suite features.
 
 <!-- END GENERATED FEATURE SUPPORT -->
 
