@@ -321,6 +321,46 @@ var Catalog = []Feature{
 		Operations: Operations{Create: true, Read: true, Delete: true, Deploy: true, Undeploy: true},
 	},
 	{
+		Key:    "cloud_integration.custom_tag_configuration",
+		Domain: "cloud_integration",
+		Name:   "Custom Tag Configuration",
+		Description: "The tenant-wide set of custom tags integration package owners are asked, or " +
+			"required, to classify their packages with.",
+		SupportStatus:   StatusPartial,
+		SupportReason:   ReasonUnsafeTerraformLifecycle,
+		ResourceTypes:   []string{"sapintegrationsuite_custom_tag_configuration"},
+		DataSourceTypes: []string{"sapintegrationsuite_custom_tag_configuration"},
+		PublicAPI:       true,
+		APIProtocol:     "OData V2",
+		Planned:         true,
+		Limitations: []string{
+			"No confirmed delete or clear operation exists for this entity anywhere in SAP's public " +
+				"documentation. Destroying this resource in Terraform returns an explicit error " +
+				"rather than guessing that an empty overwrite means delete, or silently dropping " +
+				"Terraform state while leaving the tenant's configuration untouched — see " +
+				"docs/guides/custom-tag-configurations.md.",
+			"Create and Update both use the same confirmed POST .../CustomTagConfigurations?" +
+				"Overwrite=true operation (SAP documents no separate plain-POST-without-Overwrite " +
+				"path this provider relies on), sending the complete desired tag list every time. " +
+				"Whether Overwrite=true is a full replace (removing tags not present in the new " +
+				"list) is strongly implied by the word \"Overwrite\" and by the fact the documented " +
+				"payload is the complete configuration, not a delta, but SAP's documentation never " +
+				"uses the word \"replace\" explicitly.",
+			"Whether tag names must be unique, whether permitted values are case-sensitive, and " +
+				"whether SAP preserves submitted ordering are all unconfirmed by SAP's " +
+				"documentation. This provider enforces tag-name uniqueness itself and treats " +
+				"ordering (of both tags and permitted values) as not semantically meaningful, " +
+				"modeling both as unordered Terraform sets so a reordered response never produces " +
+				"a spurious diff.",
+			"One documented example response shows a single-element permittedValues array " +
+				"containing a comma-separated string (\"Mr. Bean, Ms. Bean\") rather than two " +
+				"separate array elements; this is treated as a documentation artifact, not a " +
+				"confirmed wire format, since every other array-typed field in SAP's own examples " +
+				"(and everywhere else in this provider) uses one array element per value.",
+		},
+		Operations: Operations{Create: true, Read: true, Update: true, Delete: false, Import: true},
+	},
+	{
 		Key:           "cloud_integration.message_processing_logs",
 		Domain:        "cloud_integration",
 		Name:          "Message Processing Logs",

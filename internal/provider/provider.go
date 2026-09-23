@@ -177,6 +177,7 @@ func (p *sapIntegrationSuiteProvider) Resources(_ context.Context) []func() reso
 		NewOAuth2ClientCredentialResource,
 		NewIntegrationAdapterResource,
 		NewIntegrationAdapterDeploymentResource,
+		NewCustomTagConfigurationResource,
 	}
 }
 
@@ -201,6 +202,7 @@ func (p *sapIntegrationSuiteProvider) DataSources(_ context.Context) []func() da
 		NewOAuth2ClientCredentialDataSource,
 		NewServiceEndpointsDataSource,
 		NewIntegrationAdapterDataSource,
+		NewCustomTagConfigurationDataSource,
 	}
 }
 
