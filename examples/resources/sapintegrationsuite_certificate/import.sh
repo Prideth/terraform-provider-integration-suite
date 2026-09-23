@@ -1,0 +1,1 @@
+terraform import sapintegrationsuite_certificate.backend_ca backend-root-ca

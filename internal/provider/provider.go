@@ -179,6 +179,7 @@ func (p *sapIntegrationSuiteProvider) Resources(_ context.Context) []func() reso
 		NewIntegrationAdapterDeploymentResource,
 		NewCustomTagConfigurationResource,
 		NewNumberRangeResource,
+		NewCertificateResource,
 	}
 }
 
