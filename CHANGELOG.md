@@ -120,6 +120,31 @@ Initial development toward v0.1.0. See `ROADMAP.md` for what is planned and
   reimport/update example was found, this resource implements no in-place update at all — every
   attribute is `RequiresReplace`. See `docs/guides/integration-adapters.md` for the full
   breakdown of what is confirmed versus inferred by analogy.
+- `sapintegrationsuite_custom_tag_configuration` and its matching data source, for the
+  tenant-wide Custom Tag Configuration — the set of attributes integration package owners
+  classify their packages with. Unlike every other resource this provider manages, this is a
+  tenant-level singleton, addressed by a single confirmed fixed key ("CustomTags"), and Create/
+  Update both call the same confirmed `POST .../CustomTagConfigurations?Overwrite=true`
+  operation, sending the complete desired tag list every time. `tags` and each tag's
+  `permitted_values` are modeled as Terraform sets rather than lists, since SAP's documentation
+  never states that submission or response order carries meaning, so a reordered response from
+  SAP never produces a spurious plan diff. Delete deliberately returns an explicit error instead
+  of a real destroy operation: this project specifically reverified SAP's documentation for a
+  delete or clear mechanism and found none anywhere, and guessing that an empty overwrite means
+  "delete everything" was rejected as unsafe for tenant-wide governance configuration. See
+  `docs/guides/custom-tag-configurations.md`.
+- Go 1.27.1 (up from 1.25.0), terraform-plugin-framework v1.19.0 (up from v1.17.0), and
+  terraform-plugin-go v0.31.0 (up from v0.29.0), upgraded together since v0.31.0 requires the
+  `GenerateResourceConfig` RPC that only landed in framework v1.19.0. Every other dependency,
+  direct and transitive, is now on a current stable release rather than whatever minimum version
+  selection happened to resolve — including replacing a `google.golang.org/grpc` prerelease
+  pseudo-version that had crept into `go.sum` with a real tagged release. See SECURITY.md for
+  why grpc is deliberately pinned one release behind the very latest.
+- Every GitHub Actions workflow now runs against current action releases
+  (`actions/checkout@v7`, `actions/setup-go@v7`, `golangci-lint-action@v9` pinned to
+  `golangci-lint` v2.13.2, `hashicorp/setup-terraform@v4`) instead of versions that had drifted
+  behind what those actions currently require, which is why lint CI had started failing before
+  ever reaching the actual linters.
 
 ### Changed
 
@@ -139,6 +164,17 @@ Initial development toward v0.1.0. See `ROADMAP.md` for what is planned and
   reverifying it found SAP's certificate-to-user mapping documentation exists only for
   the Neo environment, with no Cloud Foundry equivalent, and this provider targets
   Cloud Foundry.
+- `docs/feature-support.md` no longer carries a UTF-8 byte-order mark. `cmd/gendocs` now writes
+  it (and `README.md`'s generated feature table) directly with `os.WriteFile` instead of relying
+  on a shell to redirect stdout into the file, which was the actual source of the BOM — a
+  Windows shell's redirection can prepend one where a POSIX shell's never does, so the file's
+  bytes previously depended on which platform last regenerated it.
+- Documentation CI now also fails if `README.md`'s generated feature table is out of date, not
+  only `docs/`, and its failure message now correctly says to run `make docs` instead of a
+  `go generate ./...` command this project has never used.
+- The `terraform-fmt` lint job now runs against a small matrix (Terraform 1.11.0, the documented
+  floor for write-only attribute support, and 1.16.3, the current stable release) instead of
+  whatever `hashicorp/setup-terraform` happened to install by default.
 
 ### Known limitations
 
@@ -195,3 +231,10 @@ Initial development toward v0.1.0. See `ROADMAP.md` for what is planned and
   deployment resource reuses the shared runtime-artifact status/undeploy mechanism by
   analogy, not independent confirmation for this artifact type. See
   `docs/guides/integration-adapters.md`.
+- `sapintegrationsuite_custom_tag_configuration` does not support `terraform destroy`: SAP
+  documents no delete or clear operation for the CustomTagConfigurations API at all, and
+  Delete returns an explicit error rather than a guessed implementation. Whether
+  `Overwrite=true` performs a full replace (removing tags not present in the new list) is
+  strongly implied but not stated explicitly by SAP's documentation, and whether tag names
+  must be unique, whether permitted values are case-sensitive, and whether SAP preserves
+  submitted ordering are all unconfirmed. See `docs/guides/custom-tag-configurations.md`.

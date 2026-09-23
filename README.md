@@ -80,6 +80,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 
 | Feature | Status | Terraform Support |
 |---|:---:|---|
+| Custom Tag Configuration | ⚠️ | Resource + Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
 | Integration Adapter | ⚠️ | Resource + Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
 | Integration Adapter Deployment | ⚠️ | Resource — see [feature-support.md](docs/feature-support.md#all-features) |
 | Integration Flow | ✅ | Resource |
@@ -175,7 +176,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Open Connectors | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
 | Trading Partner Management | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
 
-14 supported · 6 partial · 2 read-only · 0 experimental · 32 unsupported, out of 54 evaluated Integration Suite features.
+14 supported · 7 partial · 2 read-only · 0 experimental · 32 unsupported, out of 55 evaluated Integration Suite features.
 
 <!-- END GENERATED FEATURE SUPPORT -->
 

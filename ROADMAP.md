@@ -15,28 +15,28 @@ matrix.
 
 Development branches from `dev`, in this order, until superseded by an explicit reprioritization:
 
-1. **Custom Tag Configurations** — **Next.** SAP exposes `CustomTagConfigurations` as a public
-   Integration Content API resource for tenant-level, package-classifying tags. Gets its own
-   `feature/custom-tag-configurations` branch.
-2. **Number Ranges / Variables / Data Stores** — Terraform suitability review per object; do not
-   treat operational/monitoring APIs automatically as Terraform resources.
-3. **Remaining Security Content subfeatures** — keystore entries, certificates, key pairs, SSH
+1. **Number Ranges / Variables / Data Stores** — **Next.** Terraform suitability review per
+   object first — these are runtime/operational objects, and the fact a public API endpoint
+   exists for one is not by itself a reason to model it as a Terraform resource; see
+   `docs/provider-scope.md` for the same reasoning already applied to Message Processing Logs
+   and Message Stores.
+2. **Remaining Security Content subfeatures** — keystore entries, certificates, key pairs, SSH
    keys, certificate chains remain Research required — existence is corroborated but exact
    `$metadata` field casing is not; see `docs/guides/security-content.md`. Secure Parameter and
    Known Hosts are also Research required.
-4. **Classic API Management** — Planned, after Cloud Integration core support is mature.
-5. **New API Gateway / API Artifacts** — Blocked by API: existence confirmed via UI/feature
+3. **Classic API Management** — Planned, after Cloud Integration core support is mature.
+4. **New API Gateway / API Artifacts** — Blocked by API: existence confirmed via UI/feature
    documentation, but no public design-time API confirmed in enough detail for a stable
    schema. API Artifacts, API Artifact Deployment, API Policies, Runtime Profiles.
-6. **Integration Cell** — Blocked by API for SAP-side lifecycle/configuration; no public
+5. **Integration Cell** — Blocked by API for SAP-side lifecycle/configuration; no public
    activation or status API found yet. Access policy replication/reconciliation to Integration
    Cell is a documented Integration Suite UI capability, but no public API surface for it was
    confirmed during the access-policy completion pass — see
    `docs/sap-api-references.md`.
-7. **Edge Integration Cell** — Blocked by API for SAP control-plane/runtime-specific
+6. **Edge Integration Cell** — Blocked by API for SAP control-plane/runtime-specific
    configuration; never a Kubernetes/Helm replacement. Same access-policy-replication caveat
    as Integration Cell above.
-8. **Additional Integration Suite capabilities** — Research required: Integration Advisor,
+7. **Additional Integration Suite capabilities** — Research required: Integration Advisor,
    Trading Partner Management, Integration Assessment, Migration Assessment, and others, only
    where public APIs justify Terraform management.
 
@@ -45,10 +45,10 @@ runtime reconciliation research, minimal-PATCH update, data sources, import/drif
 see "Implemented" below and `docs/guides/access-policies.md`. Partner Directory is also done —
 see "Implemented" below and `docs/guides/partner-directory.md`. Cloud Integration Service
 Endpoints discovery is also done — see "Implemented" below and `docs/guides/service-endpoints.md`.
-Security Content (User Credentials and OAuth2 Client Credentials) and custom Integration Adapter
-design-time/deployment support are also done, at a `partial` support level each — see
-"Implemented" below, `docs/guides/security-content.md`, and
-`docs/guides/integration-adapters.md`.
+Security Content (User Credentials and OAuth2 Client Credentials), custom Integration Adapter
+design-time/deployment support, and Custom Tag Configuration management are also done, each at a
+`partial` support level — see "Implemented" below, `docs/guides/security-content.md`,
+`docs/guides/integration-adapters.md`, and `docs/guides/custom-tag-configurations.md`.
 
 This order describes what to work on **next**; it does not retroactively unimplement anything
 already shipped (see "Implemented" below).
@@ -119,6 +119,12 @@ already shipped (see "Implemented" below).
   - `sapintegrationsuite_integration_adapter`
   - `data.sapintegrationsuite_integration_adapter`
   - `sapintegrationsuite_integration_adapter_deployment`
+- Custom Tag Configuration management (a tenant-wide singleton; Create/Read/Update confirmed
+  verbatim against SAP's own documented example payloads; Delete deliberately returns an
+  explicit error rather than a guessed clearing mechanism, since SAP documents no delete or
+  clear operation for this entity at all — see `docs/guides/custom-tag-configurations.md`):
+  - `sapintegrationsuite_custom_tag_configuration`
+  - `data.sapintegrationsuite_custom_tag_configuration`
 - A shared, CSRF-aware HTTP client: every modifying (POST/PUT/PATCH/DELETE) request now
   transparently fetches and retries with an `X-CSRF-Token` if SAP's API asks for one,
   independently of OAuth authentication — see `docs/sap-api-references.md`
@@ -141,14 +147,14 @@ already shipped (see "Implemented" below).
 - Message mapping entry-level or dependent-resource management, if SAP ever exposes one
   independent of the opaque content archive this provider already transports (**Research
   required**)
-- Custom Tag Configurations (**Next**, priority 1 above)
+- Number Ranges / Variables / Data Stores Terraform suitability review (**Next**, priority 1 above)
 - Remaining Security Content material (keystore entries, certificates, key pairs, SSH keys,
   certificate chains) once exact OData `$metadata` field names are confirmed (**Research
-  required**, priority 3 above)
+  required**, priority 2 above)
 - Classic API Management resources, once the required scopes and object model are fully
-  mapped (**Planned**, priority 4 above)
+  mapped (**Planned**, priority 3 above)
 - New API Gateway / API Artifact model, once its public API surface is confirmed in enough
-  detail for a stable schema (**Blocked by API**, priority 5 above):
+  detail for a stable schema (**Blocked by API**, priority 4 above):
   - `sapintegrationsuite_api_artifact`
   - `sapintegrationsuite_api_artifact_deployment`
 - API Policies, if a typed, stable policy schema is achievable (**Blocked by API**)
