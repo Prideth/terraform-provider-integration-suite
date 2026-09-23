@@ -1000,6 +1000,142 @@ Specific findings, confirmed verbatim from these pages:
 
 Given a confirmed, exhaustive Integration Content resource table that excludes API Artifacts entirely, and a complete absence of any REST/OData documentation anywhere else in this product area despite thoroughly checking every stage of the artifact lifecycle, this project concludes: **SAP currently exposes API Artifacts, Integration Cell runtime, Virtual Hosts, Runtime Profiles, and Policies through the SAP Integration Suite web UI only — no public design-time or runtime API was found for any of them.** This is Outcome C from this phase's own research framework: a real, UI-supported feature area with no public API this provider could build a Terraform resource against without guessing at an endpoint SAP has never documented, which this provider does not do. See `docs/resource-design.md` for the suitability walkthrough this conclusion is based on, and `docs/guides/current-api-management.md` for the practitioner-facing explanation of the whole boundary.
 
+## Classic API Management: API Providers, API Products, Certificate Store References, Key Value Maps
+
+- **SAP product area**: Integration Suite / Classic API Management (the API Portal)
+- **Official API**: `Management.svc`, a REST/OData V2 API under `/apiportal/api/1.0`, confirmed
+  by direct inspection of the official "SAP API Management Standalone Service" PUBLIC user guide
+  PDF (`help.sap.com/doc/fc5a7d8c89db4a448903df7d526b36f4/Cloud/en-US/...`), which contains
+  complete verbatim worked request/response examples for several of this API's entities —
+  the strongest primary-source evidence this project has had for any Classic API Management
+  object, stronger even than most of the Cloud Integration API family, which this project has
+  mostly had to confirm from individual UI-procedure pages rather than one consolidated
+  reference document.
+- **Authentication**: the `apiportal-apiaccess` service plan (`APIPortal.Administrator` for full
+  access, `APIPortal.Guest` for read-only, `APIManagement.SelfService.Administrator` for virtual
+  host self-service), generating a service key with `url`/`tokenUrl`/`clientId`/`clientSecret` —
+  the same OAuth 2.0 client-credentials shape this provider already uses everywhere else, wired
+  through the new `provider.api_management` block. Confirmed verbatim from
+  `accessing-api-management-apis-programmatically-24a2c37.md`.
+- **Response envelope**: confirmed, by direct comparison of worked examples, to be the identical
+  OData V2 `{"d": {...}}` / `{"d": {"results": [...]}}` envelope, the identical
+  `{"error": {"code", "message": {"lang", "value"}}}` error format, and the identical
+  single-quoted key-predicate convention (`EntitySet('key')`,
+  `EntitySet(field1='a',field2='b')` for composite keys) this project's
+  `internal/client/odata/v2` package already implements for Cloud Integration — not assumed, but
+  independently confirmed against this API's own worked examples before reusing that package
+  here (`internal/client/apimanagementclassic`).
+
+### API Provider (`APIProviders`)
+
+Confirmed: `POST`, `GET`, `DELETE` (endpoint and worked examples confirmed across multiple
+sources: the official user guide's UI-procedure section, a Business Accelerator Hub-derived
+worked JSON payload, and web search results explicitly showing `DELETE
+.../APIProviders('ES5_1')`). Fields confirmed for the "Internet" connection type specifically:
+`name`, `title`, `description`, `destType` ("INTERNET"), `host`, `port`, `useSSL`, `trustAll`,
+`pathPrefix`, `url` (Catalog Service Settings), `authType` ("BASIC" confirmed), `userName`,
+`password`. Three further connection types (On Premise, Open Connectors, Cloud Integration) are
+described in full UI-procedure detail in the official user guide but without a confirmed
+field-level JSON mapping — this project did not guess at one.
+
+**No Update exists.** SAP's official Piper `apiProviderUpload` pipeline step (`project-piper.io`,
+SAP's own CI/CD tooling project) documents: "ApiProviderUpload only supports create
+operation" — existing providers must be deleted before re-creation. A dedicated SAP Knowledge
+Base Article (3459828, "Default payload of POST APIM OData API /APIProviders in Business
+Accelerator Hub is incorrect") independently confirms the `POST /APIProviders` endpoint's
+existence while also warning that SAP's own example payload has previously been wrong (HTTP 400
+on the documented default) — evidence this project treats as a reason for extra caution around
+this entity's exact payload shape, not a reason to avoid it (the shape used here is the one
+corroborated by multiple independent sources, not the one flagged as broken).
+
+**Eventual consistency, confirmed verbatim** from the official user guide's "Create an API
+Provider" procedure: "When you create, update, or delete an API provider using the API, changes
+may not be immediately reflected in subsequent GET API provider requests. API provider data is
+cached to reduce calls to the destination service, which can result in stale data being returned
+for a short period after a modification. The updated data is typically available within
+approximately 20 seconds." Implemented as bounded, jittered exponential-backoff polling in
+`internal/client/apimanagementclassic/retry.go`, not a fixed sleep.
+
+### API Product (`APIProducts`, `APIProductAdditionalProperties`)
+
+Confirmed verbatim from the official user guide's custom-attribute section, which — despite its
+heading — shows the complete API Product entity shape in its Create (`POST`) example: `name`,
+`version`, `isPublished`, `status_code` ("PUBLISHED" confirmed), `title`, `description`,
+`isRestricted`, `scope`, `quotaCount`/`quotaInterval`/`quotaTimeUnit` (confirmed nullable —
+`-99`/`-99`/`null` in one example, `null`/`null`/`null` in another), `additionalProperties`
+(nested, `entityId`/`name`/`value`), `apiProxies` (nested `__metadata.uri` deep-insert
+references, `"APIProxies(name='SampleAPI')"`), `apiResources`. Update (`PUT
+APIProducts(name='...')`) is also shown verbatim, and — this is the key finding for this
+provider's resource design — its payload is narrower than Create's: `name`, `title`, `scope`,
+`description`, `version`, `status_code`, `isRestricted`, `isPublished`, `quotaCount`,
+`quotaInterval`, `quotaTimeUnit`, with no `apiProxies`, `apiResources`, or `additionalProperties`
+field at all. `APIProductAdditionalProperties` has its own confirmed `PUT
+APIProductAdditionalProperties(entityId='...',name='...')` example for updating a single custom
+attribute's value. DELETE for `APIProducts` itself is not shown verbatim anywhere reachable; this
+provider infers it from the identical key-predicate DELETE convention confirmed directly for
+`APIProviders` and `CertificateStoreReferences` within this same API.
+
+### Certificate Store Reference (`CertificateStoreReferences`)
+
+The most completely confirmed entity in this whole research pass: the official user guide
+dedicates four full subsections ("Creating the References", "Updating the References", "Reading
+the References", "Deleting the References") to this exact entity, each with a complete, verbatim
+worked request and response — `POST` with `{"name", "certificateStoreName"}`, response including
+`storeType` ("TRUSTSTORE" confirmed) and a `life_cycle` block; `PUT
+CertificateStoreReferences('<name>')` with `{"certificateStoreName"}` only; `GET` returning the
+standard OData V2 collection envelope; `DELETE`. Documented error codes:
+`CERTIFICATE_STORE_REFERENCE_NAME_DUPLICATION_ERROR`,
+`CERTIFICATE_STORE_REFERENCE_CREATE_FAILED_LINKED_CERTIFICATE_STORE_VALIDATION_ERROR`,
+`NO_SUCH_CERTIFICATE_STORE_REFERENCE_EXISTS`,
+`CERTIFICATE_STORE_REFERENCE_UPDATE_FAILED_LINKED_CERTIFICATE_STORE_VALIDATION_ERROR`. The same
+section explicitly states: "References can only be used for the keystore and truststore, not for
+the certificates" — the actual certificate/keystore content upload remains a UI-only "Upload the
+PKCS12/PFX file" step with no accompanying REST API found anywhere.
+
+### Key Value Map (`GenericKeyMapEntries`)
+
+Create confirmed verbatim from a worked example embedded in the API Proxy target-endpoint UI
+documentation (an Open Connectors instance-token setup walkthrough): `POST
+.../Management.svc/GenericKeyMapEntries` with `{"name", "scopeId", "scope" ("APIPROXY"
+confirmed), "isEncrypted", "genericKeyMapEntryValues": [{"name", "mapName", "value", "scopeId",
+"scope"}]}`. The official user guide's dedicated "Key Value Map" chapter separately confirms a
+full UI lifecycle (Create/Update/Delete) exists, and one specific, important semantic: "You can
+only update the Value field and not the Key field" — but shows no REST payload for Update or
+Delete at the entry level, only the Create payload above. `isEncrypted` is confirmed as a real,
+per-map field (the UI's "Encrypted" checkbox), but neither GET's response shape for an encrypted
+map's entry values, nor an Update/Delete REST example of any kind, was found in any reachable
+source.
+
+### API Proxy (`APIProxies`) — confirmed real, Create mechanism not confirmed
+
+The entity set's existence, `GET`, and `DELETE` are confirmed directly (the very first
+programmatic-access documentation page uses `GET .../Management.svc/APIProxies` as its worked
+example, and `DELETE .../APIProxies('<name>')` appears in search-indexed community content). The
+proxy content bundle's structure is confirmed field-for-field from SAP's own public sample
+repository, `SAP/apibusinesshub-api-recipes` (`apimanagement-security-mini-series/APIProxies/`):
+a root `<Name>.xml` (`APIProxy` element: `name`, `title`, `description`, `service_code`,
+`life_cycle`, `proxyEndPoints`, `targetEndPoints`, `policies`, `fileResources`),
+`APIProxyEndPoint/default.xml`, `APITargetEndPoint/default.xml`, `Policy/*.xml`. The same
+repository's own `readme.md` confirms a dependency this provider's client design accounts for:
+"Direct import of the API Proxies will fail in most cases citing the non-availability of API
+Providers that the proxies depend on."
+
+What is not confirmed, despite a specific search for it (SAP Community threads discussing
+`multipart/form-data`, a `Transport.svc` alternative service mentioned once in passing, and a
+"Uploading Proxy to API Management via REST API" community thread that could not be fetched due
+to that site's bot-blocking): the exact Create/Update wire format for the ZIP content itself. The
+official user guide's own "Import an API Definition" section describes only the UI wizard
+procedure, never a REST call. This provider does not implement `sapintegrationsuite_api_proxy`
+on the strength of a confirmed bundle *shape* alone — Create needs an independently confirmed
+request format, the same bar this provider applies everywhere else.
+
+### Not evaluated this phase
+
+Monetization, Rate Plans, and API Analytics were not researched: these are operational/reporting
+concerns by their nature (the same category this provider already excludes for Message
+Processing Logs and Edge Integration Cell's local monitoring API), and this phase's research
+budget was directed at the desired-state-configuration candidates above instead.
+
 ## Partner Directory API
 
 - **SAP product area**: Integration Suite / Cloud Integration — Partner Directory

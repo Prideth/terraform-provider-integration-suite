@@ -1517,6 +1517,140 @@ gap in this project's research effort; it is the accurate current state of SAP's
 surface for this product area. See `docs/guides/current-api-management.md` for how this is
 explained to practitioners, and `ROADMAP.md` for how the priority list responds to it.
 
+## Classic API Management — suitability check
+
+Unlike Current API Management above, this phase's research question was the usual one: a public
+REST/OData API is confirmed to exist for every object below (`Management.svc`, under
+`/apiportal/api/1.0`, confirmed field-for-field from SAP's own official "SAP API Management
+Standalone Service" user guide — see `docs/sap-api-references.md`), so the suitability question
+is genuinely "is this the right shape for a Terraform resource," not "does an API exist at all."
+
+### API Provider — resource, narrow lifecycle
+
+1. **Who creates it**: a practitioner, describing a backend connection an API Proxy will target.
+2. **Configuration vs. runtime state**: configuration — a stable, named object a practitioner
+   authors and wants reconciled, not runtime/business data.
+3. **Identity**: `name`, confirmed as the entity's OData key (`APIProviders('<name>')`).
+4–5. **Create / Read public**: yes, confirmed verbatim (POST; GET by key and as a collection).
+6. **Update public**: **no**. SAP's own Piper `apiProviderUpload` tooling documents create-only
+   support; this provider does not invent an unconfirmed PUT/PATCH, so every attribute is
+   `RequiresReplace` instead.
+7. **Delete public**: yes, confirmed (`DELETE APIProviders('<name>')`).
+8. **Drift-detectable fields**: every field except `password_wo` (write-only, never returned by
+   GET — the API does not appear to return credential material back at all, the same category of
+   gap this provider already handles with the `_wo` pattern elsewhere).
+9. **Import**: supported — `id` is `name`, and GET is confirmed.
+10. **Eventual consistency**: confirmed verbatim (~20 seconds of caching after a write); handled
+    with bounded, jittered polling in `internal/client/apimanagementclassic/retry.go`, not a
+    fixed sleep.
+11–13. Not applicable — no batch/deployment/versioning concept documented for this entity.
+14. **Resource / Data Source / unsupported / out of scope**: **Resource + Data Source, `partial`
+    (`unsafe_terraform_lifecycle`)** — scoped to the "Internet" connection type only, since the
+    other three documented connection types (On Premise, Open Connectors, Cloud Integration)
+    have no confirmed field-level JSON mapping this provider could find.
+
+### API Product — resource, full CRUD
+
+1. **Who creates it**: a practitioner, bundling API Proxies for subscription.
+2. **Configuration vs. runtime state**: configuration.
+3. **Identity**: `name`.
+4–7. **Create / Read / Update / Delete public**: Create and Update confirmed verbatim (complete
+   worked JSON bodies for both `POST` and `PUT`); Delete inferred from this API family's
+   consistent key-predicate DELETE convention (confirmed directly for `APIProviders` and
+   `CertificateStoreReferences`, not independently verified for `APIProducts` itself).
+8. **Drift-detectable fields**: every top-level field. `additional_properties` is reconciled
+   through its own confirmed sub-entity (`APIProductAdditionalProperties`) via a diff against
+   prior state, not re-sent wholesale on every Update.
+9. **A field this provider deliberately treats as immutable despite looking mutable**:
+   `api_proxy_names`. SAP's confirmed Update (`PUT`) payload never includes the `apiProxies`
+   field at all — only Create's payload does — so this provider does not assume an omitted field
+   on Update means "leave unchanged" (a common OData convention, but not one this provider
+   verified holds for deep-insert associations specifically) and instead makes the field
+   `RequiresReplace`, the conservative reading.
+10. **Import**: supported.
+14. **Resource / Data Source / unsupported / out of scope**: **Resource + Data Source,
+    `supported`** — the best-evidenced full-CRUD resource this phase produced.
+
+### Certificate Store Reference — resource, full CRUD, best-evidenced object this phase
+
+1–3. **Who creates it / configuration / identity**: a practitioner, naming a pointer to an
+   existing keystore/truststore; identity is `name`.
+4–7. **Create / Read / Update / Delete public**: all four confirmed verbatim, including error
+   response bodies for every failure mode SAP documents (duplicate name, missing linked store).
+8–9. **Drift / Import**: every field drift-detectable; import supported.
+14. **Resource / Data Source / unsupported / out of scope**: **Resource + Data Source,
+    `supported`**. The one deliberate scope boundary: this provider does not manage the
+    keystore/truststore or its certificate content, since SAP documents that as a UI-only upload
+    with no REST API found — `certificate_store_name` must reference a store created outside
+    Terraform.
+
+### Key Value Map — resource, narrow lifecycle
+
+1. **Who creates it**: a practitioner, defining runtime configuration lookups for one or more API
+   Proxies.
+2. **Configuration vs. runtime state**: configuration — though note the entries themselves are
+   *read* at runtime by deployed proxy content via the Key Value Map Operations policy, similar
+   in spirit to how Cloud Integration's Number Ranges are configuration that runtime content
+   reads from.
+3. **Identity**: composite (`name`, `scope`, `scope_id`), confirmed from the worked Create
+   example's field set.
+4. **Create public**: yes, confirmed verbatim, including nested entries in the same call.
+5. **Read public**: inferred from this API family's consistent GET-by-key convention; not shown
+   as a standalone worked example for this specific entity, but the UI's own "view the updated
+   key value map" step confirms a read path exists.
+6–7. **Update / Delete public**: SAP's UI documentation confirms both operations exist (add/
+   delete/update-value-only for entries; delete for the whole map) but shows no REST payload for
+   either — this provider does not guess at the shape, so entries are `RequiresReplace` and there
+   is no in-place Update at all.
+8. **A field this provider refuses to support at all**: `encrypted` / `isEncrypted`. Real,
+   documented, but with unconfirmed GET-response behavior for the entry value once encrypted —
+   this provider's `ValidateConfig` rejects `encrypted = true` outright rather than risk leaking
+   a secret into state or producing a resource that can never stabilize.
+9. **Import**: supported, via the composite key as `"<name>/<scope>/<scope_id>"`.
+14. **Resource / Data Source / unsupported / out of scope**: **Resource + Data Source, `partial`
+    (`unsafe_terraform_lifecycle`)** — unencrypted maps only, no Update.
+
+### API Proxy — no resource (this phase)
+
+1. **Who creates it**: a practitioner, as a ZIP-bundled design-time artifact.
+2. **Configuration vs. runtime state**: configuration (design-time content), with a separate
+   confirmed-to-exist-conceptually runtime deployment state (see API Proxy Deployment below).
+3. **Identity**: `name`, confirmed as the OData key from a directly-referenced worked `GET`/
+   `DELETE` example.
+4. **Create public**: **the bundle's shape is confirmed** (SAP's own public sample repository
+   shows the exact ZIP structure field-for-field), but **the wire mechanism for submitting that
+   ZIP through a Create/Update REST call is not confirmed** from any reachable primary source.
+   This is a genuinely different kind of gap than Current API Management's family above: there,
+   no API existed at all; here, a real API is confirmed to exist and even partially documented,
+   but one specific, essential detail (how the binary content actually gets uploaded) could not
+   be pinned down despite substantial effort (the official user guide, a dedicated sample
+   repository, and several web searches).
+5–7. **Read / Update / Delete public**: Read and Delete confirmed by direct reference in SAP's
+   own documentation; Update's shape is unconfirmed for the same reason as Create.
+14. **Resource / Data Source / unsupported / out of scope**: **unsupported,
+    `public_api_incomplete`** — distinct from `no_public_api`: the gap here is one unconfirmed
+    detail of an otherwise well-evidenced API, not an absent one. Revisit this the moment a
+    primary source shows a worked Create/Update request for this entity.
+
+### API Proxy Deployment — no resource (depends on API Proxy)
+
+Not reached as an independent question: without a confirmed Create for API Proxy itself, there is
+nothing to attach a deployment resource to. One data point worth recording for whenever this is
+revisited: SAP's own documentation states a transported/exported proxy "by default gets imported
+to the target in the deployed state," suggesting deployment may turn out to be a Create-time
+side effect rather than an independent action — the opposite of the design-time/runtime split
+this provider uses for every other Cloud Integration artifact type, and worth checking carefully
+rather than assuming symmetry.
+
+### Policy — no resource, folded into API Proxy's opaque content
+
+SAP's own sample repository confirms policies are XML files referenced by a `<policies>` element
+in the proxy's root XML, not an independently addressable OData entity. Per this provider's
+established pattern for opaque, nested design-time content (matching how Cloud Integration
+artifact ZIP content is already treated), policies would be managed as part of
+`sapintegrationsuite_api_proxy`'s own content once that resource exists, never as a separate
+`sapintegrationsuite_api_proxy_policy` resource reproducing SAP's policy schema catalog.
+
 ## `data.sapintegrationsuite_partner` / `data.sapintegrationsuite_partners`
 
 - **Purpose**: read-only discovery of Partner IDs (Pids). `data.sapintegrationsuite_partner`

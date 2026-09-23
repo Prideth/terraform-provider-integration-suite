@@ -33,6 +33,23 @@ provider "sapintegrationsuite" {
     client_id     = var.integration_suite_client_id
     client_secret = var.integration_suite_client_secret
   }
+
+  # Optional, and independent of the oauth block above - Classic API
+  # Management (API Providers, API Proxies, API Products, Key Value Maps)
+  # authenticates with its own API Portal application URL and OAuth 2.0
+  # client (the apiportal-apiaccess service plan). Leave this entire block
+  # out if you do not use any sapintegrationsuite_api_provider,
+  # sapintegrationsuite_api_product, sapintegrationsuite_api_key_value_map,
+  # or sapintegrationsuite_api_management_certificate_store_reference
+  # resource or data source. All four values (or their
+  # SAP_INTEGRATION_SUITE_API_MANAGEMENT_* environment variable
+  # equivalents) must be supplied together, or all left unset.
+  api_management {
+    host          = var.api_management_host
+    token_url     = var.api_management_token_url
+    client_id     = var.api_management_client_id
+    client_secret = var.api_management_client_secret
+  }
 }
 ```
 
@@ -41,8 +58,20 @@ provider "sapintegrationsuite" {
 
 ### Optional
 
+- `api_management` (Block, Optional) Optional, and independent of the oauth block above. Classic API Management (API Providers, API Proxies, API Products, Key Value Maps) authenticates against its own API Portal application URL and its own OAuth 2.0 client, generated from the apiportal-apiaccess service plan — never the Cloud Integration credentials configured above. Leave this entire block out if you do not use any sapintegrationsuite_api_provider, sapintegrationsuite_api_product, sapintegrationsuite_api_key_value_map, or sapintegrationsuite_api_management_certificate_store_reference resource or data source. All four values (or their SAP_INTEGRATION_SUITE_API_MANAGEMENT_* environment variable equivalents) must be supplied together, or all left unset. (see [below for nested schema](#nestedblock--api_management))
 - `host` (String) Base URL of the SAP Integration Suite tenant used for Cloud Integration APIs, for example https://<tenant>.it-cpi<...>.cfapps.<region>.hana.ondemand.com. Can also be set via the SAP_INTEGRATION_SUITE_HOST environment variable.
 - `oauth` (Block, Optional) OAuth 2.0 client credentials used to authenticate against the SAP Integration Suite APIs. (see [below for nested schema](#nestedblock--oauth))
+
+<a id="nestedblock--api_management"></a>
+### Nested Schema for `api_management`
+
+Optional:
+
+- `client_id` (String) OAuth 2.0 client ID from the apiportal-apiaccess service key. Can also be set via the SAP_INTEGRATION_SUITE_API_MANAGEMENT_CLIENT_ID environment variable.
+- `client_secret` (String, Sensitive) OAuth 2.0 client secret from the apiportal-apiaccess service key. Can also be set via the SAP_INTEGRATION_SUITE_API_MANAGEMENT_CLIENT_SECRET environment variable.
+- `host` (String) Base URL of the API Portal application, for example https://<tenant>.prod-eu10.apiportal.cfapps.eu10.hana.ondemand.com, as returned by the apiportal-apiaccess service key's "url" field. Can also be set via the SAP_INTEGRATION_SUITE_API_MANAGEMENT_HOST environment variable.
+- `token_url` (String) OAuth 2.0 token endpoint URL from the apiportal-apiaccess service key's "tokenUrl" field. Can also be set via the SAP_INTEGRATION_SUITE_API_MANAGEMENT_TOKEN_URL environment variable.
+
 
 <a id="nestedblock--oauth"></a>
 ### Nested Schema for `oauth`
