@@ -81,6 +81,8 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Feature | Status | Terraform Support |
 |---|:---:|---|
 | Custom Tag Configuration | ⚠️ | Resource + Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
+| Data Store | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
+| Data Store Entry | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Integration Adapter | ⚠️ | Resource + Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
 | Integration Adapter Deployment | ⚠️ | Resource — see [feature-support.md](docs/feature-support.md#all-features) |
 | Integration Flow | ✅ | Resource |
@@ -89,13 +91,15 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Message Mapping | ✅ | Resource + Data Source |
 | Message Mapping Deployment | ✅ | Resource |
 | Message Processing Logs | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
-| Message Stores / Data Stores | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
+| Message Store Entries / JMS Resources | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
+| Number Range | ⚠️ | Resource — see [feature-support.md](docs/feature-support.md#all-features) |
 | Script Collection | ✅ | Resource + Data Source |
 | Script Collection Deployment | ✅ | Resource |
 | Service Endpoints | 👁️ | Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
 | Value Mapping | ⚠️ | Resource + Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
 | Value Mapping Deployment | ✅ | Resource |
 | Value Mapping Entry | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+| Variable | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 
 ### Security & Access Policies
 
@@ -176,7 +180,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Open Connectors | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
 | Trading Partner Management | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
 
-14 supported · 7 partial · 2 read-only · 0 experimental · 32 unsupported, out of 55 evaluated Integration Suite features.
+14 supported · 8 partial · 2 read-only · 0 experimental · 35 unsupported, out of 59 evaluated Integration Suite features.
 
 <!-- END GENERATED FEATURE SUPPORT -->
 

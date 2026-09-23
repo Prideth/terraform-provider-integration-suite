@@ -374,16 +374,134 @@ var Catalog = []Feature{
 		},
 	},
 	{
-		Key:           "cloud_integration.message_stores",
-		Domain:        "cloud_integration",
-		Name:          "Message Stores / Data Stores",
-		Description:   "Runtime message queue and data store payload content used by deployed integration flows.",
+		Key:    "cloud_integration.message_stores",
+		Domain: "cloud_integration",
+		Name:   "Message Store Entries / JMS Resources",
+		Description: "Runtime persisted-message-store entries (created by the Persist step) and " +
+			"JMS queue resource metadata used by deployed integration flows. Data Stores, Data " +
+			"Store Entries, Variables, and Number Ranges — all part of the same broader Message " +
+			"Stores API family — each have their own dedicated catalog entry; see " +
+			"cloud_integration.data_store, cloud_integration.data_store_entry, " +
+			"cloud_integration.variable, and cloud_integration.number_range.",
 		SupportStatus: StatusUnsupported,
 		SupportReason: ReasonOutOfScope,
 		PublicAPI:     true,
 		APIProtocol:   "OData V2",
 		Limitations: []string{
 			"Payload/queue content is operational data, not desired state this provider manages.",
+		},
+	},
+	{
+		Key:    "cloud_integration.number_range",
+		Domain: "cloud_integration",
+		Name:   "Number Range",
+		Description: "A Number Ranges object: generates unique interchange numbers for outbound " +
+			"EDI/EDIFACT documents, with a static configuration (min/max/description/rotate/" +
+			"field length) and a live runtime counter (CurrentValue, the UI's \"Next Value\") " +
+			"that advances as deployed content consumes numbers.",
+		SupportStatus: StatusPartial,
+		SupportReason: ReasonUnsafeTerraformLifecycle,
+		ResourceTypes: []string{"sapintegrationsuite_number_range"},
+		PublicAPI:     true,
+		APIProtocol:   "OData V2",
+		Planned:       true,
+		Limitations: []string{
+			"SAP documents no GET operation for this entity anywhere — unlike every sibling entity " +
+				"in the same Message Stores API family (DataStores, DataStoreEntries, Variables all " +
+				"have documented GET examples), NumberRanges has none in SAP's curated \"Message " +
+				"Stores Example Requests\" index or anywhere else this project found. Without a GET, " +
+				"this resource's Read is a documented no-op that trusts local state rather than " +
+				"verifying anything against the tenant: it cannot detect drift, and 'terraform " +
+				"import' is rejected outright rather than silently leaving most attributes unknown.",
+			"SAP documents no delete operation for this entity either; the Monitor UI shows an " +
+				"\"Undeploy\" action with no confirmed REST equivalent. 'terraform destroy' returns " +
+				"an explicit error rather than guessing at an unconfirmed operation — see " +
+				"docs/guides/runtime-stores-and-number-ranges.md.",
+			"The runtime counter is handled as a write-only, version-gated attribute " +
+				"(current_value_wo / current_value_wo_version), pushed to SAP only when the " +
+				"version marker changes. An ordinary Update that only changes description/" +
+				"min_value/max_value/rotate/field_length omits CurrentValue from the request body " +
+				"entirely, rather than resending a value this provider has no way to confirm is " +
+				"still current — SAP's documentation does not confirm whether an omitted field on " +
+				"this entity's PUT is preserved unchanged or reset, which is an inherent, " +
+				"documented risk of this design, not a guess this provider is hiding.",
+			"The UI additionally documents a \"Runtimes\" multi-select deployment field (Cloud " +
+				"Integration plus any active Edge Integration Cell nodes) with no visible " +
+				"counterpart in either of SAP's two documented API examples (Add, Update); this " +
+				"provider's client always targets the default runtime implicitly and does not " +
+				"expose runtime/location selection.",
+		},
+		Operations: Operations{Create: true, Update: true},
+	},
+	{
+		Key:    "cloud_integration.variable",
+		Domain: "cloud_integration",
+		Name:   "Variable",
+		Description: "A tenant-persisted runtime value written by an integration flow's \"Write " +
+			"Variables\" step, shared across steps of the same flow (local) or across every flow " +
+			"deployed on the tenant (global).",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonOutOfScope,
+		PublicAPI:     true,
+		APIProtocol:   "OData V2",
+		Limitations: []string{
+			"SAP documents exactly one public operation for this entity: GET .../Variables(...)/" +
+				"$value, which downloads the raw value with no structured metadata (no Visibility/ " +
+				"UpdatedAt/RetainUntil fields are returned by this endpoint). There is no collection " +
+				"GET, no POST, no PUT, and no confirmed DELETE — Variables are created and updated " +
+				"exclusively by deployed integration flow content, an entirely different ownership " +
+				"domain than Terraform-managed infrastructure.",
+			"A read-only data source was deliberately not implemented: the only confirmed read " +
+				"operation returns nothing but the raw runtime value itself, with no safer " +
+				"metadata-only alternative available, and this provider does not place arbitrary " +
+				"runtime business values into Terraform state merely because an API can return " +
+				"them — see docs/provider-scope.md.",
+		},
+	},
+	{
+		Key:    "cloud_integration.data_store",
+		Domain: "cloud_integration",
+		Name:   "Data Store",
+		Description: "A tenant-persisted runtime container of Data Store Entries, created " +
+			"implicitly by an integration flow's Data Store Write step (or an XI adapter's " +
+			"Temporary Storage option) the first time it writes an entry.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonOutOfScope,
+		PublicAPI:     true,
+		APIProtocol:   "OData V2",
+		Limitations: []string{
+			"SAP documents exactly one public operation for this entity: GET .../DataStores?" +
+				"overdueonly=true, an aggregate monitoring endpoint (NumberOfMessages/" +
+				"NumberOfOverdueMessages per store) — the same class of runtime monitoring data as " +
+				"cloud_integration.message_processing_logs, not configuration. There is no " +
+				"independent declarative creation API: a Data Store comes into existence only as a " +
+				"side effect of deployed integration flow content.",
+			"The DataStores API does not support $filter, $inlinecount, $orderby, $skip, $top, " +
+				"$expand, or $select (confirmed directly from SAP's own documentation).",
+		},
+	},
+	{
+		Key:    "cloud_integration.data_store_entry",
+		Domain: "cloud_integration",
+		Name:   "Data Store Entry",
+		Description: "A single runtime message (payload and headers) persisted inside a Data " +
+			"Store by an integration flow's Data Store Write step, read back by a Data Store Get " +
+			"or Select step, and deleted only by a Data Store Delete step.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonOutOfScope,
+		PublicAPI:     true,
+		APIProtocol:   "OData V2",
+		Limitations: []string{
+			"SAP documents only GET operations for this entity (a single entry by composite key, " +
+				"all entries for a store, and all entries for a message ID) — every field (Status, " +
+				"MessageId, DueAt, CreatedAt, RetainUntil) is runtime business-message state, not " +
+				"infrastructure desired state. Delete exists only as a design-time integration flow " +
+				"step (entry-by-entry or bulk via an XPath-derived ID list at runtime), never as a " +
+				"REST call this provider could wrap in a Terraform destroy.",
+			"Deliberately out_of_scope rather than not_implemented: this provider does not manage " +
+				"business message payloads or place them into Terraform state, and 'terraform " +
+				"destroy' semantics are not an excuse to expose operational message deletion as " +
+				"desired infrastructure state — see docs/provider-scope.md.",
 		},
 	},
 
