@@ -52,6 +52,17 @@ func (c *Client) Put(ctx context.Context, path string, body []byte) ([]byte, err
 	return c.do(ctx, http.MethodPut, path, body)
 }
 
+// PutRaw issues a PUT request with a raw, non-JSON body and an explicit
+// Content-Type — for the handful of OData V2 "$value" raw-media-stream
+// endpoints that accept the resource's literal bytes (for example a PEM
+// certificate) rather than a JSON-wrapped entity. Unlike Put, this never
+// sets "Content-Type: application/json" or "Accept: application/json",
+// since the caller's contentType is what the target endpoint actually
+// expects.
+func (c *Client) PutRaw(ctx context.Context, path, contentType string, body []byte) ([]byte, error) {
+	return c.doRaw(ctx, http.MethodPut, path, contentType, body)
+}
+
 // Patch issues a PATCH request with a JSON body. SAP's OData V2 services on
 // Cloud Foundry/BTP accept PATCH as the modern equivalent of the legacy
 // OData MERGE verb: only the fields present in body are changed, and every
@@ -70,6 +81,18 @@ func (c *Client) Delete(ctx context.Context, path string) error {
 }
 
 func (c *Client) do(ctx context.Context, method, path string, body []byte) ([]byte, error) {
+	return c.send(ctx, method, path, "application/json", true, body)
+}
+
+// doRaw is do's counterpart for a non-JSON request body: it sends
+// contentType as-is instead of "application/json", and never sets an
+// "Accept: application/json" header (the response is expected to be a raw
+// byte stream too, not a JSON-wrapped entity).
+func (c *Client) doRaw(ctx context.Context, method, path, contentType string, body []byte) ([]byte, error) {
+	return c.send(ctx, method, path, contentType, false, body)
+}
+
+func (c *Client) send(ctx context.Context, method, path, contentType string, acceptJSON bool, body []byte) ([]byte, error) {
 	// path is normally relative to baseURL, but a server-driven paging
 	// "__next" link (see GetAllPages) is already a complete absolute URL
 	// that must be followed exactly as SAP returned it, not rejoined with
@@ -89,12 +112,14 @@ func (c *Client) do(ctx context.Context, method, path string, body []byte) ([]by
 		return nil, fmt.Errorf("odata: building request: %w", err)
 	}
 	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Content-Type", contentType)
 		req.GetBody = func() (io.ReadCloser, error) {
 			return io.NopCloser(bytes.NewReader(body)), nil
 		}
 	}
-	req.Header.Set("Accept", "application/json")
+	if acceptJSON {
+		req.Header.Set("Accept", "application/json")
+	}
 
 	resp, err := c.http.Do(req) //nolint:bodyclose // resp.Body is always closed inside sapthttp.ReadLimited below
 	if err != nil {

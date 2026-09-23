@@ -12,6 +12,15 @@ import (
 	"github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/apierror"
 )
 
+// isNotFound reports whether err represents an HTTP 404 from a SAP API
+// call, the shared condition every resource's Read/Delete checks to decide
+// whether to remove a resource from state (Read) or treat a delete against
+// an already-gone object as a success (Delete) rather than an error.
+func isNotFound(err error) bool {
+	var apiErr *apierror.Error
+	return errors.As(err, &apiErr) && apiErr.IsNotFound()
+}
+
 // requireHTTPClient adds a clear, actionable diagnostic and reports failure
 // when data has no SAP HTTP client configured. Every SAP-backed resource
 // and data source calls this from its own Configure method: the provider's
@@ -90,4 +99,14 @@ func stringOrNull(s string) types.String {
 		return types.StringNull()
 	}
 	return types.StringValue(s)
+}
+
+// int64OrNull converts a zero int (SAP's Go zero value for "no value was
+// returned/decoded", never a real key size or similar) to a null Terraform
+// number, the numeric counterpart to stringOrNull.
+func int64OrNull(n int) types.Int64 {
+	if n == 0 {
+		return types.Int64Null()
+	}
+	return types.Int64Value(int64(n))
 }

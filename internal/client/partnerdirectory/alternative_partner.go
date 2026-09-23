@@ -2,7 +2,6 @@ package partnerdirectory
 
 import (
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
@@ -40,7 +39,7 @@ type AlternativePartner struct {
 // unambiguous Terraform import identifier out of three strings that may
 // themselves contain "/" or any other delimiter.
 func EncodeAlternativePartnerKey(agency, scheme, id string) (hexAgency, hexScheme, hexID string) {
-	return hex.EncodeToString([]byte(agency)), hex.EncodeToString([]byte(scheme)), hex.EncodeToString([]byte(id))
+	return v2.EncodeUTF8Hex(agency), v2.EncodeUTF8Hex(scheme), v2.EncodeUTF8Hex(id)
 }
 
 // DecodeAlternativePartnerKeyComponent reverses one component of
@@ -51,11 +50,7 @@ func EncodeAlternativePartnerKey(agency, scheme, id string) (hexAgency, hexSchem
 // did not itself produce (for example one a practitioner typed by hand) is
 // well-formed before it is used to build a request path.
 func DecodeAlternativePartnerKeyComponent(hexValue string) (string, error) {
-	decoded, err := hex.DecodeString(hexValue)
-	if err != nil {
-		return "", fmt.Errorf("partnerdirectory: %q is not a valid hex-encoded alternative partner key component: %w", hexValue, err)
-	}
-	return string(decoded), nil
+	return v2.DecodeUTF8Hex(hexValue)
 }
 
 func alternativePartnerKey(agency, scheme, id string) (string, error) {

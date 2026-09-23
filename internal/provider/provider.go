@@ -204,6 +204,8 @@ func (p *sapIntegrationSuiteProvider) DataSources(_ context.Context) []func() da
 		NewServiceEndpointsDataSource,
 		NewIntegrationAdapterDataSource,
 		NewCustomTagConfigurationDataSource,
+		NewKeystoreEntryDataSource,
+		NewKeystoreEntriesDataSource,
 	}
 }
 
