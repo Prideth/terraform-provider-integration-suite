@@ -823,6 +823,57 @@ the other file-based resources.
   gap — see `docs/guides/service-endpoints.md` for the reasoning and the practical mitigation
   (re-plan/re-apply) until a specific, bounded window is confirmed.
 
+## `sapintegrationsuite_custom_tag_configuration`
+
+- **Purpose**: manage the tenant-wide Custom Tag Configuration — the set of attributes
+  (mandatory or optional, each with an optional closed value list) integration package owners
+  classify their packages with.
+- **SAP object**: `CustomTagConfigurations` (Integration Content API, OData V2), confirmed
+  singleton key `CustomTags`. See `docs/sap-api-references.md` for the full confirmed request/
+  response shapes and the complete singleton-semantics investigation.
+- **Desired state**: yes — the complete tag list is the desired state, no different in spirit
+  from any other resource's set of managed fields; the difference is that there is exactly one
+  instance of this resource per tenant rather than many.
+- **Identity**: `id`, always the literal string `"CustomTags"` — Computed, never something a
+  practitioner chooses, since SAP documents no other identity for this entity.
+- **Read-back**: `GET CustomTagConfigurations('CustomTags')/$value`, confirmed verbatim. Decoded
+  directly as the documented JSON shape rather than through the standard OData entity envelope,
+  since `$value` is OData's raw-media-stream convention.
+- **Create/Update — same operation, confirmed verbatim**: `POST CustomTagConfigurations` with
+  `Overwrite=true`, sending the complete tag list every time; there is no partial/delta update.
+  Both Create and Update call the same client method (`SetCustomTagConfiguration`), always with
+  `Overwrite=true`, since SAP's documentation never shows what a plain `POST` does once a
+  configuration already exists.
+- **Delete (§17/§26 suitability check) — no confirmed destroy mechanism, therefore no fake one**:
+  this project reverified SAP's documentation specifically looking for a delete or clear
+  operation and found none — not even an unconfirmed one, unlike most other gaps in this
+  provider's evidence base. Given that, and given this provider's standing policy against both a
+  silent Delete no-op and a guessed "empty overwrite deletes everything" implementation, Delete
+  returns an explicit, actionable error diagnostic instead. This is a deliberate correctness
+  choice: a `terraform destroy` that silently succeeded while leaving the tenant's governance
+  configuration untouched would be a far worse outcome than a clear failure directing the
+  practitioner to `terraform state rm` (to stop managing it without touching the tenant) or the
+  SAP UI (to actually clear it). See `docs/guides/custom-tag-configurations.md`.
+- **Ordering and duplicate handling**: `tags` and each tag's `permitted_values` are modeled as
+  Terraform **sets**, not lists, since SAP's documentation never states that submission or
+  response order carries meaning — this guarantees `terraform plan` reports no change when SAP
+  returns the same tags in a different order. The request body sent to SAP is independently
+  canonicalized (sorted by tag name, then by permitted value) before encoding, in
+  `internal/client/cloudintegration/custom_tag_configuration.go`, so what is actually
+  transmitted is deterministic regardless of the order Terraform's own set-to-slice conversion
+  happens to produce. Tag name uniqueness is enforced by this resource's own `ValidateConfig`
+  implementation (`resource.ResourceWithValidateConfig`), independent of the Terraform type
+  system, since two same-named tags with different other fields would otherwise be two distinct,
+  contradictory set elements rather than a type-level conflict Terraform would catch on its own.
+- **Import**: `terraform import sapintegrationsuite_custom_tag_configuration.example CustomTags`
+  — the literal fixed key, rejected outright if anything else is supplied, rather than accepted
+  and left to fail later against an API that only recognizes that one key.
+- **Feature catalog status**: `partial` — Create/Read/Update are fully implemented against a
+  confirmed API contract; the permanently absent Delete is the reason for `partial` rather than
+  `supported`, the same category of gap as
+  `sapintegrationsuite_partner_user_credential_parameter`'s missing Update, just on a different
+  operation.
+
 ## `sapintegrationsuite_partner_string_parameter` / `..._binary_parameter`
 
 - **Purpose**: manage a single named value (text or binary) scoped to a Partner Directory

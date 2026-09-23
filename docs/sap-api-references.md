@@ -285,6 +285,76 @@ API. This document is that trace.
   Flows, Value Mappings, Message Mappings, Script Collections, Access Policies, Partner
   Directory, or Security Content.
 
+## `sapintegrationsuite_custom_tag_configuration`
+
+- **SAP product area**: Integration Suite / Cloud Integration — tenant-wide governance
+  configuration, not a per-package or per-artifact object
+- **Official API**: Integration Content API. Confirmed directly from two SAP Help Portal pages
+  (read via the `SAP-docs/btp-integration-suite` GitHub mirror): "Create New Custom Tags
+  Configuration" and "Get Custom Tags Defined on the Tenant".
+- **Entity set**: `CustomTagConfigurations`, with a single, fixed, confirmed key: `CustomTags`.
+  There is exactly one configuration per tenant.
+- **Protocol**: OData V2
+- **Create/Update — confirmed verbatim, including the exact example payload**: `POST
+  /api/v1/CustomTagConfigurations`, body `{"CustomTagsConfigurationContent":
+  "<base64-encoded-content>"}`, where the decoded content for a mandatory "Owner" tag is
+  `{"customTagsConfiguration":[{"tagName":"Owner","isMandatory":true}]}` — this exact
+  base64-round-trip is asserted byte-for-byte in
+  `internal/client/cloudintegration/custom_tag_configuration_test.go`. SAP's documentation
+  states: "If a custom tags configuration is already available on the tenant, add the following
+  query parameter to the request: `Overwrite=true`". This client always sends `Overwrite=true`
+  on every write (see the doc comment on `SetCustomTagConfiguration` for why: SAP never
+  documents what a plain `POST` does once a configuration exists, so always using the documented
+  "already exists" path avoids depending on an unconfirmed distinction).
+- **Read — confirmed verbatim, including the "$value" envelope difference**: `GET
+  /api/v1/CustomTagConfigurations('CustomTags')/$value`. Unlike every other entity in this
+  client, the response is the raw decoded JSON directly — OData's `$value` raw-media-stream
+  convention — not wrapped in the standard `{"d": {...}}` envelope `v2.DecodeEntity` expects
+  elsewhere, so this client decodes the response body directly instead.
+- **Delete — reverified, confirmed absent**: no delete or clear operation is documented anywhere
+  for this entity across either page or the general Integration Content resource table (which
+  describes the entity only as maintainable "using the Cloud Integration Settings section" or
+  "the OData API (Custom Tags interface)", with no mention of removal). This is a materially
+  different situation than a design-time artifact type with an unconfirmed delete *scope* (for
+  example whether delete removes one version or all) — here there is no delete operation
+  documented at all. `sapintegrationsuite_custom_tag_configuration`'s Delete therefore returns
+  an explicit error rather than a guessed "clear via empty overwrite" implementation or a no-op
+  — see `docs/resource-design.md` and `docs/guides/custom-tag-configurations.md`.
+- **`Overwrite=true` semantics — strongly implied, not stated verbatim**: the documented request
+  body is always the complete configuration, never a delta, and the query parameter is literally
+  named `Overwrite`, which this provider reads as "full replace" (tags absent from a new write
+  are removed). SAP's documentation never uses the word "replace" itself, so this is flagged as
+  this provider's own reasonable interpretation, not an independently confirmed fact.
+- **Singleton semantics investigated (per the research checklist for this feature)**:
+  - Is `CustomTags` always the fixed key? **Confirmed** — it appears literally in SAP's own GET
+    example.
+  - Can there be multiple configurations? No evidence of any mechanism for more than one; the
+    entire API is structured around the one fixed key.
+  - Does a plain `GET` (without `/$value`) return useful metadata? Not shown in either
+    documented example; not implemented, since guessing at undocumented properties was rejected.
+  - Is posting an empty configuration valid, and does it clear everything? **Not confirmed
+    either way** — deliberately not relied upon by this provider's Delete (see above).
+  - Tag name / permitted-value uniqueness, case sensitivity, and whether SAP preserves submitted
+    order: **none of these are documented**. This provider enforces tag-name uniqueness itself,
+    models `permitted_values` as a set (making exact duplicates unrepresentable), and treats
+    both `tags` and `permitted_values` ordering as not semantically meaningful (see
+    `docs/guides/custom-tag-configurations.md`).
+- **A documentation artifact worth flagging**: SAP's "Get Custom Tags Defined on the Tenant"
+  page's second example response renders two permitted values ("Mr. Bean" and "Ms. Bean") as a
+  *single* array element containing a comma-separated string —
+  `"permittedValues":["Mr. Bean, Ms. Bean"]` — rather than two separate array elements. This
+  contradicts the one-element-per-value convention every other array-typed field in this API
+  uses (including `EntryPoints`/`ApiDefinitions` on `ServiceEndpoints`), so it is treated as a
+  documentation authoring artifact rather than a confirmed wire format; this client always
+  serializes one array element per permitted value.
+- **Required role**: SAP's general Integration Content API documentation states that maintaining
+  custom tags requires the role template `WebToolingSettingsProductProfiles.savetenantconfiguration`
+  ("part of role collection `PI_Administrator`" in the Cloud Foundry environment, "part of
+  authorization group `AuthGroup.Administrator`" in Neo). The role **template**, not the entire
+  `PI_Administrator` role collection, is what this provider's documentation states is actually
+  required — a narrower custom role collection granting just that template should work equally
+  well, and this provider does not claim the full `PI_Administrator` collection is mandatory.
+
 ## `data.sapintegrationsuite_service_endpoints`
 
 - **SAP product area**: Integration Suite / Cloud Integration — runtime discovery of deployed
