@@ -15,27 +15,48 @@ matrix.
 
 Development branches from `dev`, in this order, until superseded by an explicit reprioritization:
 
-1. **Current API Management / API Artifacts / Integration Cell** — **Current.** SAP's current
-   API-centric integration model (API Artifacts, Runtime Profiles, Integration Cell, Virtual
-   Hosts, Policies, Reusable API Artifacts) — a distinct product model from Classic API
-   Management (API Providers/Proxies/Products), never mixed in this provider's terminology or
-   code. See `docs/guides/current-api-management.md` for the full public-API-boundary research
-   and every resulting Terraform decision.
-2. **Additional current API Management subfeatures** — whatever this phase's research
-   identifies as publicly automatable but out of scope for the first pass (for example Edge
-   Integration Cell-specific Virtual Host/deployment behavior, or a confirmed Policy API found
-   too late to implement this phase).
-3. **Classic API Management** — Planned, explicitly *after* the current API Artifact model,
-   reflecting where SAP's own product direction now sits. Moved behind current API Management
-   deliberately; still a real, tracked priority, not dropped.
-4. **Edge Integration Cell** — Blocked by API for SAP control-plane/runtime-specific
-   configuration; never a Kubernetes/Helm replacement. Deliberately deferred from this phase even
-   though it shares infrastructure with Integration Cell (Virtual Hosts, Runtime Profiles) — see
-   `docs/guides/current-api-management.md` for what, if anything, this phase found reusable for
-   it later.
-5. **Additional Integration Suite capabilities** — Research required: Integration Advisor,
-   Trading Partner Management, Integration Assessment, Migration Assessment, and others, only
-   where public APIs justify Terraform management.
+1. **Edge Integration Cell** — SAP-side registration, runtime association, local API access, and
+   deployment-targeting research, strictly scoped to control-plane concerns SAP itself exposes
+   through a public API — never a Kubernetes/Helm replacement. See
+   `docs/guides/edge-integration-cell.md`.
+2. **Classic API Management** — API Providers, API Proxies, API Products, Key Value Maps, and the
+   classic proxy policy model, through the API Portal's own `Management.svc` OData contract and
+   its own service-key credentials — a distinct product model from the current, API-artifact
+   centric API Management below, never mixed in this provider's terminology or code. Expected to
+   be the largest remaining implementation phase. See `docs/guides/classic-api-management.md`.
+3. **Integration Assessment** — Domain/Style/Use-Case/Integration Pattern and related objects,
+   through Integration Assessment's own documented API package, evaluated per-object for
+   Terraform suitability rather than implemented wholesale. See
+   `docs/guides/integration-assessment.md`.
+4. **Trading Partner Management** — company/subsidiary/trading-partner profiles, communication
+   partner profiles, and agreement templates, kept conceptually and architecturally distinct from
+   the already-implemented Partner Directory runtime configuration it can generate. See
+   `docs/guides/trading-partner-management.md`.
+5. **Integration Advisor** — Message Implementation Guidelines, Mapping Guidelines, type systems,
+   B2B standards, and codelists, implemented only where a public API exposes persistent,
+   independently identified design-time artifacts.
+6. **Migration Assessment** — source-system, rule, effort, and assessment-result objects,
+   expected to be mostly workflow/analysis-request data rather than desired-state configuration.
+7. **Remaining Integration Suite capability audit** — a full sweep of every capability area this
+   provider has not yet formally classified (Open Connectors, Event Mesh, Data Space Integration,
+   and others), each resolved to a concrete provider-boundary decision.
+8. **Provider completion and hardening** — a catalog-wide accuracy audit, README/documentation
+   regeneration, and repository-wide quality/security review once the phases above have
+   established this provider's practical ceiling of currently reachable public APIs.
+
+Current API Management / API Artifacts / Integration Cell (API Artifacts, Runtime Profiles,
+Integration Cell, Virtual Hosts, Policies, Reusable API Artifacts) research is done — see
+`docs/guides/current-api-management.md`: SAP currently exposes no public API for any object in
+this family, so this provider implements none of it; the finding is treated as settled rather
+than repeatedly reopened, and is revisited only if SAP publishes something new (see the capability
+audit phase above).
+
+Developer Hub — SAP's API/Event/MCP Server catalog, publication, and subscription capability — is
+not part of this provider's roadmap at all. It has its own API boundary, its own OAuth
+credentials, and a consumer/catalog lifecycle unlike anything else this provider manages, and is
+planned as a separate, independently versioned Terraform provider (working name
+`Prideth/terraform-provider-sap-developer-hub`). See `docs/provider-scope.md` for the boundary
+statement and `docs/feature-support.md`'s single `developer_hub` catalog entry.
 
 Access Policies completion (role/identity semantics, artifact reference lifecycle audit,
 runtime reconciliation research, minimal-PATCH update, data sources, import/drift) is done —
@@ -166,25 +187,19 @@ already shipped (see "Implemented" below).
 - Message mapping entry-level or dependent-resource management, if SAP ever exposes one
   independent of the opaque content archive this provider already transports (**Research
   required**)
-- Current API Management / API Artifacts / Integration Cell (**Current**, priority 1 above) — see
-  `docs/guides/current-api-management.md` for the confirmed public-API boundary and exactly which
-  of the following are implemented, read-only, or blocked by a missing public API:
-  - `sapintegrationsuite_api_artifact`
-  - `sapintegrationsuite_api_artifact_deployment`
-  - `data.sapintegrationsuite_runtime_profile(s)`
-  - `data.sapintegrationsuite_integration_cell`
-  - `sapintegrationsuite_integration_cell_virtual_host`
-- Classic API Management resources, once the required scopes and object model are fully
-  mapped (**Planned**, priority 3 above — explicitly behind current API Management, reflecting
-  SAP's own current product direction)
+- Edge Integration Cell control-plane configuration (registration, runtime association, local
+  API access classification, deployment-targeting research), strictly scoped to SAP-specific
+  concerns — never a Kubernetes/Helm replacement (priority 1 above)
+- Classic API Management resources (API Providers, API Proxies, API Products, Key Value Maps),
+  once the required scopes and object model are fully mapped (priority 2 above)
 
 ## v0.3.x
 
-- Edge Integration Cell control-plane configuration (registration, runtime association),
-  strictly scoped to SAP-specific concerns — never a Kubernetes/Helm replacement (**Blocked by
-  API**, priority 4 above)
-- Additional Integration Suite capabilities, as their public APIs are confirmed (**Research
-  required**, priority 5 above)
+- Integration Assessment, Trading Partner Management, Integration Advisor, and Migration
+  Assessment, each evaluated and implemented only where public APIs justify Terraform management
+  (priorities 3 through 6 above)
+- The remaining Integration Suite capability audit and provider hardening pass (priorities 7 and
+  8 above)
 
 ## Later
 
