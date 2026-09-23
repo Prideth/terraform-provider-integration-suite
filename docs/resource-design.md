@@ -874,6 +874,181 @@ the other file-based resources.
   `sapintegrationsuite_partner_user_credential_parameter`'s missing Update, just on a different
   operation.
 
+## Number Ranges / Variables / Data Stores / Data Store Entries — suitability check
+
+Before any implementation, every object in SAP's Message Stores API family was walked through
+the same 14-question suitability check (who creates it; configuration vs. runtime state; is
+identity stable; is Create/Read/Update/Delete public; can drift be detected reliably; would
+reconciliation be safe; could `apply` reset runtime state; could `destroy` destroy productive
+data; is import meaningful; does it belong in desired-state infrastructure; Resource/Data
+Source/unsupported/out of scope). Full API evidence is in
+`docs/sap-api-references.md`; this section records the suitability conclusions.
+
+### Number Range — partial resource (write-only lifecycle)
+
+1. **Who creates it**: a practitioner or integration developer, explicitly, via the Monitor
+   application or this API — the only object in this family a human deliberately defines rather
+   than one that comes into existence as a side effect of deployed content running.
+2. **Configuration vs. runtime state — both, and they must be separated**: `Name`/`MinValue`/
+   `MaxValue`/`Description`/`Rotate`/`FieldLength` are static desired configuration.
+   `CurrentValue` (the UI's "Next Value") is live runtime state that advances every time deployed
+   EDI/EDIFACT content consumes a number — it must never be treated as ordinary desired-state
+   input Terraform reconciles on every apply.
+3. **Is identity stable**: yes — `Name` is SAP's documented OData key, and SAP's documentation
+   never describes rename semantics, so it is `RequiresReplace`.
+4. **Is Create public**: yes, confirmed (`POST /NumberRanges`).
+5. **Is Read public**: **no** — confirmed absent, not merely unconfirmed. See
+   `docs/sap-api-references.md` for the exhaustive check (the curated example-requests index,
+   the overview resource table, a full directory search) that ruled this out rather than assumed
+   it from one missing page.
+6. **Is Update public**: yes, confirmed (`PUT /NumberRanges('{name}')`).
+7. **Is Delete public**: **no** — confirmed absent; the UI documents "Undeploy" as a distinct
+   action from "Delete", with no REST equivalent found anywhere.
+8. **Can Terraform detect drift reliably**: no — there is no GET to compare against. This is the
+   central, disqualifying fact for a conventional resource design.
+9. **Would Terraform reconciliation be safe**: for the static fields, yes, if Update never
+   silently resends a value it cannot confirm is current. For `CurrentValue`, no — no design can
+   make blind reconciliation of an unreadable, externally-advancing counter safe.
+10. **Could `apply` accidentally reset runtime state**: yes, this is the central risk this design
+    exists to prevent — see the Update design below.
+11. **Could `destroy` destroy productive runtime data**: moot — Delete is not implemented (SAP
+    documents no operation to call).
+12. **Is import meaningful**: no — without a GET there is nothing to populate imported state
+    with beyond the ID itself, which is not import in any meaningful sense the rest of this
+    provider practices.
+13. **Does it belong in desired-state infrastructure management**: the static configuration
+    does; the runtime counter categorically does not.
+14. **Resource / Data Source / unsupported / out of scope**: **Resource, but a deliberately
+    narrower one than every other resource in this provider** — see below.
+
+**Design decision and why**: a conventional Terraform resource contract (Create, Read that
+verifies state, Update that reconciles drift, Delete, Import) cannot be honestly implemented
+against an API with no GET and no DELETE. The two remaining options were "implement nothing" or
+"implement a write-only-lifecycle resource that is explicit about what it cannot do." This
+provider chose the latter, on the basis that Create+Update alone still give a practitioner a
+real, auditable, idempotent-on-the-Terraform-side way to push desired static configuration —
+which "implement nothing" would deny them for no benefit, since the static-configuration part of
+this object genuinely is something a human defines and wants version-controlled. This differs
+in kind from Variables/DataStores/DataStoreEntries below, where nothing is ever practitioner-
+authored in the first place.
+
+- **Identity**: `id`/`name` — SAP's confirmed OData key, `RequiresReplace`.
+- **Static configuration**: `min_value`, `max_value`, `description`, `rotate`, `field_length` —
+  ordinary `Required`/`Optional` attributes, all resent on every Create and Update. `min_value`/
+  `max_value`/`field_length` are Terraform **strings**, not numbers: SAP's wire format is a JSON
+  string for every numeric field, and SAP documents values up to 14–15 digits, well beyond what
+  this provider is willing to assume any numeric encoding preserves exactly without confirming
+  it against `$metadata` (which could not be reached — see `sap-api-references.md`). A custom
+  validator enforces unsigned-decimal-digit-string shape, `max_value` < 15 digits, `field_length`
+  between 0 and 14, and (via `ValidateConfig`) `min_value <= max_value` using `math/big` integer
+  comparison, never string comparison.
+- **The runtime counter — `current_value_wo` / `current_value_wo_version`**: modeled as a
+  `WriteOnly` attribute paired with a version marker, the same pattern this provider already uses
+  for credential rotation (`password_wo`/`password_wo_version` on
+  `sapintegrationsuite_user_credential`). `current_value_wo` is `Required` (SAP's Create example
+  always includes `CurrentValue`) and is sent to SAP:
+  - **On every Create.**
+  - **On Update, only when `current_value_wo_version` differs from the prior state.** Every
+    other Update — including one that changes every other attribute simultaneously — omits
+    `CurrentValue` from the request body entirely. This is the mandatory counter-preservation
+    guarantee for this resource, verified by
+    `TestNumberRangeResource_Update_OmitsCurrentValueWhenVersionUnchanged` (provider layer) and
+    `TestClient_UpdateNumberRange_OmitsCurrentValueWhenNil` (client layer): a Terraform apply
+    that only changes `description` must never transmit any counter value at all, stale or
+    otherwise.
+  - This is a deliberately different contract than the one originally sketched for this phase
+    ("GET the live value, then PUT it back unchanged"): that flow requires a GET this API does
+    not have. Field-omission is the closest safe substitute this provider could construct, with
+    one open, explicitly documented risk: whether SAP's `PUT` preserves an omitted `CurrentValue`
+    unchanged (a partial-merge interpretation) or resets it to a default (a literal full-replace
+    interpretation) is **not confirmed either way**, since there is no GET to check the result
+    against. This is disclosed prominently in the resource's schema description and in
+    `docs/guides/runtime-stores-and-number-ranges.md`, not hidden behind an assumption of safety.
+- **Read**: a documented no-op. It copies `req.State` straight into `resp.State` and never
+  contacts SAP — the only Read behavior this provider can honestly offer against an entity with
+  no GET, rather than a Read that silently never detects anything wrong.
+- **Delete**: always returns an explicit error (mirrors
+  `sapintegrationsuite_custom_tag_configuration`'s established pattern for "SAP documents no
+  confirmed destroy operation" — `terraform state rm` is the documented escape hatch).
+- **Import**: `ResourceWithImportState` is implemented, but `ImportState` always returns an
+  explicit error, for the same reason as Delete — this provider considered omitting the
+  interface entirely, but an explicit, actionable error was judged more honest and more
+  consistent with this provider's established "explicit error over silent gap" convention than a
+  bare Terraform-core "does not support import" message.
+- **Feature catalog status**: `partial`, reason `unsafe_terraform_lifecycle` — the missing
+  Read/Delete/Import are permanent properties of this API, not gaps expected to close later.
+
+### Variable — no resource, no data source
+
+1. **Who creates it**: exclusively an integration flow's "Write Variables" design-time step —
+   never a practitioner acting directly against this API.
+2. **Configuration vs. runtime state**: entirely runtime state — an arbitrary value written
+   during message processing, expiring after 400 days of inactivity.
+3. **Is identity stable**: the composite key (`VariableName`, `IntegrationFlow`) is stable, but
+   irrelevant to suitability given the points below.
+4. **Is Create public**: no.
+5. **Is Read public**: yes, but only a single-item download (`GET .../Variables(...)/$value`)
+   returning the raw value with no metadata — no collection GET, so nothing to discover from.
+6. **Is Update public**: no.
+7. **Is Delete public**: not confirmed via a REST example, though a `DataStoresAndQueuesDelete`
+   role template documented for this family implies some delete capability exists somewhere.
+8. **Can Terraform detect drift reliably**: moot — there is nothing Terraform could have written
+   in the first place.
+9. **Would Terraform reconciliation be safe**: moot, same reason.
+10. **Could `apply` accidentally reset runtime state**: moot — no Create/Update exists to expose.
+11. **Could `destroy` destroy productive runtime data**: moot — no Delete exposed.
+12. **Is import meaningful**: no — there is no Terraform-manageable state to import into.
+13. **Does it belong in desired-state infrastructure management**: no — this is runtime business
+    data flowing through deployed content, category-identical to Message Processing Logs.
+14. **Resource / Data Source / unsupported / out of scope**: **unsupported, `out_of_scope`**.
+
+A read-only `data.sapintegrationsuite_variable` was seriously considered — the GET is real, and
+there is a plausible use case (referencing a shared global variable's value from other Terraform
+configuration). It was rejected: the only confirmed read endpoint returns nothing but the raw
+runtime value itself, with no safer metadata-only projection to fall back to, and this provider's
+`docs/provider-scope.md` principle against placing arbitrary runtime business content into
+Terraform state applies without exception here — every `terraform plan`/`refresh` would either
+show constant spurious churn as the underlying value changes for reasons outside Terraform's
+control, or silently capture a snapshot of business data into `.tfstate` on every apply. Neither
+is acceptable.
+
+### Data Store — no resource, no data source
+
+1. **Who creates it**: implicitly, the first time an integration flow's Data Store Write step
+   (or an XI adapter configured with `Temporary Storage = Data Store`) writes an entry — never a
+   practitioner acting directly.
+2. **Configuration vs. runtime state**: a Data Store has no configuration of its own at all; it
+   is purely a runtime container, identified by (`DataStoreName`, `IntegrationFlow`, `Type`).
+3–7. **Identity / Create / Read / Update / Delete**: no independent Create, Update, or Delete
+   API exists for this entity at all. The one documented GET
+   (`/DataStores?overdueonly=true`) is an aggregate monitoring endpoint (message counts), not a
+   configuration read.
+8–13. All moot for the same reason as Variables above — there is no Terraform-manageable desired
+   state to reconcile, detect drift on, or import.
+14. **Resource / Data Source / unsupported / out of scope**: **unsupported, `out_of_scope`** —
+    the one GET is the same class of runtime monitoring data as
+    `cloud_integration.message_processing_logs`, already excluded on identical grounds.
+
+### Data Store Entry — no resource, no data source
+
+1. **Who creates it**: the same Data Store Write step that creates its parent Data Store, once
+   per message.
+2. **Configuration vs. runtime state**: entirely runtime state — `Status`, `MessageId`, `DueAt`,
+   `CreatedAt`, `RetainUntil` describe a specific processed business message, not configuration.
+3–7. **Identity / Create / Read / Update / Delete**: identity (`Id`, `DataStoreName`,
+   `IntegrationFlow`, `Type`) is stable, and two GETs are confirmed (single entry; all entries
+   for a store), but no Create, Update, or REST Delete exists — the documented Delete is a
+   design-time integration-flow step operating on messages as they are processed, explicitly
+   scoped to "single entries only," never a REST call this provider could wrap in
+   `terraform destroy`.
+8–13. Moot — there is no Terraform-manageable desired state here, only runtime business-message
+   records.
+14. **Resource / Data Source / unsupported / out of scope**: **`out_of_scope`, not merely
+    `not_implemented`** — this is business message content and processing status, the same
+    category this provider already refuses to place into Terraform state for Message Processing
+    Logs, and "an entry can be deleted" does not make deleting it a `terraform destroy` any more
+    than deleting a message processing log record would be.
+
 ## `sapintegrationsuite_partner_string_parameter` / `..._binary_parameter`
 
 - **Purpose**: manage a single named value (text or binary) scoped to a Partner Directory

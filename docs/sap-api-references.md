@@ -425,6 +425,172 @@ API. This document is that trace.
   same Integration Content read scopes already required for `IntegrationDesigntimeArtifacts`/
   `IntegrationRuntimeArtifacts`, pending confirmation.
 
+## `sapintegrationsuite_number_range` and the Message Stores API family (Variables, Data Stores, Data Store Entries)
+
+- **SAP product area**: Integration Suite / Cloud Integration — the "Message Stores" OData V2 API
+  (`https://api.sap.com/api/MessageStore`), covering `NumberRanges`, `Variables`, `DataStores`,
+  and `DataStoreEntries` alongside `Entries`/`EntryAttachments`/`EntryProperties` (Message Store,
+  already covered elsewhere) and JMS Resources.
+- **Research method**: every page below was fetched from the `SAP-docs/btp-integration-suite`
+  GitHub mirror (`docs/ci/Development/` and `docs/ci/Operations/`), the same official-mirror
+  technique used throughout this project. `api.sap.com` itself redirects unauthenticated
+  requests to a login page and could not be used directly to inspect `$metadata`.
+
+### Number Ranges — confirmed operations and the missing GET
+
+The curated **"Message Stores Example Requests"** index page
+(`message-stores-example-requests-02c57df.md`) is the authoritative list of every documented
+example for this API family. For every sibling entity it links a "Get ..." example page; for
+Number Ranges it links exactly two:
+
+- [Add a Number Ranges Object](https://raw.githubusercontent.com/SAP-docs/btp-integration-suite/main/docs/ci/Development/add-a-number-ranges-object-b1bd945.md):
+  `POST /api/v1/NumberRanges`, body
+  `{"CurrentValue":"0","Name":"My NRO Object","MinValue":"0","MaxValue":"9999","Description":" Number Range Object ","Rotate":"true","FieldLength":"4"}`
+  — asserted byte-for-byte in `internal/client/cloudintegration/number_range_test.go`.
+- [Update a Number Ranges Object](https://raw.githubusercontent.com/SAP-docs/btp-integration-suite/main/docs/ci/Development/update-a-number-ranges-object-139a6b2.md):
+  `PUT /api/v1/NumberRanges('{objectName}')`, same body shape. This page also states explicitly:
+  "The Current Value returned by the API corresponds to the Next Value shown in the Monitoring
+  tab of the UI. The difference is only in terminology" — confirmed verbatim, cross-referenced
+  by `managing-number-ranges-b6e17fa.md` (the UI documentation) independently.
+
+**No GET operation — for either the collection or a single object — is documented anywhere.**
+This was checked exhaustively, not assumed from absence on one page:
+
+- The example-requests index above lists nothing beyond Add/Update.
+- No `get-a-number-range*`/`get-number-range*` page exists under `docs/ci/Development/` (checked
+  via a directory listing of the whole folder).
+- `message-stores-1aab5e9.md` (the Message Stores overview/resource table) documents the
+  `NumberRanges` resource in prose only, with no GET example, unlike its entries for
+  `DataStores`, `DataStoreEntries`, and `Variables`, which each state their unsupported query
+  options explicitly (implying a GET exists to apply those options to) — Number Ranges has no
+  such statement.
+- The overview page's resource table has a genuinely truncated caveat directly against
+  "Number Ranges": `> ### Note: \n> Not supported in.` with no recoverable clause — re-fetched
+  twice to rule out a fetch artifact; this is a truncation in SAP's own published source. Its
+  meaning (an environment? a runtime type?) is **not confirmed**, and this provider does not
+  guess at it.
+
+**No DELETE operation is documented for Number Ranges either.** The overview page's general
+CSRF-token paragraph mentions "POST, PUT, and DELETE" as the three modifying-action types across
+the whole Message Stores API family, but this is generic boilerplate applying to the family as a
+whole (DELETE is separately, specifically confirmed for Data Store Entries/Variables via the
+`DataStoresAndQueuesDelete` role template — see below), not evidence of a Number-Ranges-specific
+DELETE. `managing-number-ranges-b6e17fa.md` (the UI/Operations page) instead documents an
+**"Undeploy"** action, explicitly distinct from "Delete" in its own Actions list, with no visible
+REST equivalent anywhere in the API documentation.
+
+**A UI-only multi-runtime deployment dimension was also found, with no API-level counterpart.**
+The same Operations page documents a "Runtimes" field on the Add/Edit dialog: "One or more
+runtime nodes to deploy the artifact to... including Cloud Integration and any active Edge
+Integration Cell nodes," and describes name-uniqueness as evaluated against "any of the selected
+runtimes." Neither of the two documented API examples (Add, Update) shows any runtime/location
+parameter. This provider's client always targets the implicit default runtime and does not
+attempt to reconstruct or guess at this parameter.
+
+**Field semantics confirmed from `managing-number-ranges-b6e17fa.md`** (UI documentation,
+consistent with the API examples):
+
+- `MinValue`: "should be greater than or equal to 0."
+- `MaxValue`: "should be less than 15 digit[s]" / "Must be fewer than 15 digits."
+- `FieldLength`: zero-pads the displayed value; "maximum value allowed for this attribute is 14";
+  a value of 0 applies no padding.
+- `Rotate`: "If this attribute is set and the number range reaches specified maximum value, then
+  the current value resets to specified minimum value" — confirmed verbatim, matching this
+  provider's `rotate` semantics exactly.
+
+**Role template**: no Cloud Foundry role template specific to Number Ranges creation/update was
+found documented anywhere (unlike Data Stores/Variables, which have explicit
+`DataStoresAndQueuesRead`/`DataStorePayloadsRead`/`DataStoresAndQueuesDelete` templates — see
+below). The Neo-environment `tasks-and-permissions-556d557.md` page lists Monitor-app tasks
+"View number ranges" and "Add, edit, or undeploy number ranges" gated behind the Integration
+Developer / Tenant Administrator roles, but this documents UI authorization in the older Neo
+environment, not a confirmed Cloud Foundry API role/scope for the public REST endpoints.
+
+**Consequence for this resource's design** (see `docs/resource-design.md` for the full
+suitability walkthrough): without a GET, `sapintegrationsuite_number_range` cannot implement a
+Read that verifies anything against the tenant, cannot detect drift, and cannot support
+`terraform import`. It is implemented as a **write-only-lifecycle resource**: Create and Update
+call the two confirmed operations for real, Read is a documented no-op that trusts local state,
+Delete and Import both return explicit errors rather than guessing at unconfirmed operations. The
+runtime counter (`CurrentValue`) is handled as a version-gated write-only attribute
+(`current_value_wo`/`current_value_wo_version`) that is sent to SAP only when the practitioner
+deliberately bumps the version — every other Update omits `CurrentValue` from the request body
+entirely, since this provider has no way to confirm any remembered value is still correct. Two
+unconfirmed risks are inherent to this design and documented rather than hidden: (1) whether an
+omitted `CurrentValue` on `PUT` is preserved unchanged or reset to a default by SAP is not
+confirmed either way, since there is no GET to check the result; (2) whether `POST`ing a `Name`
+that already exists on the tenant errors, conflicts, or silently overwrites is likewise
+unconfirmed.
+
+### Variables — read-only download, no creation API
+
+[Download a Variable](https://raw.githubusercontent.com/SAP-docs/btp-integration-suite/main/docs/ci/Development/download-a-variable-94e6799.md)
+documents the **only** public operation for this entity: `GET
+/api/v1/Variables(VariableName='{VariableName}',IntegrationFlow='{IntegrationFlowName}')/$value`,
+which downloads the raw value via OData's `$value` convention — no structured metadata
+(`Visibility`/`UpdatedAt`/`RetainUntil`) is returned by this endpoint. No collection GET exists
+(the composite key must already be known), and no POST/PUT/DELETE is documented anywhere.
+[Define Write Variables](https://raw.githubusercontent.com/SAP-docs/btp-integration-suite/main/docs/ci/Development/define-write-variables-de04b75.md)
+confirms Variables are created and updated exclusively by an integration flow's "Write
+Variables" step (Constant/Header/XPath/Expression/Property source, a "Global Scope" checkbox
+controlling Global vs. local `IntegrationFlow` visibility), and separately confirms: "A variable
+gets expired after the retention period, which is 400 days," extended by every successful
+processing run, and "Variables can't be downloaded using the data store viewer."
+
+**No resource, no data source** — see `docs/resource-design.md` and `docs/provider-scope.md`.
+There is no Create/Update API to back a resource at all, and the one confirmed read endpoint
+returns nothing but the arbitrary runtime value itself, with no safer metadata-only projection
+available.
+
+### Data Stores and Data Store Entries — GET-only, runtime-created
+
+[Get All Data Stores with Overdue Messages](https://raw.githubusercontent.com/SAP-docs/btp-integration-suite/main/docs/ci/Development/get-all-data-stores-with-overdue-messages-5173f5c.md):
+`GET /api/v1/DataStores?overdueonly=true`, an aggregate monitoring endpoint returning
+`NumberOfMessages`/`NumberOfOverdueMessages` per store — not configuration.
+[Get Single Data Store Entry](https://raw.githubusercontent.com/SAP-docs/btp-integration-suite/main/docs/ci/Development/get-single-data-store-entry-8b86912.md)
+and
+[Get All Data Store Entries for a Data Store](https://raw.githubusercontent.com/SAP-docs/btp-integration-suite/main/docs/ci/Development/get-all-data-store-entries-for-a-data-store-acbef52.md)
+confirm `DataStoreEntries` fields verbatim: `Id`, `DataStoreName`, `IntegrationFlow`, `Type`,
+`Status`, `MessageId`, `DueAt`, `CreatedAt`, `RetainUntil` — all runtime message state.
+
+[Define Data Store Write Operations](https://raw.githubusercontent.com/SAP-docs/btp-integration-suite/main/docs/ci/Development/define-data-store-write-operations-46260ee.md)
+(referenced by the overview page as how both `DataStores` and `DataStoreEntries` come into
+existence) and
+[Define Data Store Delete Operations](https://raw.githubusercontent.com/SAP-docs/btp-integration-suite/main/docs/ci/Development/define-data-store-delete-operations-5efa3ac.md)
+confirm both write and delete are **design-time integration-flow steps**, not REST operations on
+these entities: "This step deletes an entry from a transient data store... the delete operation
+can't be used to delete whole data stores, but single entries only." No POST/PUT/DELETE against
+`DataStores` or `DataStoreEntries` is documented as a REST call anywhere.
+
+Confirmed verbatim from `message-stores-1aab5e9.md`: both the `DataStore` and `Variables` APIs
+"do not support the following query options: `$filter`, `$inlinecount`, `$orderby`, `$skip`,
+`$top`, `$expand`, `$select`" — two separate, explicit statements, one per entity, not a single
+blanket statement this provider generalized across the whole API family. `NumberRanges` carries
+no such statement (and, per above, has no GET to apply query options to regardless).
+
+**Required roles** (from `message-stores-1aab5e9.md`'s Permissions section, Cloud Foundry): to
+view data store entries, `DataStoresAndQueuesRead`; to download payloads and view variables,
+`DataStorePayloadsRead`; to delete data store entries/variables, `DataStoresAndQueuesDelete`. The
+existence of `DataStoresAndQueuesDelete` confirms a delete capability is authorized for Data
+Store Entries/Variables at the permission-template level, consistent with the confirmed
+design-time Delete step above, even though no REST DELETE example was found for either entity.
+
+**No resource, no data source for either entity** — see `docs/resource-design.md` and
+`docs/provider-scope.md`. `DataStores` has no independent creation API (it is an implicit runtime
+container); its one GET is monitoring data, the same class already excluded via
+`cloud_integration.message_processing_logs`. `DataStoreEntries` is unambiguously runtime business
+message data with no creation/deletion REST API at all.
+
+### Edge Integration Cell
+
+The only hint of an Edge Integration Cell-specific runtime-location API path came from the
+Number Ranges "Runtimes" UI field mentioning "any active Edge Integration Cell nodes" (see
+above). No `/location/<runtime-location-id>/api/v1/...`-style path variant, or any other
+Edge-specific endpoint, was found documented for `NumberRanges`, `Variables`, `DataStores`, or
+`DataStoreEntries` in any page fetched this session. This remains genuinely unconfirmed and is
+not implemented — consistent with this provider's rule against guessing at undocumented
+endpoints.
+
 ## `sapintegrationsuite_access_policy` / `..._reference`
 
 - **SAP product area**: Integration Suite / Security

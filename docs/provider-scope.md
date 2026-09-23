@@ -31,6 +31,50 @@ API has been identified for it (see [`sap-api-references.md`](sap-api-references
 capability/API matrices in this directory). A feature being visible in the Integration Suite
 UI is not sufficient justification for a resource.
 
+## A public API does not automatically make its objects Terraform resources
+
+This is worth stating as its own principle, not just an implication of the rule above: SAP
+publishing a documented, callable API for an object — even one with a full `GET` — is
+**necessary but not sufficient** for that object to become a `sapintegrationsuite_*` resource.
+Terraform resources model **desired infrastructure state that a practitioner owns and
+reconciles**; several categories of public API object fail that test even though the API itself
+is real and reachable:
+
+- **Runtime-generated, not practitioner-authored.** An object that only ever comes into
+  existence as a side effect of deployed content running (a Data Store, created the first time
+  an integration flow's Data Store Write step executes; a Variable, written by a Write Variables
+  step) has no Terraform-owned "desired" shape to converge toward. There is nothing to `apply`.
+- **Arbitrary runtime business data, not configuration.** A Variable's value, or a Data Store
+  Entry's message payload and processing status, is business data flowing through deployed
+  integration content — it changes on every message the content processes, for reasons entirely
+  outside Terraform's control. Putting it in Terraform state would mean either constant spurious
+  diffs or, worse, silently treating live business data as if it were configuration this provider
+  reconciles. Message Processing Logs are the original example of this in this provider; Data
+  Store Entries and Variable values are the same category.
+- **A GET without a safe Create/Update/Delete lifecycle.** `DataStores?overdueonly=true` is a
+  real, documented, working GET — and it returns monitoring aggregates (message counts), not
+  configuration. A resource needs more than "SAP will tell you something if you ask"; it needs
+  something a practitioner can safely bring into existence, change, and tear down again.
+- **A Create/Update without a safe Read.** The inverse case: `NumberRanges` has confirmed,
+  documented `POST`/`PUT` operations, but no documented `GET` anywhere and no documented
+  `DELETE`. This provider still implements `sapintegrationsuite_number_range`, but as an
+  explicitly narrower "write-only lifecycle" resource — Read is a documented no-op, and Import
+  and Delete both refuse with an explicit error rather than guess at unconfirmed behavior. See
+  `docs/guides/runtime-stores-and-number-ranges.md` for the full reasoning. This is the
+  conservative middle ground between "skip it entirely" and "pretend the missing operations
+  exist" — chosen here specifically because Create/Update alone still give a practitioner a real,
+  auditable way to push desired static configuration, unlike the runtime-data cases above.
+
+Concretely, in the Number Ranges / Variables / Data Stores API family: a Number Range's static
+configuration (name, min/max, rotate, field length) is potentially suitable for Terraform
+management, and its live runtime counter is not — it is exposed as a separate, write-only,
+explicitly-gated attribute rather than something Terraform's plan/apply cycle reconciles by
+default. A Variable's runtime value is not suitable at all — no resource, no data source. A Data
+Store Entry's payload and processing status is operational runtime data, not infrastructure —
+unsuitable for the same reason Message Processing Logs are unsuitable. See
+`docs/resource-design.md` and `docs/api-capability-matrix.md` for the full per-object
+suitability analysis this provider went through before reaching these conclusions.
+
 ## Out of Scope
 
 The following belong to the SAP BTP control plane, to Kubernetes/Helm, or to other existing

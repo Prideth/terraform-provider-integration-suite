@@ -5,7 +5,12 @@ Scope: SAP Cloud Integration's public "Integration Content", "Security Content",
 SAP Business Accelerator Hub), plus the Access Policy API. A Terraform column of "Resource"
 is only used where Create, Read, and a stable identity are all realistic; "Unsupported" is
 used whenever a Terraform resource would not be able to fulfil its contract (see
-`resource-design.md` for the full suitability check per object).
+`resource-design.md` for the full suitability check per object). The Number Range row is a
+deliberate, narrow exception: SAP documents no GET for that entity at all, so it is a
+"write-only lifecycle" resource — Create and Update are real, but Read is a documented no-op
+and Import/Delete both refuse explicitly rather than guessing — see `resource-design.md` and
+`guides/runtime-stores-and-number-ranges.md` for why this is still judged safer than either
+skipping the resource entirely or inventing an unconfirmed GET/DELETE.
 
 | Domain | Object | Runtime | Public API | Protocol | GET | CREATE | UPDATE | DELETE | DEPLOY | Terraform |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -21,7 +26,10 @@ used whenever a Terraform resource would not be able to fulfil its contract (see
 | Integration Content | Service Endpoints | Runtime | Yes | OData V2 | Yes (read-only, `$expand=EntryPoints,ApiDefinitions`, `$filter=Name`/`Protocol`, server-driven paging) | No | No | No | N/A | Data Source — see `sap-api-references.md` and `guides/service-endpoints.md` |
 | Integration Content | Custom Tag Configuration (tenant-wide singleton) | Design-time / tenant config | Yes, confirmed verbatim (Create, Overwrite, Read all confirmed with exact example payloads) | OData V2 | Yes (`GET .../CustomTagConfigurations('CustomTags')/$value`, raw `$value` body, not the standard OData envelope) | Yes (`POST .../CustomTagConfigurations`) | Yes, same operation as Create with `Overwrite=true` (confirmed) | No — reverified, no delete/clear operation documented anywhere for this entity | N/A | Resource + Data Source — Delete returns an explicit error rather than a guessed clearing mechanism; see `sap-api-references.md` and `guides/custom-tag-configurations.md` |
 | Integration Content | Message Processing Logs | Runtime | Yes | OData V2 | Yes (read-only) | No | No | No | N/A | Unsupported — monitoring data, not infrastructure state (see provider-scope.md §66) |
-| Integration Content | Message Stores / Data Stores | Runtime | Yes | OData V2 | Yes | Partial | Partial | Yes | N/A | Unsupported (v0.1.x) — payload/queue content is operational data, not desired state |
+| Integration Content | Number Range | Design-time (write-only) | Yes (Create, Update confirmed; no GET, no DELETE documented anywhere) | OData V2 | No — confirmed absent, see `sap-api-references.md` | Yes | Yes (PUT; `CurrentValue` omitted unless explicitly requested) | No — confirmed absent; UI shows "Undeploy", not "Delete", with no REST equivalent | N/A (UI-only "Runtimes" field has no API counterpart) | Resource — write-only lifecycle: Read is a documented no-op, Import and Delete both return explicit errors; see `sap-api-references.md` and `guides/runtime-stores-and-number-ranges.md` |
+| Integration Content | Variable | Runtime | Yes (one GET only: `Variables(...)/$value`) | OData V2 | Yes (single item by composite key only; no collection GET, no metadata fields) | No | No | No (unconfirmed; permission template exists but no REST example found) | N/A | Unsupported — no creation API at all; the one confirmed read returns only the raw runtime value with no safer metadata-only alternative, see `provider-scope.md` |
+| Integration Content | Data Store | Runtime | Yes (one GET only: `DataStores?overdueonly=true`) | OData V2 | Yes (aggregate monitoring counts only) | No (implicit runtime container) | No | No | N/A | Unsupported — no independent creation API; the one GET is monitoring data, same class as Message Processing Logs |
+| Integration Content | Data Store Entry | Runtime | Yes (GET only: single entry, all entries for a store) | OData V2 | Yes | No | No | No (design-time flow step only, not a REST call) | N/A | Out of scope — runtime business message data (Status/MessageId/payload-adjacent timestamps), not infrastructure state |
 | Security Content | User Credentials | Design-time | Yes | OData V2 | Yes (metadata only; secret values are never returned) | Yes | Yes, via `PUT` (full redeploy) | Yes | N/A | Resource + Data Source (`write-only` password) |
 | Security Content | OAuth2 Client Credentials | Design-time | Yes | OData V2 | Yes (metadata only) | Yes | Yes, via `PUT` (full redeploy) | Yes | N/A | Resource + Data Source (`write-only` client secret; only name/description/token_service_url/client_id/scope exposed, see `sap-api-references.md`) |
 | Security Content | Keystore Entries (certificates, key pairs) | Design-time | Yes (entity set existence corroborated, exact field casing not confirmed against `$metadata`) | OData V2 | Yes | Yes | Yes | Yes | N/A | Unsupported (v0.1.x) — read-only data source planned once field names are confirmed, see `security-content.md` guide |
