@@ -1219,6 +1219,202 @@ is acceptable.
 - **Feature catalog status**: `partial` — full CRUD is implemented for the confirmed field
   subset, but several UI-documented fields are not yet exposed.
 
+## Remaining Security Content — suitability check
+
+The same 14-question suitability check applied to Number Ranges was walked through for every
+object in this phase before writing any code. Full API evidence is in
+`docs/sap-api-references.md`; this section records the conclusions.
+
+### Keystore Entry — data source only, no resource
+
+1. **Who creates it**: varies by underlying object — a practitioner (Certificate, Key Pair) or
+   SAP itself (SAP-owned entries).
+2. **Configuration vs. runtime state**: configuration, but of fundamentally different object
+   types sharing one entity set.
+3. **Is identity stable**: yes — `Alias` (hex-encoded as the OData key).
+4-7. **Create/Read/Update/Delete public**: Read is confirmed (`GET KeystoreEntries`, both
+   collection and by-alias). No generic Create/Update/Delete exists for "a keystore entry" as
+   such — only for the specific object types beneath it (see Certificate/Key Pair below).
+8. **Can Terraform detect drift reliably**: yes, for the confirmed field subset.
+9-11. **Reconciliation/apply/destroy safety**: not applicable — no resource is proposed here.
+12. **Is import meaningful**: not applicable.
+13. **Does it belong in desired-state infrastructure management**: no, as a single generic
+   entity — it spans certificates, SAP-generated key pairs, and potentially other keyed entries,
+   each with a different lifecycle. Task guidance for this phase was explicit on this point:
+   a generic mutable `sapintegrationsuite_keystore_entry` resource is not preferred, precisely
+   because "that entity represents multiple fundamentally different entry types."
+14. **Resource / Data Source / unsupported / out of scope**: **Data Source only** —
+   `data.sapintegrationsuite_keystore_entry` (single, by alias) and
+   `data.sapintegrationsuite_keystore_entries` (collection, sorted by alias for deterministic
+   output). Confirmed fields: `alias`, `hex_alias` (informational only — never required as
+   input), `key_type`, `key_size`, `valid_not_before`, `valid_not_after`. `subject_dn`/
+   `issuer_dn`/serial number/fingerprint are deliberately not exposed here as raw SAP fields
+   (unconfirmed property names — see `sapintegrationsuite_certificate` below for how this
+   provider derives them safely instead).
+
+### `sapintegrationsuite_certificate`
+
+1. **Who creates it**: a practitioner, explicitly — importing a trusted certificate (for example
+   a partner's or CA's public certificate) into the tenant keystore.
+2. **Configuration vs. runtime state**: pure desired-state configuration — the certificate
+   content itself, not something that changes on its own.
+3. **Is identity stable**: yes — `alias` (SAP's OData key is its hex encoding, computed
+   internally).
+4. **Is Create public**: yes, confirmed (`PUT CertificateResources('<hexalias>')/$value`, which
+   SAP's own documentation explicitly confirms creates a new entity despite the PUT verb).
+5. **Is Read public**: yes, confirmed (`GET KeystoreEntries('<hexalias>')/Certificate/$value` for
+   the certificate bytes; `GET KeystoreEntries('<hexalias>')` for the confirmed metadata subset).
+6. **Is Update public**: yes — the same PUT operation as Create, confirmed as also updating an
+   existing entry at the same alias.
+7. **Is Delete public**: yes, via the shared `KeystoreResources('system')?deleteEntries=true`
+   mass-deletion operation, called with exactly the one alias this resource owns.
+8. **Can Terraform detect drift reliably**: yes, and deliberately not via raw PEM text — see the
+   design note below on fingerprint-based comparison.
+9. **Would Terraform reconciliation be safe**: yes for content; SAP's own server-side protection
+   for SAP-owned entries (see Keystore Entry above) is relied on and surfaced as an error rather
+   than pre-empted, since no API field exists to detect ownership in advance.
+10. **Could `apply` accidentally reset runtime state**: no — a certificate has no separate
+   runtime-mutable state the way Number Ranges' counter does.
+11. **Could `destroy` destroy productive data**: the confirmed Delete mechanism (mass-deletion
+   with one alias) is scoped tightly enough that this resource can only ever destroy the exact
+   alias it owns, never an unrelated one — see the destructive-safety regression test in
+   `resource_certificate_test.go`.
+12. **Is import meaningful**: yes — `terraform import sapintegrationsuite_certificate.x <alias>`
+   populates `certificate` and every derived metadata field from a genuine `GET`.
+13. **Does it belong in desired-state infrastructure management**: yes.
+14. **Resource / Data Source / unsupported / out of scope**: **Resource**, fully implemented.
+
+**Design notes**:
+
+- **certificate is not Sensitive.** Public X.509 certificate content is not confidential — task
+  guidance for this phase was explicit that conflating it with private key material would be a
+  mistake this provider must not make.
+- **Drift detection compares a canonical fingerprint, not raw PEM text.** Two PEM encodings of
+  the identical certificate can differ in line endings, wrapping, or a trailing newline without
+  representing any real change. `Read` parses both the remote certificate and whatever is
+  currently in Terraform state with Go's own `crypto/x509`, and only overwrites the state's own
+  PEM text with SAP's re-serialization when the SHA-256 fingerprint of the certificate's DER
+  bytes actually differs — proven by
+  `TestCertificateResource_Read_PreservesFormattingWhenUnchanged` and
+  `TestCertificateResource_Read_DetectsGenuineDrift`. `certificate_sha256`, `subject_dn`,
+  `issuer_dn`, and `serial_number` are all derived this way, locally, never from a guessed SAP
+  field name (SAP's own `KeystoreEntries` example is truncated before these properties, and its
+  surrounding prose never gives their exact JSON casing).
+- **Delete is destructively scoped.** `DeleteKeystoreEntries` is called with a slice containing
+  exactly `[]string{alias}` — never a caller-assembled list — so this resource's `terraform
+  destroy` can never be constructed in a way that also submits an unrelated alias.
+
+### `sapintegrationsuite_key_pair`
+
+1. **Who creates it**: a practitioner, explicitly, via generation — SAP creates the private key
+   material internally.
+2. **Configuration vs. runtime state**: desired-state generation parameters (algorithm, size,
+   subject DN, validity); the private key itself is neither read nor stored by this provider at
+   all.
+3. **Is identity stable**: yes — `alias`.
+4. **Is Create public**: yes, confirmed field-for-field (`POST KeyPairGenerationRequests`).
+5. **Is Read public**: **partially** — `GET KeystoreEntries('<hexalias>')` confirms `KeyType`/
+   `KeySize`/`ValidNotBefore`/`ValidNotAfter` back; `SignatureAlgorithm`,
+   `KeyAlgorithmParameter`, and every subject DN field are not confirmed returned by any
+   documented GET.
+6. **Is Update public**: no — no update operation is documented for a generated key pair's
+   material.
+7. **Is Delete public**: yes, via the same shared `KeystoreResources` mass-deletion mechanism as
+   Certificate.
+8. **Can Terraform detect drift reliably**: only for the confirmed-readable subset (point 5) —
+   this is the specific, permanent reason this feature is cataloged `partial` rather than
+   `supported`.
+9. **Would Terraform reconciliation be safe**: for the confirmed-readable subset, yes; the rest
+   is trusted from the last successful write rather than guessed at via an unconfirmed GET.
+10. **Could `apply` accidentally reset runtime state**: no in-place update exists at all
+   (everything generation-defining is `RequiresReplace`), so there is no path for an ordinary
+   apply to silently mutate key material.
+11. **Could `destroy` destroy productive data**: same tightly-scoped single-alias mass-delete
+   call as Certificate — never a caller-assembled list.
+12. **Is import meaningful**: partially — `alias` and the confirmed-readable subset populate
+   correctly; `common_name`, `country`, and every other generation-only parameter cannot be
+   reconstructed from an existing tenant key pair (SAP's GET does not return them), and a
+   configuration applied right after import that includes them will plan a replacement rather
+   than silently accept a value this provider could not actually verify, since every such field
+   is `RequiresReplace`.
+13. **Does it belong in desired-state infrastructure management**: yes — the practitioner
+   genuinely defines this object's existence, algorithm, and subject identity, even though the
+   private key itself is intentionally opaque to Terraform.
+14. **Resource / Data Source / unsupported / out of scope**: **Resource**, `partial` support
+   status (reason: `unsafe_terraform_lifecycle`, for the same "cannot fully verify" reason as
+   point 5, not because anything about it is unsafe to use).
+
+**Design notes**:
+
+- **The private key never enters this provider.** No field for it exists on the Go client type,
+   the Terraform schema, or anywhere else in this codebase — not because it is marked sensitive,
+   but because no code path ever requests one from SAP in the first place. Verified by
+   `TestKeyPairResource_SchemaRequiredComputed`'s explicit check that no `private_key*` attribute
+   exists.
+- **`key_size`/`key_algorithm_parameter` cross-validation matches SAP's documented rules
+   exactly**: `key_size` is mandatory for `RSA`/`DSA`; for `EC`, either `key_size` (112-571) or
+   `key_algorithm_parameter` (one of SAP's documented named curves) is required, enforced via
+   `ValidateConfig` rather than a plain schema constraint, since the rule is conditional on
+   `key_type`.
+- **`signature_algorithm` is validated against the exact enum SAP documents per `key_type`** —
+   RSA/DSA/EC each have their own fixed list — with the hyphenated form from SAP's field-table
+   enum treated as authoritative over the un-hyphenated form in SAP's own inline example (see
+   `docs/sap-api-references.md` for the discrepancy).
+- **SSH Key is deliberately not a separate resource.** `public_key_openssh` (Computed,
+   `RequiresReplace`-free since it is purely derived) is populated via the confirmed
+   `GetSSHPublicKey` export whenever `key_type` is `RSA` or `DSA` (SAP documents EC as
+   unsupported for this export); left `null` for an EC key pair rather than surfacing an error.
+
+### SSH Key — folded into Key Pair, no separate resource
+
+Reverified and corrected from the prior "research required" status: SAP's own Security Content
+API overview lists no independent "SSH Key" resource at all, and the "Creating a Key Pair/SSH Key
+Pair" UI documentation uses the identical attribute set for both actions. There is nothing left
+to design separately — see `sapintegrationsuite_key_pair` above.
+
+### Certificate Chain — not implemented, no independent contract found
+
+SAP's own documentation describes certificate chain import/export as a *capability of* the Key
+Pair resource ("create a certificate signing request, or import and export the related
+certificate chain"), not an independently exampled entity. No `CertificateChainResources` entry
+appears in SAP's curated example-requests index for this API family, and no CSR/signing-response
+field contract was found documented anywhere. Per the task guidance for this phase: "Do not
+implement until the exact relationship to a key pair is clear" — that relationship is now
+clearer (subordinate to Key Pair), but the contract itself remains unconfirmed, so nothing is
+implemented. If confirmed later, `sapintegrationsuite_key_pair_certificate_chain` — scoped by
+key-pair alias, matching the confirmed ownership relationship — is the likely name, not a vague
+global `sapintegrationsuite_certificate_chain`.
+
+### Secure Parameter and Known Hosts — both remain unconfirmed or absent
+
+Neither has a confirmed public REST/OData contract — see `docs/sap-api-references.md` for the
+full re-verification trail (Secure Parameter is conceptually listed in SAP's API overview but has
+zero worked examples anywhere; Known Hosts does not appear in that overview at all). Both stay
+unimplemented; Known Hosts is corrected from `research_required` to `no_public_api` given the
+stronger negative signal.
+
+### Whole-keystore management (`KeystoreResources`) — confirmed contract, deliberately out of scope
+
+The full import/backup and mass-deletion contract is now confirmed (see
+`docs/sap-api-references.md`), and the confirmed mass-deletion operation is reused internally —
+with exactly one alias — by both `sapintegrationsuite_certificate` and
+`sapintegrationsuite_key_pair`'s Delete. A `sapintegrationsuite_keystore` resource managing the
+*whole* keystore via `POST KeystoreResources` (base64 JKS/JCEKS import) is deliberately not
+implemented regardless: a single import call can create, update, leave unchanged, or remove many
+entries at once based on the uploaded file's contents, with no way for this provider to know
+whether any given affected entry belongs to a different Terraform module, a different
+administrator, or SAP itself. This is the same category of blast-radius risk this provider
+already refuses for `KeystoreResources`' bulk delete outside the narrow one-alias-only pattern
+Certificate/Key Pair use internally — see `docs/provider-scope.md`.
+
+### History Keystore Entries — confirmed contract, not a mutable resource
+
+`PUT HistoryKeystoreEntries('<hexalias>')?copy=true&destinationAlias=<...>` (restore/copy from
+SAP's key-history keystore) is confirmed, but it is a restore/copy action on SAP-managed
+historical key material, not a generic CRUD entity — and no GET was found documented for it
+either, ruling out even a read-only data source for now. Consistent with the task's explicit
+instruction to treat this as audit/history data, never a mutable Terraform resource.
+
 ## `data.sapintegrationsuite_partner` / `data.sapintegrationsuite_partners`
 
 - **Purpose**: read-only discovery of Partner IDs (Pids). `data.sapintegrationsuite_partner`

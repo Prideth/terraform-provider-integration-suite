@@ -722,19 +722,226 @@ endpoints.
   same Integration Suite "Manage Security" scopes as Access Policies and Keystore
   administration, pending confirmation.
 
-## `security.*` catalog entries not yet implemented
+## `sapintegrationsuite_certificate`, `sapintegrationsuite_key_pair`, and the rest of Security Content
 
-See `docs/guides/security-content.md` for the full list and reasoning (Keystore Entries,
-Certificate, Key Pair, SSH Key, Certificate Chain, Certificate-User Mapping, Secure Parameter,
-Known Hosts, OAuth2 Authorization Code, OAuth2 SAML Bearer Assertion, PGP keyrings). The one
-correction worth calling out here specifically: **Certificate-User Mapping** was previously
-cataloged as `PublicAPI: true` / `not_implemented`. Reverifying it for this feature family found
-that SAP's certificate-to-user mapping documentation ("Managing Certificate-to-User Mappings",
-"Client Certificate Authentication and Certificate-to-User Mapping (Inbound)", "Setting Up
-Inbound HTTP Connections with Certificate-to-User Mapping") exists only under the **Neo**
-environment, with no Cloud Foundry equivalent found anywhere in SAP's published documentation.
-Since this provider targets Cloud Foundry, the catalog entry is corrected to `PublicAPI: false`
-/ `no_public_api`.
+- **SAP product area**: Integration Suite / Cloud Integration — the "Security Content" OData V2
+  API (`https://api.sap.com/api/SecurityContent`), covering `KeystoreEntries`, `Keystores`,
+  `KeystoreResources`, `HistoryKeystoreEntries`, `CertificateResources`,
+  `KeyPairGenerationRequests`, `UserCredentials`, `OAuth2ClientCredentials`, and (conceptually,
+  per SAP's own overview) `SecureParameters` and `CertificateUserMapping`.
+- **Research method**: the same official-mirror technique used throughout this project —
+  `docs/ci/Development/security-content-e01d3f0.md` (the overview/resource table) and
+  `docs/ci/Development/security-content-example-requests-acb89ef.md` (the curated,
+  authoritative index of every worked example SAP documents for this API family — the same
+  pattern that resolved the Number Ranges research: an entity absent from this index has no
+  documented example anywhere, even if it is mentioned conceptually elsewhere).
+
+### Hex alias encoding — confirmed explicitly, not just by example
+
+SAP's Security Content overview page states the rule directly, not merely by example: **"Hex
+representation is used for the `Alias` field... Hex representation of the alias does mean that a
+UTF-8-encoded byte array is built from the alias string. A hex string is then calculated from
+this byte array."** It also explains why: **"the server doesn't allow slashes or backslashes in a
+URI, even if they're percent encoded."** This is the same rule this project had already inferred
+for Partner Directory's `AlternativePartners` (`Hexagency`/`Hexscheme`/`Hexid`) from one example
+request URL alone; Security Content states it as an explicit rule. The shared implementation
+(`internal/client/odata/v2/hexkey.go`, `EncodeUTF8Hex`/`DecodeUTF8Hex`) is asserted against every
+alias SAP's own documentation uses as a worked example across both API families (`smtp.mail.
+yahoo.com`, `mycertificate`, `mykeypair`, `baltimore cybertrust root`, `agency1`), plus Unicode,
+punctuation, semicolon, slash, and backslash cases — see
+`internal/client/odata/v2/hexkey_test.go`.
+
+### Keystore Entries — confirmed read operations, confirmed field gap
+
+- `GET /api/v1/KeystoreEntries` (all entries) and `GET /api/v1/KeystoreEntries('{Hexalias}')`
+  (single entry by alias) are both confirmed with an identical documented example response:
+  `Hexalias`, `Alias`, `KeyType`, `KeySize`, `ValidNotBefore`, `ValidNotAfter`, then a literal
+  `....` truncation in SAP's own source.
+- The overview page's prose separately states a keystore entry also carries "Subject DN and
+  Issuer DN, and administrative information such as the time when the entry was last modified" —
+  confirming those properties *exist*, but never giving their exact JSON property name or
+  casing. This project does not guess at them: `sapintegrationsuite_certificate` derives subject
+  DN, issuer DN, serial number, and a SHA-256 fingerprint locally instead, by parsing the
+  certificate bytes it can already confirmedly retrieve with Go's own `crypto/x509` — see
+  `internal/client/securitycontent/x509meta.go`.
+- `GET /api/v1/KeystoreEntries('{Hexalias}')/Certificate/$value` (Export Certificate): confirmed,
+  response content type `application/pkix-cert`, PEM body.
+- `GET /api/v1/KeystoreEntries('{Hexalias}')/Sshkey/$value` (Export Public Key in OpenSSH
+  Format): confirmed, response is the raw `ssh-rsa AAAA... <comment>` line. SAP documents this as
+  supported only for RSA- and DSA-keyed entries ("Other algorithms, for example elliptic curve
+  (EC), aren't supported").
+- `PUT /api/v1/KeystoreEntries('{Hexalias}')?renameAlias=<new>` (Rename the Alias of a Keystore
+  Entry): confirmed to exist, but deliberately not used by this provider — `alias` is
+  `RequiresReplace` on both `sapintegrationsuite_certificate` and `sapintegrationsuite_key_pair`
+  instead, keeping lifecycle behavior predictable, matching this provider's established
+  precedent (`sapintegrationsuite_number_range`'s `name`). SAP's documentation for this operation
+  states "The request body must contain a property of the `KeystoreEntry` entity type with a
+  null value. Otherwise, you get an exception" — an unusual enough contract on its own to avoid
+  relying on until there is a concrete reason to.
+- **No field distinguishes SAP-owned from tenant-administrator-owned entries.** The overview page
+  states in prose that "a keystore typically contains entries that belong to the tenant
+  administrator and entries that are owned by SAP," but no property name for this distinction
+  appears anywhere. This provider does not invent a heuristic (for example matching alias name
+  patterns) to detect ownership in advance; instead, `sapintegrationsuite_certificate` and
+  `sapintegrationsuite_key_pair` rely on and surface whatever error SAP's own server-side
+  protection returns when an Update or Delete is actually attempted against a protected alias —
+  the only mechanism this provider can trust for a fact SAP does not expose as data.
+
+### Certificate — confirmed Create/Update, confirmed Delete via the shared keystore mass-delete
+
+- `PUT /api/v1/CertificateResources('{Hexalias}')/$value` (Import and Update Certificate):
+  confirmed for both create and update — SAP's own documentation flags the quirk explicitly:
+  **"Although an HTTP PUT method is used, a new OData entity is created with the sample
+  request."** SAP's documented example request body is enclosed in literal square brackets,
+  `[-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----]`; no other example anywhere in
+  either API family this project reviewed uses that convention for an inline value example, so
+  this is treated as documentation formatting, not literal bytes to send — this client's
+  `PutCertificate` sends the caller's PEM content exactly as given, with no bracket wrapping.
+  This project could not independently confirm the request `Content-Type`; the documented GET
+  response's `application/pkix-cert` is reused for the PUT as well, on the assumption that a
+  `$value` endpoint's read and write representations are ordinarily the same media type — not an
+  independently confirmed fact, flagged in code (`certificate.go`).
+- No per-entity `DELETE` is documented for `CertificateResources` or `KeystoreEntries`. Delete
+  uses the same confirmed `KeystoreResources('system')?deleteEntries=true` mass-deletion
+  operation described below, with exactly the one alias the resource owns.
+
+### Key Pair — confirmed generation, confirmed field table, confirmed absence of Update/GET-by-request
+
+- `POST /api/v1/KeyPairGenerationRequests` (Generate a Key Pair): every field's
+  mandatory/optional status, type, and default is confirmed verbatim from SAP's own "Input
+  Properties" table — `Hexalias` (mandatory but "any dummy hex value," recalculated by SAP from
+  `Alias`), `Alias`, `KeyType` (enum `RSA`/`DSA`/`EC`, default `RSA`), `SignatureAlgorithm`
+  (enum depends on `KeyType`, default `SHA-512/RSA`), `KeySize` (mandatory for `RSA`/`DSA`,
+  default 4096; for `EC`, 112-571 or use `KeyAlgorithmParameter` instead),
+  `KeyAlgorithmParameter` (named EC curve, `EC` only), `CommonName` (mandatory), `Country`
+  (mandatory, "two characters required"), `OrganizationUnit`/`Organization`/`Locality`/`State`/
+  `Email` (all optional), `ValidNotBefore`/`ValidNotAfter` (optional, OData V2 JSON date literal
+  wire format `/Date(<millis>)/`, confirmed directly from SAP's own worked example
+  `"ValidNotBefore":"/Date(1469685029780)/"` — see `internal/client/odata/v2/date.go`).
+  This provider's client always sends a fixed dummy `Hexalias` ("00"), matching SAP's own
+  documented statement that the value is ignored and recalculated.
+- **A documentation inconsistency worth flagging**: SAP's own worked request example writes
+  `"SignatureAlgorithm":"SHA256/RSA"` (no hyphen), while the same page's field-table enum for the
+  identical value is `"SHA-256/RSA"` (with a hyphen, matching every other enum value on the same
+  table, including the default `"SHA-512/RSA"`). This client always sends the hyphenated form
+  from the enum table and validates against it, treating the un-hyphenated inline example as a
+  documentation artifact — the same category of quirk as Custom Tag Configuration's
+  "Mr. Bean, Ms. Bean" comma-separated array example.
+- **No GET is documented for `KeyPairGenerationRequests` or a distinct `KeyPairResources`
+  entity** — the generation request is a one-shot command, not a persistent object with its own
+  read-back. The persistent representation is the resulting `KeystoreEntries` entry, read via the
+  same confirmed `GET KeystoreEntries('{Hexalias}')` used for Certificate — but that GET only
+  confirms `KeyType`/`KeySize`/`ValidNotBefore`/`ValidNotAfter` back; `SignatureAlgorithm`,
+  `KeyAlgorithmParameter`, and every subject DN field (`CommonName`, `Country`, etc.) are **not**
+  confirmed returned by any documented GET. `sapintegrationsuite_key_pair` reads back and
+  refreshes only the confirmed subset on every plan; the rest is trusted from the last successful
+  write, never re-verified, which is why this feature is cataloged `partial` rather than
+  `supported`.
+- **No update operation is documented** for a generated key pair's material — every attribute
+  that defines it is `RequiresReplace`.
+- Delete uses the same confirmed `KeystoreResources('system')?deleteEntries=true` mass-deletion
+  operation, exactly one alias.
+
+### SSH Key — reverified and corrected: no separate resource exists
+
+SAP's Security Content API overview's own Resources table lists **no independent "SSH Key"
+entry** — only Certificate, Key Pair, Keystore Entry, Keystore, Keystore History, User
+Credentials, Secure Parameter, OAuth2 Client Credentials, Certificate-to-User-Mapping (Neo), and
+Access Policies/Artifact References. The Operations-guide page
+`docs/ci/Operations/creating-a-key-pair-ssh-key-pair-b8a8601.md` ("Creating a Key Pair/SSH Key
+Pair") confirms why: its UI dialog is literally the same field set for both — "In the *Current*
+tab, choose *Create* > *Key Pair* or *Create* > *SSH Key* depending upon your requirement," with
+one shared attribute table (Alias, Key Type, Key Size, Signature Algorithm, the subject DN
+fields, validity dates). No separate `SSHKeyGenerationRequests` field contract (mandatory/
+optional status, types, example body) was found documented anywhere in either the Development or
+Operations documentation tree. Given this, `sapintegrationsuite_key_pair` covers the SSH use case
+directly: an RSA or DSA key pair's public key is exposed as `public_key_openssh` via the
+confirmed `GetSSHPublicKey` export, with no separate resource. One inconsistency worth noting:
+the "Creating a Key Pair/SSH Key Pair" UI dialog lists Key Type options as RSA/EC ("DSA (only for
+key pair)"), while the SSH-export documentation says RSA and DSA are supported and EC is not —
+these two SAP-authored pages do not fully agree with each other; this provider follows the
+export endpoint's own documented restriction (RSA/DSA) for `public_key_openssh` population.
+
+### Certificate Chain — reverified: folded into Key Pair, no independent contract found
+
+The overview page's Key Pair resource description states the API can be used to **"create a
+certificate signing request, or import and export the related certificate chain"** — Certificate
+Chain is documented as a *capability of* Key Pair, not an independently exampled resource. No
+`CertificateChainResources` entry appears in the curated example-requests index, and no CSR/
+signing-response field contract was found documented in either the Development or Operations
+tree. Not implemented this phase; see `docs/resource-design.md` for the suitability conclusion
+and the likely eventual naming (`sapintegrationsuite_key_pair_certificate_chain`) if a concrete
+contract is later confirmed.
+
+### Secure Parameter and Known Hosts — reverified, both remain without a confirmed contract
+
+- **Secure Parameter**: the overview page's Resources table does list "Secure Parameter"
+  conceptually, alongside User Credentials/OAuth2 Client Credentials (which do have confirmed
+  full contracts). But the curated example-requests index — the same authoritative page that
+  correctly enumerated every other confirmed Security Content operation — lists **zero** example
+  requests for it, and its own "Deploying a Secure Parameter Artifact" documentation page
+  describes only the Eclipse/Node-Explorer design-time deployment wizard ("In the Node Explorer
+  you have selected a tenant, in the context menu you have selected *Deploy Artifacts*..."), not
+  a REST contract. This, combined with prior third-party evidence of an OData error resolving a
+  `SecureParameters` entity set, keeps this feature unconfirmed rather than implemented.
+- **Known Hosts**: does not appear in the overview page's Resources table at all — a stronger
+  negative signal than Secure Parameter's conceptual-but-unexampled listing. Its own "Deploying
+  an SSH Known Hosts Artifact" documentation describes only the Manage Security Material UI
+  (*Create* > *Known Hosts (SSH)*, *Browse*/*Add*/*Deploy*), with no REST endpoint mentioned
+  anywhere. Corrected from `research_required` to `no_public_api`.
+
+### Certificate-User Mapping — unchanged from prior research: Neo-only, no Cloud Foundry equivalent
+
+Reconfirmed during this pass: SAP's certificate-to-user mapping documentation ("Managing
+Certificate-to-User Mappings", "Client Certificate Authentication and Certificate-to-User
+Mapping (Inbound)", "Setting Up Inbound HTTP Connections with Certificate-to-User Mapping")
+exists only under the **Neo** environment, with no Cloud Foundry equivalent found anywhere in
+SAP's published documentation. Since this provider targets Cloud Foundry, this stays
+`PublicAPI: false` / `no_public_api`.
+
+### Required role
+
+SAP's Security Content overview page documents the Cloud Foundry role template
+`MonitoringDataRead` as required to access this OData API — the same role already documented for
+the Message Stores API family. This provider does not manage that role or role collection.
+
+### Whole-keystore operations — reverified, confirmed high-risk, deliberately not implemented
+
+- `POST /api/v1/KeystoreResources` (Import/Back up a Keystore): confirmed contract — `Name`
+  (fixed value `"system"`, SAP's documentation states "Currently, only `system` is allowed (SAP
+  supports only one keystore)"), `Resource` (base64-encoded JKS/JCEKS keystore file),
+  `password` (the keystore/private-key password — SAP documents "All private keys must have the
+  same password"). Confirms the exact blast-radius risk this provider's `provider-scope.md` and
+  `ROADMAP.md` already flag: a single call can create, update, leave unchanged, or remove many
+  keystore entries at once, based on the imported file's contents — entries this provider has no
+  way to know are or are not owned by a different Terraform module or administrator. Deliberately
+  not implemented, independent of how well the contract is now understood.
+- `PUT /api/v1/KeystoreResources('system')?deleteEntries=true` (Trigger Mass Deletion of
+  Keystore Entries): confirmed contract, and the operation `sapintegrationsuite_certificate` and
+  `sapintegrationsuite_key_pair` both use for Delete — see
+  `internal/client/securitycontent/keystore.go`. Body: `{"Aliases":"alias1;alias2;alias3"}`,
+  **plain alias text, not hex-encoded** (unlike `KeystoreEntries`' own key predicate). SAP
+  documents exact escaping rules with two worked examples: a literal `;` in an alias becomes
+  `\;`, and a literal `\` becomes `\\`. This project's own inference (confirmed by reproducing
+  both worked examples byte-for-byte in
+  `internal/client/securitycontent/keystore_test.go`) is that backslashes must be escaped
+  *before* semicolons — escaping in the other order would re-escape the backslash this operation
+  itself inserts for a semicolon, corrupting the result; SAP's documentation states both
+  individual rules but does not spell out their combined order. Both
+  `sapintegrationsuite_certificate` and `sapintegrationsuite_key_pair` call this with exactly the
+  one alias they own — never a caller-supplied list — so a Terraform destroy of one resource can
+  never be constructed in a way that also submits an unrelated alias.
+- `PUT /api/v1/HistoryKeystoreEntries('{Hexalias}')?copy=true&destinationAlias=<...>` (Restore an
+  Entry from the SAP Key History Keystore): confirmed contract, a restore/copy operation on
+  SAP-managed historical key material, not a generic CRUD entity — no GET was found documented
+  for `HistoryKeystoreEntries` either, so even a read-only data source is not implemented.
+  Consistent with this provider's stance that history/audit data should never become a mutable
+  Terraform resource.
+- `GET /api/v1/Keystores('system')?$expand=Entries&$select=LastModifiedTime,Entries` (Get
+  Keystore Properties and Entries): confirmed, but not separately implemented as a data source —
+  it returns the same entry list `data.sapintegrationsuite_keystore_entries` already exposes,
+  plus a keystore-level `LastModifiedTime` this project judged not worth a second, overlapping
+  data source for.
 
 ## Partner Directory API
 
