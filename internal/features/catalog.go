@@ -1162,7 +1162,107 @@ var Catalog = []Feature{
 		SupportReason: ReasonNoPublicAPI,
 		PublicAPI:     false,
 		Limitations: []string{
-			"Registration is a guided UI plus Helm-based bootstrap process; no public capability-activation or registration API was found.",
+			"Reconfirmed: an Edge Node is added and removed exclusively through the Edge Lifecycle " +
+				"Management (ELM) UI, and onboarding is completed by running the standalone Edge " +
+				"Lifecycle Management Bridge executable against the target Kubernetes cluster's " +
+				"kubeconfig — a local CLI/Kubernetes handshake, not an HTTP API this provider could call. " +
+				"No public registration, runtime-association, or deregistration API was found.",
+		},
+	},
+	{
+		Key:    "edge_integration_cell.local_api",
+		Domain: "edge_integration_cell",
+		Name:   "Edge Integration Cell Local API Access",
+		Description: "SAP's public /local/api/v1 and /local/api/eic/v1 REST endpoints, reachable directly " +
+			"against a running Edge Integration Cell node without going through the cloud UI: Message " +
+			"Processing Logs, Message Stores/JMS, DataStores/Variables (OData V2), and the Operations " +
+			"Cockpit's Component/Job/RuntimeParameter resources (OData V4).",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonOutOfScope,
+		PublicAPI:     true,
+		APIProtocol:   "OData V2 (Message Processing Logs, Message Stores) / OData V4 (Operations Cockpit)",
+		Limitations: []string{
+			"Confirmed reachable and documented (SAP Business Accelerator Hub packages " +
+				"sap-int-eic-eic-operations, sap-int-eic-message-processing-logs-v1, " +
+				"sap-int-eic-message-store-v1), authenticated with the same certificate or " +
+				"clientId/clientsecret mechanisms as the rest of this provider, and CSRF-token gated for " +
+				"modifying calls — but every entity behind it is monitoring/operational runtime data " +
+				"(message processing records, message store/JMS contents, data store/variable values), " +
+				"the same category this provider already excludes for Cloud Integration's own " +
+				"MessageProcessingLogs/DataStores/Variables. See edge_integration_cell.runtime for the " +
+				"separate Operations Cockpit control-plane objects reachable through this same /local " +
+				"prefix.",
+		},
+	},
+	{
+		Key:    "edge_integration_cell.runtime",
+		Domain: "edge_integration_cell",
+		Name:   "Edge Integration Cell Runtime Operations",
+		Description: "The Operations Cockpit API's Component, Pod, RuntimeParameter, and Job/JobSchedule " +
+			"entities: per-component status, pod resource limits/replica counts, log levels, and " +
+			"scheduled-job configuration for an Edge Integration Cell's own SAP-operator-managed pods.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonOutOfScope,
+		PublicAPI:     true,
+		APIProtocol:   "OData V4",
+		Limitations: []string{
+			"Confirmed reachable at /local/api/eic/v1 (also documented on SAP Business Accelerator Hub " +
+				"as the Edge Integration Cell package's OData V4 API), and RuntimeParameter is explicitly " +
+				"described as changeable (\"Save to run the changes in the back end\") — a genuinely " +
+				"writable-looking configuration object, not read-only monitoring data.",
+			"Every RuntimeParameter documented (LOG_LEVEL, MIN_REPLICAS, MAX_REPLICAS, CPU_LIMIT, " +
+				"MEMORY_LIMIT, EPHEMERAL_STORAGE_LIMIT) configures Kubernetes-level pod resource requests, " +
+				"replica counts, or log verbosity for SAP-operator-managed components — the same category " +
+				"of concern docs/provider-scope.md already excludes as Kubernetes/Helm infrastructure, " +
+				"just fronted by an EIC-specific API instead of the raw Kubernetes API.",
+			"The API's own documentation states the Component resource lets a caller \"restart " +
+				"components\" — an imperative runtime operation this provider's standing policy refuses " +
+				"to model as a Terraform resource (see the retry/restart/cancel/purge rule this provider " +
+				"already applies elsewhere).",
+			"The exact entity keys and PATCH/POST payload shapes for RuntimeParameter and JobSchedule are " +
+				"not confirmed from a reachable primary source: the package's $metadata/EDMX and worked " +
+				"examples live behind SAP Business Accelerator Hub's authenticated catalog pages, which " +
+				"redirect unauthenticated requests to a login page, the same access limitation this " +
+				"project has documented repeatedly for other api.sap.com packages.",
+		},
+	},
+	{
+		Key:    "edge_integration_cell.deployment_target",
+		Domain: "edge_integration_cell",
+		Name:   "Edge Integration Cell Deployment Targeting",
+		Description: "Selecting which Edge Integration Cell node (as opposed to Cloud Integration or " +
+			"Integration Cell) a design-time artifact deploys to.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonNoPublicAPI,
+		PublicAPI:     false,
+		Limitations: []string{
+			"SAP's Operations UI documents a \"Runtimes\" field (\"one or more runtime nodes to deploy " +
+				"the artifact to, including Cloud Integration and any active Edge Integration Cell " +
+				"nodes\") on Number Ranges specifically, but neither of its two documented API examples " +
+				"(Add, Update) shows a runtime/location parameter — see docs/sap-api-references.md. " +
+				"The same gap holds for every confirmed Deploy action this provider already calls " +
+				"(IntegrationDesigntimeArtifacts, MessageMappingDesigntimeArtifacts, " +
+				"ScriptCollectionDesigntimeArtifacts, ValueMappingDesigntimeArtifacts): none documents a " +
+				"runtime-location/node-ID parameter, so this provider always targets the implicit default " +
+				"runtime and never guesses at an undocumented one.",
+		},
+	},
+	{
+		Key:    "edge_integration_cell.access_policy_replication",
+		Domain: "edge_integration_cell",
+		Name:   "Edge Integration Cell Access Policy Replication",
+		Description: "Selecting which runtimes (Integration Cell, specific Edge Integration Cell nodes) " +
+			"an Access Policy replicates to.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonNoPublicAPI,
+		PublicAPI:     false,
+		Limitations: []string{
+			"SAP's Access Policies UI documents selecting \"the runtimes where you want to create the " +
+				"new access policy\" and later editing that runtime selection, but the confirmed " +
+				"AccessPolicies OData entity this provider already manages " +
+				"(sapintegrationsuite_access_policy) exposes no writable runtime/location field anywhere " +
+				"— only a computed ReconciliationStatus reporting replication state after the fact. No " +
+				"public write path was found for the runtime-selection step itself.",
 		},
 	},
 
