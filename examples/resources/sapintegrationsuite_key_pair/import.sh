@@ -1,0 +1,1 @@
+terraform import sapintegrationsuite_key_pair.client_auth client-auth-key
