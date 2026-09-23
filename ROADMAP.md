@@ -15,26 +15,25 @@ matrix.
 
 Development branches from `dev`, in this order, until superseded by an explicit reprioritization:
 
-1. **Remaining Security Content material** — **Current.** Keystore entries (read-only
-   discovery), certificates, SAP-generated key pairs, SSH keys, and certificate chains, plus a
-   fresh public-API check for Secure Parameters and Known Hosts — see
-   `docs/guides/security-content.md`. Whole-keystore management (`KeystoreResources`) stays
-   explicitly out of scope regardless of what this phase confirms: its blast radius (overwriting
-   or deleting entries owned by other Terraform modules or administrators) is incompatible with
-   granular Terraform ownership.
-2. **Classic API Management** — Planned, after Cloud Integration core support is mature.
-3. **New API Gateway / API Artifacts** — Blocked by API: existence confirmed via UI/feature
-   documentation, but no public design-time API confirmed in enough detail for a stable
-   schema. API Artifacts, API Artifact Deployment, API Policies, Runtime Profiles.
-4. **Integration Cell** — Blocked by API for SAP-side lifecycle/configuration; no public
-   activation or status API found yet. Access policy replication/reconciliation to Integration
-   Cell is a documented Integration Suite UI capability, but no public API surface for it was
-   confirmed during the access-policy completion pass — see
-   `docs/sap-api-references.md`.
-5. **Edge Integration Cell** — Blocked by API for SAP control-plane/runtime-specific
-   configuration; never a Kubernetes/Helm replacement. Same access-policy-replication caveat
-   as Integration Cell above.
-6. **Additional Integration Suite capabilities** — Research required: Integration Advisor,
+1. **Current API Management / API Artifacts / Integration Cell** — **Current.** SAP's current
+   API-centric integration model (API Artifacts, Runtime Profiles, Integration Cell, Virtual
+   Hosts, Policies, Reusable API Artifacts) — a distinct product model from Classic API
+   Management (API Providers/Proxies/Products), never mixed in this provider's terminology or
+   code. See `docs/guides/current-api-management.md` for the full public-API-boundary research
+   and every resulting Terraform decision.
+2. **Additional current API Management subfeatures** — whatever this phase's research
+   identifies as publicly automatable but out of scope for the first pass (for example Edge
+   Integration Cell-specific Virtual Host/deployment behavior, or a confirmed Policy API found
+   too late to implement this phase).
+3. **Classic API Management** — Planned, explicitly *after* the current API Artifact model,
+   reflecting where SAP's own product direction now sits. Moved behind current API Management
+   deliberately; still a real, tracked priority, not dropped.
+4. **Edge Integration Cell** — Blocked by API for SAP control-plane/runtime-specific
+   configuration; never a Kubernetes/Helm replacement. Deliberately deferred from this phase even
+   though it shares infrastructure with Integration Cell (Virtual Hosts, Runtime Profiles) — see
+   `docs/guides/current-api-management.md` for what, if anything, this phase found reusable for
+   it later.
+5. **Additional Integration Suite capabilities** — Research required: Integration Advisor,
    Trading Partner Management, Integration Assessment, Migration Assessment, and others, only
    where public APIs justify Terraform management.
 
@@ -43,9 +42,10 @@ runtime reconciliation research, minimal-PATCH update, data sources, import/drif
 see "Implemented" below and `docs/guides/access-policies.md`. Partner Directory is also done —
 see "Implemented" below and `docs/guides/partner-directory.md`. Cloud Integration Service
 Endpoints discovery is also done — see "Implemented" below and `docs/guides/service-endpoints.md`.
-Security Content (User Credentials and OAuth2 Client Credentials), custom Integration Adapter
-design-time/deployment support, and Custom Tag Configuration management are also done, each at a
-`partial` support level — see "Implemented" below, `docs/guides/security-content.md`,
+Security Content (User Credentials, OAuth2 Client Credentials, Keystore Entry discovery,
+Certificates, and SAP-generated Key Pairs), custom Integration Adapter design-time/deployment
+support, and Custom Tag Configuration management are also done, each at a `partial` or better
+support level — see "Implemented" below, `docs/guides/security-content.md`,
 `docs/guides/integration-adapters.md`, and `docs/guides/custom-tag-configurations.md`. Number
 Ranges / Variables / Data Stores is also done — a narrow write-only-lifecycle Number Range
 resource (SAP documents no `GET`/`DELETE` for it at all), with Variables, Data Stores, and Data
@@ -108,6 +108,15 @@ already shipped (see "Implemented" below).
   - `data.sapintegrationsuite_user_credential`
   - `sapintegrationsuite_oauth2_client_credential`
   - `data.sapintegrationsuite_oauth2_client_credential`
+- Security Content keystore management (read-only entry discovery, X.509 certificates, and
+  SAP-generated key pairs — private key material never enters this provider; certificate drift
+  detection uses a locally-computed SHA-256 fingerprint, not raw PEM text; no separate "SSH Key"
+  resource, since SAP's own documentation treats it as the same Key Pair mechanism — see
+  `docs/guides/security-content.md`):
+  - `data.sapintegrationsuite_keystore_entry`
+  - `data.sapintegrationsuite_keystore_entries`
+  - `sapintegrationsuite_certificate`
+  - `sapintegrationsuite_key_pair`
 - Cloud Integration Service Endpoints discovery (read-only by design — SAP generates these from
   deployed content, so there is no matching resource; combined `EntryPoints`/`ApiDefinitions`
   expansion, `name`/`protocol` filters, full server-driven pagination, deterministic ordering —
@@ -157,25 +166,25 @@ already shipped (see "Implemented" below).
 - Message mapping entry-level or dependent-resource management, if SAP ever exposes one
   independent of the opaque content archive this provider already transports (**Research
   required**)
-- Remaining Security Content material (keystore entries, certificates, key pairs, SSH keys,
-  certificate chains, Secure Parameters, Known Hosts) (**Current**, priority 1 above)
-- Classic API Management resources, once the required scopes and object model are fully
-  mapped (**Planned**, priority 2 above)
-- New API Gateway / API Artifact model, once its public API surface is confirmed in enough
-  detail for a stable schema (**Blocked by API**, priority 3 above):
+- Current API Management / API Artifacts / Integration Cell (**Current**, priority 1 above) — see
+  `docs/guides/current-api-management.md` for the confirmed public-API boundary and exactly which
+  of the following are implemented, read-only, or blocked by a missing public API:
   - `sapintegrationsuite_api_artifact`
   - `sapintegrationsuite_api_artifact_deployment`
-- API Policies, if a typed, stable policy schema is achievable (**Blocked by API**)
-- Integration Cell: read/status resources, if SAP publishes a public status API (activation
-  itself stays a manual bootstrap step until SAP publishes one) (**Blocked by API**)
+  - `data.sapintegrationsuite_runtime_profile(s)`
+  - `data.sapintegrationsuite_integration_cell`
+  - `sapintegrationsuite_integration_cell_virtual_host`
+- Classic API Management resources, once the required scopes and object model are fully
+  mapped (**Planned**, priority 3 above — explicitly behind current API Management, reflecting
+  SAP's own current product direction)
 
 ## v0.3.x
 
 - Edge Integration Cell control-plane configuration (registration, runtime association),
   strictly scoped to SAP-specific concerns — never a Kubernetes/Helm replacement (**Blocked by
-  API**)
+  API**, priority 4 above)
 - Additional Integration Suite capabilities, as their public APIs are confirmed (**Research
-  required**)
+  required**, priority 5 above)
 
 ## Later
 

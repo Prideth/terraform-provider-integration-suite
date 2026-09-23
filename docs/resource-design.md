@@ -1415,6 +1415,108 @@ historical key material, not a generic CRUD entity — and no GET was found docu
 either, ruling out even a read-only data source for now. Consistent with the task's explicit
 instruction to treat this as audit/history data, never a mutable Terraform resource.
 
+## Current API Management / API Artifacts / Integration Cell — suitability check
+
+Before any implementation, this phase's research question was narrower than usual: not "is this
+object Terraform-suitable" but "does a public API for it exist at all." The full evidence trail
+is in `docs/sap-api-references.md`; this section records why every object in this family ends
+up `unsupported`/`no_public_api`, walked through the same 14-question format used elsewhere in
+this document where a question is answerable at all.
+
+### API Artifact — no resource, no data source
+
+1. **Who creates it**: a practitioner, via *Design* > *Integrations and APIs* in the SAP
+   Integration Suite UI.
+2. **Configuration vs. runtime state**: both exist conceptually (design-time definition,
+   runtime deployment) — moot, since neither is reachable through a public API.
+3–7. **Identity / Create / Read / Update / Delete public**: **no** for all five. The
+   authoritative, exhaustive Integration Content API resource table — the same page this
+   provider already relies on for `IntegrationDesigntimeArtifacts` and every sibling entity —
+   does not list API Artifacts at all. No other page anywhere in the `ISuite_Integrations_APIs`
+   documentation tree mentions an OData/REST endpoint, entity set, HTTP method, or SAP Business
+   Accelerator Hub link for this object, despite every stage of its lifecycle (create by four
+   different methods, configure, version, access-manage, delete, deploy, monitor) being
+   documented in detail through the UI.
+8–13. Moot — there is no API to detect drift against, reconcile through, or import from.
+14. **Resource / Data Source / unsupported / out of scope**: **unsupported, `no_public_api`** —
+   this is Outcome C from this phase's own research framework ("UI supports API Artifacts but
+   SAP exposes no public design-time API yet"), reached only after exhaustively checking for
+   Outcomes A (reuse of `IntegrationDesigntimeArtifacts`) and B (a separate REST API) first, not
+   assumed from the start.
+
+### API Artifact Deployment — no resource
+
+Same conclusion as API Artifact, for the same reason: no deployment or undeploy operation is
+documented anywhere outside the UI's *Deploy*/*Undeploy* actions. The confirmed prose about
+runtime-profile immutability and the design-time/deployment-time virtual host split (see
+`docs/sap-api-references.md` for both quoted verbatim) describes real, useful-to-document
+behavior — but describes a UI workflow, not an API contract this provider could build a
+declarative deployment resource against.
+
+### API Policy — no resource
+
+Not reached as an independent question: without a confirmed API Artifact API in the first place,
+there is nothing to attach a policy resource to, and no separate `Policies` entity or
+document-level contract was found either. Per the task framework for this phase (§32): whether
+policies are nested/opaque artifact content or independent entities could not even be
+determined, since neither representation is exposed publicly.
+
+### Reusable API Artifact — no resource, folded conceptually into API Artifact
+
+SAP's own documentation ("not accessible via HTTP endpoint," "invoked... via the API Direct
+adapter," "cannot recursively call other reusable APIs," "a unique base path") describes this as
+a variant of the same API Artifact concept, not a materially different object — consistent with
+this provider's default assumption. Moot regardless: no API exists for API Artifacts of any
+kind.
+
+### Runtime Profile — no data source
+
+1. **Who creates it**: SAP; the profile list (Cloud Integration, Cloud Integration – Starter,
+   SAP Process Orchestration per release, Edge Integration Cell — notably *not* including a
+   distinct "Integration Cell" row, an inconsistency in SAP's own documentation this project
+   does not resolve) is fixed platform metadata, not tenant-created content.
+2. **Is Read public**: no — configured and displayed only under *Settings* > *Integrations*, no
+   API mentioned anywhere.
+14. **Resource / Data Source / unsupported / out of scope**: **unsupported, `no_public_api`**.
+   Even setting the missing API aside, this project judges the profile list a weak data-source
+   candidate on its own merits: it is small, stable, effectively enum-like data better served by
+   documentation than a live API call, the same reasoning already applied to Number Ranges'
+   signature-algorithm/key-type enums in the Security Content phase.
+
+### Integration Cell Runtime — manual bootstrap, no resource, no data source
+
+Reconfirms the existing `capabilities.integration_cell` catalog entry without change: activation
+is a `Settings` > `Runtime` UI step (`activate-integration-cell-1a627da.md`, confirmed), and
+runtime status/content is visible only through `Monitor` > `Integrations and APIs`. No API for
+either activation or status was found. This provider does not, and given the evidence available
+today cannot, manage Integration Cell activation or expose its runtime status — Terraform's role
+here begins only once content can be deployed *to* an already-active Integration Cell through a
+confirmed public API, which does not yet exist either.
+
+### Integration Cell Virtual Host — no resource, no data source
+
+1. **Who creates it**: a practitioner with the `PI_Administrator` role collection, through
+   *Monitor* > *Manage Virtual Host*.
+2–13. Moot — no Create/Read/Update/Delete API was found documented anywhere for this entity,
+   despite dedicated "Configuring Additional Virtual Host," "View and Edit Virtual Host," and
+   "Delete an Eligible Virtual Host" UI-procedure pages existing for it.
+14. **Resource / Data Source / unsupported / out of scope**: **unsupported, `no_public_api`**.
+   Per this phase's own guidance, even if a future API surfaces, the default virtual host would
+   need read-only/data-source treatment rather than an ordinary mutable resource, since SAP
+   documents it as having special, restricted editability compared to an administrator-created
+   additional virtual host — a design note for whenever this becomes possible, not something
+   this provider can act on today.
+
+### What this means for the roadmap
+
+Every object this phase set out to evaluate ends up in the same place: real, UI-documented SAP
+functionality with no public API this provider found evidence of, after a genuinely thorough
+search (over twenty pages read in full, covering every lifecycle stage of every object, plus an
+explicit resource-table cross-check against the existing Integration Content API). This is not a
+gap in this project's research effort; it is the accurate current state of SAP's public API
+surface for this product area. See `docs/guides/current-api-management.md` for how this is
+explained to practitioners, and `ROADMAP.md` for how the priority list responds to it.
+
 ## `data.sapintegrationsuite_partner` / `data.sapintegrationsuite_partners`
 
 - **Purpose**: read-only discovery of Partner IDs (Pids). `data.sapintegrationsuite_partner`
