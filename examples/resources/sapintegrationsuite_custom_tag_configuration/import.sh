@@ -1,0 +1,1 @@
+terraform import sapintegrationsuite_custom_tag_configuration.governance CustomTags
