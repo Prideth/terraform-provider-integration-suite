@@ -1651,6 +1651,40 @@ artifact ZIP content is already treated), policies would be managed as part of
 `sapintegrationsuite_api_proxy`'s own content once that resource exists, never as a separate
 `sapintegrationsuite_api_proxy_policy` resource reproducing SAP's policy schema catalog.
 
+## Integration Advisor — suitability check
+
+Same research question as Trading Partner Management (does a public API exist), same negative-
+evidence method, same answer.
+
+### Message Implementation Guideline, Mapping Guideline, Type System, Codelist, Shared Code,
+### Global Parameters — no resource, no data source
+
+1. **Who creates it**: a practitioner, within Integration Advisor's own workspace.
+2. **Configuration vs. runtime state**: configuration — design-time content, a legitimate
+   Terraform candidate in principle.
+3–13. Moot — no Create/Read/Update/Delete API found documented anywhere, despite create, update,
+   version, migrate, simulate, and delete all being thoroughly documented as UI procedures for
+   most of these object types.
+14. **Resource / Data Source / unsupported / out of scope**: **unsupported, `no_public_api`**.
+   One research pitfall specifically avoided here: a page describing OAuth credential creation
+   for this capability's documentation area turned out, on full reading, to describe
+   authenticating against Cloud Integration for artifact injection, not a credential for these
+   objects themselves — recorded in `docs/sap-api-references.md` as a caution for future
+   research passes in this codebase, not just this one.
+
+### Runtime artifact injection into Cloud Integration — out of scope regardless
+
+1. **Who triggers it**: a practitioner, choosing *Inject* on a Mapping Guideline.
+2. **Configuration vs. imperative action**: confirmed imperative — a UI wizard that pushes
+   generated artifacts into a chosen integration flow's resources, right now, not a state
+   Terraform's plan/apply model reconciles.
+14. **Resource / Data Source / unsupported / out of scope**: **unsupported, `out_of_scope`** —
+   this provider already manages Cloud Integration flow content directly
+   (`sapintegrationsuite_integration_flow`); wrapping the injection *trigger* itself as a
+   resource would model a one-shot action, not desired state, the same reasoning this provider
+   already applies to Trading Partner Management's Partner Directory generation and Developer
+   Hub's Subscription approval workflow.
+
 ## Trading Partner Management — suitability check
 
 This phase's research question was, again, whether a public API exists at all — and unlike

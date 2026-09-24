@@ -1203,6 +1203,33 @@ budget was directed at the desired-state-configuration candidates above instead.
   `UserCredentialParameters` is treated as a credential store, and even that is modeled
   conservatively — see the write-only `password_wo` design in `docs/resource-design.md`.
 
+## Integration Advisor
+
+- **SAP product area**: Integration Suite / Integration Advisor (B2B interface content design —
+  MIGs, MAGs, Type Systems, Codelists, Shared Code, Global Parameters).
+- **Research method and result**: the same dedicated-API-access-page search applied to Classic
+  API Management, Integration Assessment, and Trading Partner Management returned nothing across
+  roughly eighty-five pages checked. `grep`-searching the runtime-artifact and export/import
+  pages for "API", "REST", "OData", "curl", and "endpoint" found no matches beyond a single
+  generic sentence about SAP Integration Suite supporting "any kind of interface/API format" for
+  generated *content*, not a statement about Integration Advisor's own management API.
+- **A finding that needed careful reading, not a quick dismissal**:
+  `creating-oauth-client-credentials-for-cloud-foundry-environment-50b63c6.md` initially looked
+  like exactly the kind of page that confirmed a public API elsewhere. On full reading, it
+  describes creating a *Process Integration Runtime* service instance (plan `api`, role
+  `WorkspacePackagesEdit`) — this provider's own existing Cloud Integration OAuth mechanism, not
+  a separate Integration Advisor credential. It exists in this documentation area because those
+  credentials authenticate the *injection* step below, not Integration Advisor's own content.
+- **Runtime artifact injection** (`inject-mapping-artifacts-to-sap-cloud-integration-47ad97e.md`):
+  confirmed as a UI wizard — *Mapping Guideline* > *Inject* > *SAP Cloud Integration Flow
+  Resources* > choose tenant/package/integration flow > *Inject* — that pushes generated runtime
+  artifacts directly into a Cloud Integration integration flow's resources, targeting either the
+  built-in tenant or an externally configured BTP Destination. No REST equivalent documented.
+- **Consequence for this phase's Terraform decisions**: no resource or data source implemented.
+  Outcome C (real, UI-documented SAP functionality, no public API found), the same category as
+  Current API Management and Trading Partner Management. See
+  `docs/guides/integration-advisor.md`.
+
 ## Trading Partner Management
 
 - **SAP product area**: Integration Suite / Trading Partner Management (B2B/EDI partner

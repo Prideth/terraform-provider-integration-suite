@@ -15,17 +15,23 @@ matrix.
 
 Development branches from `dev`, in this order, until superseded by an explicit reprioritization:
 
-1. **Integration Advisor** — Message Implementation Guidelines, Mapping Guidelines, type systems,
-   B2B standards, and codelists, implemented only where a public API exposes persistent,
-   independently identified design-time artifacts.
-2. **Migration Assessment** — source-system, rule, effort, and assessment-result objects,
+1. **Migration Assessment** — source-system, rule, effort, and assessment-result objects,
    expected to be mostly workflow/analysis-request data rather than desired-state configuration.
-3. **Remaining Integration Suite capability audit** — a full sweep of every capability area this
+2. **Remaining Integration Suite capability audit** — a full sweep of every capability area this
    provider has not yet formally classified (Open Connectors, Event Mesh, Data Space Integration,
    and others), each resolved to a concrete provider-boundary decision.
-4. **Provider completion and hardening** — a catalog-wide accuracy audit, README/documentation
+3. **Provider completion and hardening** — a catalog-wide accuracy audit, README/documentation
    regeneration, and repository-wide quality/security review once the phases above have
    established this provider's practical ceiling of currently reachable public APIs.
+
+Integration Advisor research is done — no public API was found for any design-time object (MIG,
+MAG, Type System, Codelist, Shared Code, Global Parameters) across roughly eighty-five
+documentation pages checked. One page describing OAuth credential creation initially looked
+promising but, on full reading, turned out to describe authenticating against Cloud Integration
+for runtime-artifact injection, not a credential for Integration Advisor's own content — recorded
+explicitly as a research caution for future phases. Injection itself is a confirmed UI wizard
+with no REST equivalent, and is out of scope as an imperative action regardless — see
+"Implemented" below and `docs/guides/integration-advisor.md`.
 
 Trading Partner Management research is done — no public API was found for any design-time object
 (Company/Trading Partner/Communication Partner Profile, Agreement Template, Agreement) across
@@ -229,10 +235,10 @@ already shipped (see "Implemented" below).
 
 ## v0.3.x
 
-- Integration Advisor and Migration Assessment, each evaluated and implemented only where public
-  APIs justify Terraform management (priorities 1 and 2 above)
-- The remaining Integration Suite capability audit and provider hardening pass (priorities 3 and
-  4 above)
+- Migration Assessment, evaluated and implemented only where public APIs justify Terraform
+  management (priority 1 above)
+- The remaining Integration Suite capability audit and provider hardening pass (priorities 2 and
+  3 above)
 
 ## Later
 
