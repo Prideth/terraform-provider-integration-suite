@@ -75,19 +75,30 @@ unsuitable for the same reason Message Processing Logs are unsuitable. See
 `docs/resource-design.md` and `docs/api-capability-matrix.md` for the full per-object
 suitability analysis this provider went through before reaching these conclusions.
 
-## Developer Hub is a separate, future provider
+## Capabilities that belong to separate, future Terraform providers
 
-Developer Hub — Integration Suite's API/Event/MCP Server catalog, publication, and subscription
-capability — is intentionally outside this provider's scope. It authenticates against its own
-`/api/1.0` REST API with its own `devportal-apiaccess` OAuth client, entirely separate from every
-Cloud Integration and current API Management endpoint this provider talks to, and its object model
-(Products, Applications, Subscriptions) is a consumer/catalog lifecycle rather than Integration
-Suite design-time content. Rather than stretching this provider's credential and release surface
-to cover a genuinely separate API boundary, Developer Hub is planned as its own, independently
-versioned Terraform provider (working name `Prideth/terraform-provider-sap-developer-hub`). This
-provider carries no Developer Hub configuration, client, resources, or data sources; see the
-`developer_hub` entry in `docs/feature-support.md` for the single, high-level catalog statement of
-this boundary.
+Two capabilities have a genuine, confirmed public API, but are deliberately excluded here because
+they belong to a different provider's boundary by design, not because they are unreachable. Both
+are tracked in the feature catalog as `separate_provider` (↗️ in the generated README dashboard),
+a status distinct from ordinary `unsupported`: the gap is not something this provider's own
+engineering effort would ever close.
+
+- **Developer Hub** — Integration Suite's API/Event/MCP Server catalog, publication, and
+  subscription capability. It authenticates against its own `/api/1.0` REST API with its own
+  `devportal-apiaccess` OAuth client, entirely separate from every Cloud Integration and current
+  API Management endpoint this provider talks to, and its object model (Products, Applications,
+  Subscriptions) is a consumer/catalog lifecycle rather than Integration Suite design-time
+  content. Planned as its own, independently versioned Terraform provider (working name
+  `Prideth/terraform-provider-sap-developer-hub`).
+- **Event Mesh** — SAP's Solace PubSub+-based event broker service (queues, topic subscriptions,
+  webhook subscriptions). It predates SAP Integration Suite and is consumed independently by many
+  unrelated SAP products, with its own AMQP/MQTT/REST API family fundamentally different in shape
+  from the OData-centric model this provider is built around; community Terraform support for
+  Solace PubSub+ already exists separately.
+
+This provider carries no configuration, client, resources, or data sources for either; see their
+entries in `docs/feature-support.md` for the single, high-level catalog statement of each
+boundary.
 
 ## Out of Scope
 
@@ -103,12 +114,39 @@ Terraform providers, and are intentionally **not** implemented here:
 - Cloud Foundry Organizations and Spaces
 - Kyma, Kubernetes objects, Helm releases
 - General BTP account/identity management
-- Developer Hub (planned as a separate Terraform provider — see above)
+- Developer Hub and Event Mesh (planned as, or belonging to, separate Terraform providers — see
+  above)
+- Open Connectors — confirmed real (a catalog of 170+ third-party connector types, the former
+  standalone Cloud Elements product), but a deliberate scope judgment rather than a research gap:
+  it does not fit this provider's schema-first, one-API-family-per-resource design without either
+  an unbounded per-connector-type schema explosion or an opaque untyped-JSON escape hatch this
+  provider does not otherwise offer anywhere
 
 For all BTP control-plane concerns, use the official
 [`SAP/btp`](https://registry.terraform.io/providers/SAP/btp/latest) Terraform provider. For
 the customer-managed Kubernetes cluster that an Edge Integration Cell runs on, use the
 Kubernetes and Helm providers directly.
+
+## Confirmed-but-not-yet-implemented capabilities
+
+Three capabilities have confirmed real public APIs but are not yet implemented, distinct from
+both the "separate provider" and "out of scope" categories above — nothing rules them out, they
+simply have not had a dedicated implementation phase yet:
+
+- **API Composition** (Business Data Graph) — the strongest evidence of any unimplemented
+  capability in this provider's catalog: a Configuration API confirmed with complete, verbatim
+  Create/Read/Update worked examples, and Delete explicitly stated to exist. The clearest
+  candidate for the next phase beyond this document's current scope.
+- **Data Space Integration** — a confirmed, separately credentialed OData REST API, but a
+  genuinely complex, multi-persona object model (Connectors, Assets, Policies, Contract
+  Definitions/Negotiations/Agreements) built on an external standard, warranting its own
+  dedicated research phase rather than a shallow pass.
+- **OData Provisioning** and **Integration Assessment's Landscape Configuration** — a positive
+  signal (a role named `ODPAPIAccess`; a confirmed service and entity inventory, respectively)
+  without yet a confirmed field-level schema.
+
+See `docs/sap-api-references.md` and `internal/features/catalog.go` for the full evidence behind
+each of these.
 
 ## One-sentence summary
 

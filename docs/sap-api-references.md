@@ -1203,6 +1203,94 @@ budget was directed at the desired-state-configuration candidates above instead.
   `UserCredentialParameters` is treated as a credential store, and even that is modeled
   conservatively — see the write-only `password_wo` design in `docs/resource-design.md`.
 
+## Remaining Integration Suite capability audit
+
+A final sweep of every SAP Integration Suite capability area this provider had not yet formally
+classified, using the current SAP-docs mirror as the source of truth (not the pre-existing
+catalog) — auditing the actual documentation tree turned up two capability areas
+(`ISuite_API_Composition/`, `ISuite_OData_Provisioning/`) with no prior catalog entry at all,
+alongside the three (Event Mesh, Data Space Integration, Open Connectors) already tracked as
+`research_required` placeholders.
+
+### API Composition — the strongest confirmed-but-unimplemented finding of this entire audit
+
+Activated as a sub-capability of API Management, alongside Developer Hub and current API
+Management (`initial-setup-12ad448.md`, confirmed: "To activate API Composition, select ...
+Developer Hub [and] API Composition"). Its "Business Data Graph" object — a composed GraphQL/
+OData business data model spanning multiple backend systems — is managed through a **Configuration
+API** confirmed with complete, verbatim worked examples:
+`configuration-api-specification-and-usage-b5b27c9.md` shows `POST
+{region-specific host}/configuration/v1/sap.graph/GraphConfiguration` with a full sample body
+(`businessDataGraphIdentifier`, `dataSources`, `locatingPolicy`), `GET .../GraphConfiguration/
+{BDG-Id}`, and `PATCH .../GraphConfiguration/{BDG-Id}`, plus a documented `$metadata` endpoint.
+`manage-business-data-graphs-using-api-composition-configuration-api-655bf12.md` explicitly
+states Delete is also supported ("Whether you need to create, update, or delete business data
+graphs, this API provides an automated option"), though no verbatim DELETE example was captured.
+Authentication is a third, distinct credential set beyond this provider's existing `oauth` and
+`api_management` blocks: a Process Integration Runtime service instance on the `integration-flow`
+plan, explicitly documented as *not* the `api` plan this provider's own `oauth` block already
+uses. This is confirmed real, confirmed field-level-schema evidence — stronger than most objects
+this provider has already implemented — and is deliberately not implemented in this audit-only
+phase; see `internal/features/catalog.go`'s `api_composition.business_data_graph` entry and
+ROADMAP.md for why it is flagged as the top candidate for a future dedicated phase.
+
+### OData Provisioning — a positive signal, not yet confirmed
+
+Exposes SAP Business Suite backend OData services (SAP Gateway back-end enablement) through
+Integration Suite without an on-premise SAP Gateway hub. `register-odata-services-9dfa56a.md`
+documents an `ODPAPIAccess` role as a registration prerequisite — a role name that is itself a
+positive signal a management API exists — but this audit pass did not locate a worked request/
+response example or a dedicated API-access page for it. Classified `research_required`, the same
+category and confidence level as Integration Assessment before its own dedicated phase.
+
+### Event Mesh — reclassified from a guess to a confirmed separate-provider candidate
+
+Previously catalogued with an unverified "likely a separate BTP service" note. Reconfirmed
+directly: Event Mesh activates through the same generic "Activating and Managing Capabilities"
+mechanism as every other capability (no dedicated activation API, consistent with every other
+capability this provider has audited), but its broker management surface itself — channels,
+queues, topic subscriptions, webhook subscriptions — is genuinely public and well-documented
+across roughly forty-five pages, built on Solace PubSub+'s own AMQP/MQTT/REST API family.
+Event Mesh predates SAP Integration Suite and is consumed independently by many unrelated SAP
+products; community Terraform support for Solace PubSub+ already exists separately. Reclassified
+`StatusSeparateProvider` (the same status this provider already uses for Developer Hub), on the
+same reasoning: a real, confirmed API, deliberately excluded because it belongs to a different
+provider's boundary, not because it is unreachable.
+
+### Data Space Integration — confirmed real API, flagged for a future dedicated phase
+
+`using-apis-to-work-with-data-space-integration-411fd1e.md` confirms a dedicated "Data Space
+Integration API Access" service instance (plan `api`, roles
+`AuthGroup_DataspaceConsumer`/`AuthGroup_DataspaceProvider`, `client_credentials` grant) and
+OData REST APIs listed on SAP Business Accelerator Hub at
+`api.sap.com/package/dataspaceintegration/rest` — unreachable to this project without an SAP
+support login, the same limitation hit repeatedly elsewhere. The object model (per-connector
+service instances, Assets, Policies, Contract Definitions, Contract Negotiations/Agreements,
+built on the external Dataspace Protocol / International Data Spaces standard) is genuinely
+complex enough that this audit intentionally did not attempt a shallow implementation.
+`research_required`, flagged as a second strong candidate (after Landscape Configuration in
+Integration Assessment) for a future dedicated phase.
+
+### Open Connectors — a deliberate scope judgment, not a research gap
+
+Confirmed to be a catalog of 170+ independent third-party connector types (the former standalone
+Cloud Elements product), each with its own normalized-but-still-connector-specific REST API and
+configuration schema. Reclassified from `research_required` to `out_of_scope`: this is not "not
+yet researched," it is a considered judgment that a 170-plus-connector-type catalog does not fit
+this provider's schema-first, one-API-family-per-resource design without either an unbounded
+per-connector-type schema explosion or an opaque untyped-JSON escape hatch this provider does not
+otherwise offer anywhere.
+
+### Capability activation — reconfirmed once more, not reopened
+
+No public activation API was found for any capability audited across this entire multi-phase
+run (Cloud Integration, API Management — classic and current —, Integration Cell, Edge
+Integration Cell, Developer Hub, API Composition, Integration Assessment, Trading Partner
+Management, Integration Advisor, Migration Assessment, Data Space Integration, Event Mesh, Open
+Connectors, OData Provisioning). Every one of them activates through the same generic *Settings*
+> *Add Capabilities* / *Activate Capabilities* UI flow. This is treated as a settled finding
+across the whole provider, not something to keep re-verifying capability-by-capability.
+
 ## Migration Assessment
 
 - **SAP product area**: Integration Suite / Migration Assessment (SAP Process Orchestration to

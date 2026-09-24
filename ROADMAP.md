@@ -15,12 +15,27 @@ matrix.
 
 Development branches from `dev`, in this order, until superseded by an explicit reprioritization:
 
-1. **Remaining Integration Suite capability audit** — a full sweep of every capability area this
-   provider has not yet formally classified (Open Connectors, Event Mesh, Data Space Integration,
-   and others), each resolved to a concrete provider-boundary decision.
-2. **Provider completion and hardening** — a catalog-wide accuracy audit, README/documentation
-   regeneration, and repository-wide quality/security review once the phase above has
-   established this provider's practical ceiling of currently reachable public APIs.
+1. **Provider completion and hardening** — a catalog-wide accuracy audit, README/documentation
+   regeneration, and repository-wide quality/security review, now that the capability audit below
+   has established this provider's practical ceiling of currently reachable public APIs.
+
+The remaining Integration Suite capability audit is done. Two capability areas had no prior
+catalog entry at all and were added: **API Composition** (Business Data Graph, activated
+alongside Developer Hub as a sub-capability of API Management) is the strongest
+confirmed-but-unimplemented finding of the whole provider — a Configuration API with complete,
+verbatim Create/Read/Update worked examples and Delete stated to exist, the clearest candidate
+for the next implementation phase beyond this roadmap's current horizon — and **OData
+Provisioning**, where a positive signal (an `ODPAPIAccess` role) exists without yet a confirmed
+schema. Three previously-placeholder entries were reclassified with real evidence: **Event Mesh**
+is now `separate_provider` (a genuine, well-documented Solace PubSub+ broker API, deliberately
+excluded because it predates Integration Suite and belongs to a different provider's boundary,
+the same reasoning already applied to Developer Hub); **Data Space Integration** is confirmed
+`research_required` with a real, separately credentialed OData API and a genuinely complex
+object model warranting its own future phase; **Open Connectors** is now `out_of_scope` as a
+deliberate judgment (a catalog of 170+ independent third-party connector types that does not fit
+this provider's schema-first design), not a research gap. Capability activation itself was
+reconfirmed, once more, to have no public API for any capability this provider has ever audited
+— see "Implemented" below, `docs/provider-scope.md`, and `docs/sap-api-references.md`.
 
 Migration Assessment research is done — no public API was found for Source System registration,
 Data Extraction Requests, or Scenario Evaluation Requests across Migration Assessment's small
@@ -240,11 +255,17 @@ already shipped (see "Implemented" below).
 - Integration Assessment Landscape Configuration (Application/Application Instance/Technology/
   Technology Instance/Vendor), once a field-level wire contract is confirmed for it — see
   `docs/guides/integration-assessment.md` (**Research required**)
+- API Composition Business Data Graph, the strongest confirmed-but-unimplemented finding in this
+  provider's catalog — a Configuration API with complete, verbatim Create/Read/Update worked
+  examples and Delete stated to exist — see `docs/sap-api-references.md` (**Next**)
+- Data Space Integration (Connector/Asset/Policy/Contract Definition/Contract Negotiation), once
+  its field-level wire contract is confirmed — see `docs/sap-api-references.md` (**Research
+  required**)
+- OData Provisioning, once its field-level wire contract is confirmed (**Research required**)
 
 ## v0.3.x
 
-- The remaining Integration Suite capability audit and provider hardening pass (priorities 1 and
-  2 above)
+- The provider hardening pass (priority 1 above)
 
 ## Later
 
