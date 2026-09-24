@@ -1452,13 +1452,42 @@ var Catalog = []Feature{
 		},
 	},
 	{
-		Key:           "integration_advisor",
-		Domain:        "other_capability",
-		Name:          "Integration Advisor",
-		Description:   "SAP's collaborative interface-content-design capability.",
+		Key:    "integration_advisor.design_time_content",
+		Domain: "other_capability",
+		Name:   "Integration Advisor Design-Time Content",
+		Description: "Message Implementation Guidelines (MIGs), Mapping Guidelines (MAGs, " +
+			"standard/overlay/XSLT), custom Type Systems, Codelists, Shared Code, and Global " +
+			"Parameters — SAP's collaborative B2B interface-content-design objects.",
 		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonResearchRequired,
+		SupportReason: ReasonNoPublicAPI,
 		PublicAPI:     false,
+		Limitations: []string{
+			"No API-access documentation page (the kind that, when present, confirmed a real public " +
+				"API for Classic API Management and Integration Assessment) exists anywhere in " +
+				"Integration Advisor's roughly eighty-five-page documentation tree. The one OAuth-" +
+				"credential page found in this area (\"Creating OAuth Client Credentials for Cloud " +
+				"Foundry Environment\") turned out, on full reading, to describe authenticating " +
+				"against the destination Cloud Integration tenant for artifact injection (Process " +
+				"Integration Runtime service, plan api), not a credential for Integration Advisor's " +
+				"own design-time content management.",
+		},
+	},
+	{
+		Key:    "integration_advisor.runtime_artifact_injection",
+		Domain: "other_capability",
+		Name:   "Integration Advisor Runtime Artifact Injection",
+		Description: "Injecting generated runtime artifacts (from a Mapping Guideline) directly " +
+			"into an integration flow's resources on a target Cloud Integration tenant.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonOutOfScope,
+		PublicAPI:     false,
+		Limitations: []string{
+			"Confirmed as a UI wizard (Mapping Guideline > Inject > SAP Cloud Integration Flow " +
+				"Resources > choose tenant/package/integration flow > Inject), not a documented REST " +
+				"call, and — independent of that — an imperative one-shot action rather than " +
+				"desired-state configuration this provider's plan/apply model could represent even if " +
+				"an API for it were confirmed.",
+		},
 	},
 	{
 		Key:    "trading_partner_management.company_profile",
