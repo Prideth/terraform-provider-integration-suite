@@ -102,7 +102,27 @@ in one place upgrades it everywhere.
    `examples/data-sources/<name>/`, then run `make docs`.
 7. If the change is acceptance-testable, add an acceptance test gated on
    `TF_ACC=1`, using `tf-acc-` prefixed names for any object created in a
-   real tenant.
+   real tenant. As of this writing, no acceptance tests exist in this
+   repository yet — every phase of this provider's development so far has
+   worked from documentation research without live tenant credentials, so
+   coverage has been unit-test (`httptest`-based) only; `TF_ACC=1` is the
+   convention future contributors with tenant access are expected to use,
+   not a claim that tests currently run against a real tenant. See
+   `docs/api-capability-matrix.md` and `docs/feature-support.md` for what
+   each implemented resource's confirmed API behavior actually is, in lieu
+   of acceptance-test evidence.
+
+   A test that creates, modifies, or deletes **tenant-wide singleton**
+   configuration (for example `sapintegrationsuite_custom_tag_configuration`,
+   or any future Classic API Management resource whose identity is scoped
+   to the whole tenant rather than a named object a test can safely
+   namespace with a `tf-acc-` prefix) must be gated behind an *additional*,
+   capability-specific opt-in environment variable beyond plain `TF_ACC=1`
+   — for example `SAP_INTEGRATION_SUITE_ACC_API_MANAGEMENT=1` for Classic
+   API Management acceptance tests. `TF_ACC=1` alone must never be
+   sufficient to run a test that could disrupt a shared tenant's existing
+   configuration; the extra gate makes that risk an explicit, opt-in
+   decision for whoever runs the test suite against a real tenant.
 8. **Update the feature support catalog.** This is mandatory, not optional
    — no feature implementation is complete until this step is done:
    1. Add or update the feature's entry in `internal/features/catalog.go`
