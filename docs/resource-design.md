@@ -1651,6 +1651,68 @@ artifact ZIP content is already treated), policies would be managed as part of
 `sapintegrationsuite_api_proxy`'s own content once that resource exists, never as a separate
 `sapintegrationsuite_api_proxy_policy` resource reproducing SAP's policy schema catalog.
 
+## Integration Assessment — suitability check
+
+This phase's research question was again the usual one (does a public API exist), and the answer
+is genuinely yes — a separate BTP service subscription, a confirmed dual-base-URL OAuth-secured
+API, and an exhaustively confirmed entity inventory (nineteen named entities, each with a
+one-paragraph SAP description) are all real evidence, not assumptions. What could not be
+confirmed, despite checking the entire SAP-docs mirror tree for this capability, an official
+2400-line PDF user guide, and SAP's own TechEd hands-on sample repository, is a field-level
+request/response schema for even one entity. The suitability check below is therefore grouped by
+category rather than walked entity-by-entity through the full fourteen-question format — every
+individual entity in a group shares the same answer to questions 4 through 14 ("unconfirmed"),
+so repeating that nineteen times would not add information.
+
+### Master data (Domain, Style, Use Case Pattern, Integration Pattern, Key Characteristic family,
+### Deployment Model, Domain Determination) — no resource, no data source
+
+1. **Who creates it**: primarily SAP (shipped ISA-M reference taxonomy), with a documented
+   tenant "Update Content Maintained by SAP" adjustment capability.
+2. **Configuration vs. reference data**: reference/master data — the category this provider
+   already treats as, at most, a data-source candidate rather than a resource (see Runtime
+   Profile's suitability check in the Current API Management section above for the same
+   reasoning pattern).
+3–13. Moot — no field-level API contract confirmed for Create, Read, Update, or Delete on any
+   entity in this group.
+14. **Resource / Data Source / unsupported / out of scope**: **unsupported,
+   `research_required`** — `PublicAPI: true` (the capability and entity both confirmed real),
+   but no schema confirmed to build even a read-only data source against safely.
+
+### Landscape configuration (Application, Application Instance, Technology, Technology Instance,
+### Vendor, and their association entities) — no resource, no data source, but the strongest
+### candidate in this capability
+
+1. **Who creates it**: a practitioner, describing their organization's actual application and
+   integration-technology landscape.
+2. **Configuration vs. reference data**: configuration — practitioner-authored, not SAP-shipped,
+   and SAP's documented per-tenant limits (20,000 Applications, 20,000 Application Instances, 50
+   Technologies, 150 Technology Instances, 10,000 Vendors) confirm this is real, bounded, durable
+   tenant storage, not runtime/business data.
+3–13. Moot for the same reason as Master Data — no field-level contract confirmed.
+14. **Resource / Data Source / unsupported / out of scope**: **unsupported,
+   `research_required`** — the first place to look if SAP's wire contract for this capability
+   ever becomes reachable, since every other suitability signal (who owns it, why it's created,
+   documented bounded limits) already points toward a legitimate Terraform resource.
+
+### Assessment workflow (Request, Request Line Item, Integration Flow, Message Flow, Integration
+### Flow Message Flow, Request Line Item Technology Instance Decision) — no resource, no data
+### source, and not merely a research gap
+
+1. **Who creates it**: a practitioner, as a business solution/interface request moving through an
+   assessment workflow.
+2. **Configuration vs. workflow state**: workflow/project state, confirmed by SAP's own
+   documented Request status machine (`draft` → `new` → `in progress` → `completed`, plus a
+   `Reopen` action available at specific states) — the same category this provider already
+   excludes for Message Processing Logs and Developer Hub's Subscription object.
+14. **Resource / Data Source / unsupported / out of scope**: **unsupported, `out_of_scope`** —
+   deliberately not `research_required`, since finding a confirmed API contract for this group
+   would not change the underlying suitability judgment. This mirrors the distinction this
+   provider already draws for Developer Hub's Application/Subscription (`PublicAPI: true`,
+   `out_of_scope`), applied here even though this specific group's field contract also happens to
+   be unconfirmed — the reason recorded is the one that would still apply if it were confirmed
+   tomorrow.
+
 ## `data.sapintegrationsuite_partner` / `data.sapintegrationsuite_partners`
 
 - **Purpose**: read-only discovery of Partner IDs (Pids). `data.sapintegrationsuite_partner`

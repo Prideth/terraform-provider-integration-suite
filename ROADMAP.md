@@ -15,25 +15,30 @@ matrix.
 
 Development branches from `dev`, in this order, until superseded by an explicit reprioritization:
 
-1. **Integration Assessment** — Domain/Style/Use-Case/Integration Pattern and related objects,
-   through Integration Assessment's own documented API package, evaluated per-object for
-   Terraform suitability rather than implemented wholesale. See
-   `docs/guides/integration-assessment.md`.
-2. **Trading Partner Management** — company/subsidiary/trading-partner profiles, communication
+1. **Trading Partner Management** — company/subsidiary/trading-partner profiles, communication
    partner profiles, and agreement templates, kept conceptually and architecturally distinct from
    the already-implemented Partner Directory runtime configuration it can generate. See
    `docs/guides/trading-partner-management.md`.
-3. **Integration Advisor** — Message Implementation Guidelines, Mapping Guidelines, type systems,
+2. **Integration Advisor** — Message Implementation Guidelines, Mapping Guidelines, type systems,
    B2B standards, and codelists, implemented only where a public API exposes persistent,
    independently identified design-time artifacts.
-4. **Migration Assessment** — source-system, rule, effort, and assessment-result objects,
+3. **Migration Assessment** — source-system, rule, effort, and assessment-result objects,
    expected to be mostly workflow/analysis-request data rather than desired-state configuration.
-5. **Remaining Integration Suite capability audit** — a full sweep of every capability area this
+4. **Remaining Integration Suite capability audit** — a full sweep of every capability area this
    provider has not yet formally classified (Open Connectors, Event Mesh, Data Space Integration,
    and others), each resolved to a concrete provider-boundary decision.
-6. **Provider completion and hardening** — a catalog-wide accuracy audit, README/documentation
+5. **Provider completion and hardening** — a catalog-wide accuracy audit, README/documentation
    regeneration, and repository-wide quality/security review once the phases above have
    established this provider's practical ceiling of currently reachable public APIs.
+
+Integration Assessment is done for its currently reachable public API surface — a separate BTP
+service subscription, dual-base-URL OAuth authentication, and a fully confirmed 19-entity
+inventory are all real findings, but no field-level wire contract was confirmed for any entity
+despite checking the SAP-docs mirror, an official 2400-line PDF user guide, and SAP's own TechEd
+hands-on sample repository, so nothing is implemented. Landscape Configuration
+(Application/Technology/Vendor) is flagged as the strongest candidate if a schema is ever
+confirmed; Requests/assessment workflow is out of scope regardless — see "Implemented" below and
+`docs/guides/integration-assessment.md`.
 
 Edge Integration Cell is done — SAP-side registration, activation, and Access Policy replication
 all remain UI/CLI-only (no public API), local monitoring APIs are confirmed real but out of
@@ -213,14 +218,16 @@ already shipped (see "Implemented" below).
 - `sapintegrationsuite_api_proxy` and its deployment/policy siblings, once the API Proxy content
   upload wire format (multipart, base64 JSON field, or otherwise) is confirmed from a reachable
   primary source — see `docs/guides/classic-api-management.md` (**Research required**)
+- Integration Assessment Landscape Configuration (Application/Application Instance/Technology/
+  Technology Instance/Vendor), once a field-level wire contract is confirmed for it — see
+  `docs/guides/integration-assessment.md` (**Research required**)
 
 ## v0.3.x
 
-- Integration Assessment, Trading Partner Management, Integration Advisor, and Migration
-  Assessment, each evaluated and implemented only where public APIs justify Terraform management
-  (priorities 1 through 4 above)
-- The remaining Integration Suite capability audit and provider hardening pass (priorities 5 and
-  6 above)
+- Trading Partner Management, Integration Advisor, and Migration Assessment, each evaluated and
+  implemented only where public APIs justify Terraform management (priorities 1 through 3 above)
+- The remaining Integration Suite capability audit and provider hardening pass (priorities 4 and
+  5 above)
 
 ## Later
 

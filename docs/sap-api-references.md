@@ -1203,13 +1203,56 @@ budget was directed at the desired-state-configuration candidates above instead.
   `UserCredentialParameters` is treated as a credential store, and even that is modeled
   conservatively — see the write-only `password_wo` design in `docs/resource-design.md`.
 
+## Integration Assessment
+
+- **SAP product area**: SAP Integration Solution Advisory Methodology (ISA-M) / Integration
+  Assessment, provisioned as its own separate BTP service subscription (entitlement
+  `integration-assessment`, service `Integration Assessment APIs`, plan `default`) — not a
+  sub-feature of Cloud Integration or either API Management model.
+- **Authentication**: confirmed from `creating-service-instance-and-service-key-to-enable-api-calling-749897f.md`.
+  A service key for this instance exposes `entities` (base URL for the "Entities API"),
+  `management` (base URL for the "Management API" — two distinct base URLs, a genuinely
+  confirmed finding, though what the split means at the wire level was not investigated further
+  since no implementation was reached), `clientid`, `clientsecret`, and `url` (the OAuth 2.0
+  token server, append `/oauth/token`) — the same client-credentials shape this provider uses
+  everywhere else.
+- **Entity inventory**: confirmed exhaustively from `integration-assessment-apis-47847b5.md`,
+  which lists every entity in this capability with a one-paragraph description: Domain, Style,
+  Use Case Pattern, Integration Pattern, Key Characteristic (+ Group/Value/Recommendation),
+  Deployment Model, Domain Determination (ISA-M reference taxonomy); Application, Application
+  Instance, Technology, Technology Instance, Vendor, Technology Domain, Technology Style,
+  Technology Key Characteristic (landscape configuration, with documented per-tenant limits: a
+  maximum of 20,000 Applications, 20,000 Application Instances, 50 Technologies, 150 Technology
+  Instances, 10,000 Vendors); Request, Request Line Item, Integration Flow, Message Flow,
+  Integration Flow Message Flow, Request Line Item Technology Instance Decision (assessment
+  workflow, with a documented Request status machine: `draft` → `new` → `in progress` →
+  `completed`, plus a `Reopen` action).
+- **What is not confirmed**: a field-level JSON request/response schema for any single entity.
+  Checked and found to contain UI procedures only: the entire `docs/ISuite_Integration_Assessment/`
+  SAP-docs mirror tree (every page read), the official "SAP Integration Solution Advisory
+  Methodology" PUBLIC PDF user guide (`help.sap.com/doc/ac5a3b73452548cb887f3963877eb9ab/...`,
+  2400+ lines, entirely conceptual/methodology content, zero REST/curl examples), and SAP's own
+  TechEd IN262 hands-on sample repository (`SAP-archive/teched2022-IN262` — a UI-screenshot
+  walkthrough, no API calls). The SAP Business Accelerator Hub package
+  (`hub.sap.com/package/SAPIntegrationAssessment/overview`) is unreachable without an SAP support
+  login, the same limitation this project has hit repeatedly for other packages.
+- **Consequence for this phase's Terraform decisions**: no resource or data source is
+  implemented. Unlike Current API Management's family (no API exists at all) or Developer Hub's
+  Product (a specific unconfirmed detail blocking an otherwise well-understood entity), this is a
+  capability with a confirmed API surface and a completely confirmed entity inventory, but with
+  every single entity's wire contract unconfirmed — this provider does not build a schema from
+  entity descriptions and documented limits alone. See `docs/guides/integration-assessment.md`
+  for the full three-group classification (master data / landscape configuration / assessment
+  workflow) this research produced.
+
 ## Deferred APIs (tracked, not yet implemented)
 
 | Area | API | Status |
 |---|---|---|
-| Classic API Management | "Accessing API Management APIs Programmatically" REST/OData APIs (`apiportal-apiaccess` plan, `Management.svc/APIProxies` and siblings) | Confirmed public, deferred to a later minor version — see `docs/guides/current-api-management.md` for why this is explicitly not the same product model as API Artifacts |
+| API Proxy content upload | `Management.svc/APIProxies` (Classic API Management) | Entity, GET, and DELETE confirmed; the ZIP content Create/Update wire format is not — see `docs/guides/classic-api-management.md` |
 | Certificate Chain, Secure Parameter, Known Hosts | Security Content API | Reverified during the Security Content phase; remain without a confirmed public contract (Certificate Chain is documented only as a Key Pair capability) or without any public API at all (Known Hosts) — see `docs/guides/security-content.md` |
 | Value mapping entry-level management | `UpsertValMaps`, `UpdateDefaultValMap`, `DeleteValMaps` | Confirmed public, deferred — exact payload/path shapes and delete granularity not confirmed against a reachable primary source; see `docs/resource-design.md` |
+| Integration Assessment | `entities`/`management` APIs (see above) | Confirmed public with a fully confirmed entity inventory; no field-level wire contract confirmed for any entity — see `docs/guides/integration-assessment.md` |
 
 ## Explicitly ruled out
 
