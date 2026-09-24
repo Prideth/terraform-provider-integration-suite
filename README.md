@@ -191,21 +191,23 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 
 | Feature | Status | Terraform Support |
 |---|:---:|---|
+| API Composition Business Data Graph | ❌ | Planned — see [feature-support.md](docs/feature-support.md#all-features) |
 | Data Space Integration | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
 | Developer Hub | ↗️ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
-| Event Mesh | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
+| Event Mesh | ↗️ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Integration Advisor Design-Time Content | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 | Integration Advisor Runtime Artifact Injection | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Migration Assessment Extraction and Scenario Evaluation | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Migration Assessment Source System | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
-| Open Connectors | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+| OData Provisioning | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+| Open Connectors | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Trading Partner Management Agreement | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 | Trading Partner Management Agreement Template | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 | Trading Partner Management Company Profile | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 | Trading Partner Management Partner Directory Generation | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Trading Partner Management Partner Profile | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 
-17 supported · 11 partial · 3 read-only · 0 experimental · 46 unsupported · 1 planned as a separate provider, out of 78 evaluated Integration Suite features.
+17 supported · 11 partial · 3 read-only · 0 experimental · 47 unsupported · 2 planned as a separate provider, out of 80 evaluated Integration Suite features.
 
 <!-- END GENERATED FEATURE SUPPORT -->
 

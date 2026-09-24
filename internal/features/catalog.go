@@ -1438,6 +1438,57 @@ var Catalog = []Feature{
 
 	// --- Other Integration Suite capability areas (research status only) ---
 	{
+		Key:    "api_composition.business_data_graph",
+		Domain: "other_capability",
+		Name:   "API Composition Business Data Graph",
+		Description: "A composed, unified GraphQL/OData business data model (a \"Business Data " +
+			"Graph\") spanning multiple backend systems (S/4HANA, SuccessFactors, custom OData/" +
+			"REST sources), activated as a sub-capability of API Management alongside Developer " +
+			"Hub and current API Management.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonNotImplemented,
+		PublicAPI:     true,
+		Planned:       true,
+		Limitations: []string{
+			"The strongest confirmed-but-unimplemented finding from this provider's capability " +
+				"audit: a genuine, separately entitled \"API Composition\" service (plan " +
+				"configuration) exposes a Configuration API at " +
+				"{region-specific host}/configuration/v1/sap.graph/GraphConfiguration, confirmed " +
+				"with verbatim worked examples for Create (POST, full sample body with " +
+				"businessDataGraphIdentifier/dataSources/locatingPolicy), Read (GET by ID), and " +
+				"Update (PATCH by ID); Delete is explicitly stated to exist (\"Whether you need to " +
+				"create, update, or delete business data graphs, this API provides an automated " +
+				"option\") but no verbatim DELETE example was captured during this audit pass.",
+			"Authentication reuses this provider's existing OAuth 2.0 client-credentials pattern, " +
+				"but through a third distinct credential set: a Process Integration Runtime service " +
+				"instance on the integration-flow plan (explicitly documented as NOT the same api " +
+				"plan this provider's own oauth block already uses), separate again from " +
+				"provider.api_management's apiportal-apiaccess credentials.",
+			"Deliberately not implemented in this audit-only phase: this phase's scope is " +
+				"classification, not implementation. Recommended as the top candidate for a future " +
+				"dedicated phase, given the unusually strong Create/Read/Update evidence already on " +
+				"record — stronger than most objects this provider has implemented to date.",
+		},
+	},
+	{
+		Key:    "odata_provisioning",
+		Domain: "other_capability",
+		Name:   "OData Provisioning",
+		Description: "A capability that exposes SAP Business Suite backend OData services " +
+			"(SAP Gateway back-end-enablement) through SAP Integration Suite, without requiring an " +
+			"on-premise SAP Gateway hub.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonResearchRequired,
+		PublicAPI:     true,
+		Limitations: []string{
+			"A role literally named ODPAPIAccess is documented as a prerequisite for registering " +
+				"OData services, a positive signal that a management API exists, but this audit pass " +
+				"did not locate a worked request/response example or a dedicated API-access page for " +
+				"it — the same kind of gap already documented for Integration Assessment, requiring " +
+				"the same depth of follow-up research before any implementation decision.",
+		},
+	},
+	{
 		Key:           "developer_hub",
 		Domain:        "other_capability",
 		Name:          "Developer Hub",
@@ -1563,15 +1614,30 @@ var Catalog = []Feature{
 		},
 	},
 	{
-		Key:           "event_mesh",
-		Domain:        "other_capability",
-		Name:          "Event Mesh",
-		Description:   "SAP's event broker service for asynchronous, event-driven integration.",
-		SupportStatus: StatusUnsupported,
+		Key:    "event_mesh",
+		Domain: "other_capability",
+		Name:   "Event Mesh",
+		Description: "SAP's Solace PubSub+-based event broker service for asynchronous, " +
+			"event-driven integration: queues, topic subscriptions, and webhook subscriptions.",
+		SupportStatus: StatusSeparateProvider,
 		SupportReason: ReasonOutOfScope,
-		PublicAPI:     false,
+		PublicAPI:     true,
 		Limitations: []string{
-			"Likely a separate BTP service outside this provider's Integration Suite content/capability boundary rather than a Cloud Integration design-time concern.",
+			"Reconfirmed, not just assumed: Event Mesh is activated through the same generic " +
+				"\"Activating and Managing Capabilities\" mechanism as every other Integration Suite " +
+				"capability (no dedicated public activation API, consistent with every other " +
+				"capability audited), but once active it exposes a genuine, well-documented broker " +
+				"management surface (service-key-based channel/queue/subscription creation, " +
+				"AMQP/MQTT/REST messaging APIs) confirmed across roughly forty-five documentation " +
+				"pages.",
+			"Event Mesh predates, and is usable entirely independently of, SAP Integration Suite — " +
+				"it is a general-purpose BTP messaging service consumed by many unrelated SAP " +
+				"products, with its own Solace PubSub+-derived API family fundamentally different in " +
+				"shape from the OData-centric model this provider is built around. Community " +
+				"Terraform support for Solace PubSub+ already exists independently. Rather than " +
+				"absorbing a broker-management surface into this Integration-Suite-scoped provider, " +
+				"this belongs in a separate, independently versioned provider, the same reasoning " +
+				"already applied to Developer Hub.",
 		},
 	},
 	{
@@ -1673,24 +1739,53 @@ var Catalog = []Feature{
 		},
 	},
 	{
-		Key:           "data_space_integration",
-		Domain:        "other_capability",
-		Name:          "Data Space Integration",
-		Description:   "SAP's data space connectivity capability within Integration Suite.",
+		Key:    "data_space_integration",
+		Domain: "other_capability",
+		Name:   "Data Space Integration",
+		Description: "SAP's Dataspace-Protocol-based data space connectivity capability " +
+			"(Connectors, Assets, Policies, Contract Definitions, Contract Negotiations/" +
+			"Agreements) within Integration Suite, initially scoped to the Catena-X data space.",
 		SupportStatus: StatusUnsupported,
 		SupportReason: ReasonResearchRequired,
-		PublicAPI:     false,
+		PublicAPI:     true,
+		Limitations: []string{
+			"Confirmed real: a dedicated \"Data Space Integration API Access\" service instance " +
+				"(plan api, roles AuthGroup_DataspaceConsumer/AuthGroup_DataspaceProvider, " +
+				"client_credentials grant) is documented, and its OData REST APIs are confirmed " +
+				"listed on SAP Business Accelerator Hub at api.sap.com/package/dataspaceintegration/" +
+				"rest — unreachable to this project without an SAP support login, the same " +
+				"limitation hit repeatedly for other packages, so no field-level schema was " +
+				"confirmed during this audit pass.",
+			"A genuinely complex, multi-persona object model (per-connector service instances, " +
+				"Assets, Policies, Contract Definitions, Contract Negotiations, Contract Agreements) " +
+				"built on an external standard (the Dataspace Protocol / International Data Spaces " +
+				"initiative) — this audit intentionally did not attempt a shallow implementation and " +
+				"instead flags this as a candidate needing its own dedicated future research phase, " +
+				"the same treatment Classic API Management and Integration Assessment each received " +
+				"as standalone phases.",
+		},
 	},
 	{
-		Key:           "open_connectors",
-		Domain:        "other_capability",
-		Name:          "Open Connectors",
-		Description:   "SAP's third-party SaaS connectivity capability within Integration Suite.",
+		Key:    "open_connectors",
+		Domain: "other_capability",
+		Name:   "Open Connectors",
+		Description: "SAP's third-party SaaS connectivity capability within Integration Suite: a " +
+			"catalog of 170+ third-party connector types (each with its own normalized REST API and " +
+			"OpenAPI-documented instance configuration), originally the standalone Cloud Elements " +
+			"product.",
 		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonResearchRequired,
-		PublicAPI:     false,
+		SupportReason: ReasonOutOfScope,
+		PublicAPI:     true,
 		Limitations: []string{
-			"Not yet investigated by this project; listed so its absence is visible rather than silently omitted.",
+			"A deliberate suitability judgment, not a research gap: Open Connectors is not one " +
+				"coherent API this provider could model with a handful of resources, the pattern " +
+				"every other capability in this catalog follows. It is a catalog of 170+ independent " +
+				"third-party connector types, each with its own authentication scheme, configuration " +
+				"schema, and normalized-but-still-connector-specific REST surface. Implementing even " +
+				"connector-instance management generically would mean either an unbounded, " +
+				"per-connector-type schema explosion, or an opaque untyped-JSON resource that gives " +
+				"up the type safety and validation this provider's schema-first design otherwise " +
+				"provides everywhere else.",
 		},
 	},
 }
