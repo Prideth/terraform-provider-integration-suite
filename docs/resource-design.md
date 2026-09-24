@@ -1651,6 +1651,34 @@ artifact ZIP content is already treated), policies would be managed as part of
 `sapintegrationsuite_api_proxy`'s own content once that resource exists, never as a separate
 `sapintegrationsuite_api_proxy_policy` resource reproducing SAP's policy schema catalog.
 
+## Migration Assessment — suitability check
+
+The smallest documentation footprint audited so far (roughly fifteen pages), and the cleanest
+conclusion: no public API for Migration Assessment's own objects, and — uniquely among the
+capabilities audited this run — a conclusion that would not change even if one were confirmed.
+
+### Source System — no resource, no data source
+
+1. **Who creates it**: a practitioner, registering an on-premises SAP Process Orchestration
+   system for Migration Assessment to extract data from.
+2. **Configuration vs. runtime state**: configuration — the closest thing in this capability to a
+   legitimate Terraform candidate, if a public API existed.
+3–13. Moot — no API found; Migration Assessment's own documentation describes it *consuming*
+   APIs from the registered source system, never exposing one for managing the registration
+   itself.
+14. **Resource / Data Source / unsupported / out of scope**: **unsupported, `no_public_api`**.
+
+### Data Extraction Request, Scenario Evaluation Request, and results — out of scope regardless
+
+1. **Who triggers it**: a practitioner, choosing *Create* on a request.
+2. **Configuration vs. workflow/reporting**: confirmed both — Create is an imperative action with
+   a resulting status (workflow), and the eventual output is an assessment-category/readiness/
+   effort-estimate report (reporting data).
+14. **Resource / Data Source / unsupported / out of scope**: **unsupported, `out_of_scope`** —
+   deliberately not `research_required`: a confirmed API contract for triggering these actions
+   would not change that they represent an action-and-its-result, not desired configuration this
+   provider's plan/apply model could reconcile.
+
 ## Integration Advisor — suitability check
 
 Same research question as Trading Partner Management (does a public API exist), same negative-

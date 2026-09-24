@@ -1203,6 +1203,34 @@ budget was directed at the desired-state-configuration candidates above instead.
   `UserCredentialParameters` is treated as a credential store, and even that is modeled
   conservatively — see the write-only `password_wo` design in `docs/resource-design.md`.
 
+## Migration Assessment
+
+- **SAP product area**: Integration Suite / Migration Assessment (SAP Process Orchestration to
+  Integration Suite migration evaluation).
+- **Research method and result**: Migration Assessment's documentation tree is small — around
+  fifteen pages, entirely checked. No dedicated API-access or service-key page exists anywhere in
+  it, the same negative-evidence signal used for Trading Partner Management and Integration
+  Advisor.
+- **A finding worth stating precisely**: Migration Assessment's documentation does mention APIs,
+  but in the opposite direction from what this research question needs. To extract data, it
+  reaches into a registered source system's own SAP Process Orchestration APIs (via the SAP
+  Destination service and typically Cloud Connector) — confirmed from
+  `add-an-sap-process-orchestration-system-5f76723.md`: "As API endpoints and subpaths are used
+  to extract data from your SAP Process Orchestration system, make sure that the SAP Destination
+  service can access the endpoints listed..." This is Migration Assessment *consuming* an API
+  from the source system, never Migration Assessment *exposing* one for its own objects.
+- **Object model, confirmed from `create-a-data-extraction-request-ce0ad0e.md` and
+  `concepts-324507c.md`**: choosing *Create* on a Data Extraction Request immediately starts an
+  extraction with a resulting `Completed`/`Completed with warnings`/`Completed with errors`
+  status — an imperative action, not a declarative object. Scenario Evaluation results are
+  assessment-category classifications (*Ready to Migrate* / *Adjustment Required* / *Evaluation
+  Required*), migration-readiness scores, and effort estimates — reporting output.
+- **Consequence for this phase's Terraform decisions**: no resource or data source implemented.
+  Unlike every other capability audited so far, this conclusion would hold even if a public API
+  were confirmed tomorrow: both remaining object types (extraction requests, evaluation results)
+  are workflow/reporting data by nature, not desired-state configuration. See
+  `docs/guides/migration-assessment.md`.
+
 ## Integration Advisor
 
 - **SAP product area**: Integration Suite / Integration Advisor (B2B interface content design —

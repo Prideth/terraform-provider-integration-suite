@@ -15,14 +15,22 @@ matrix.
 
 Development branches from `dev`, in this order, until superseded by an explicit reprioritization:
 
-1. **Migration Assessment** — source-system, rule, effort, and assessment-result objects,
-   expected to be mostly workflow/analysis-request data rather than desired-state configuration.
-2. **Remaining Integration Suite capability audit** — a full sweep of every capability area this
+1. **Remaining Integration Suite capability audit** — a full sweep of every capability area this
    provider has not yet formally classified (Open Connectors, Event Mesh, Data Space Integration,
    and others), each resolved to a concrete provider-boundary decision.
-3. **Provider completion and hardening** — a catalog-wide accuracy audit, README/documentation
-   regeneration, and repository-wide quality/security review once the phases above have
+2. **Provider completion and hardening** — a catalog-wide accuracy audit, README/documentation
+   regeneration, and repository-wide quality/security review once the phase above has
    established this provider's practical ceiling of currently reachable public APIs.
+
+Migration Assessment research is done — no public API was found for Source System registration,
+Data Extraction Requests, or Scenario Evaluation Requests across Migration Assessment's small
+(roughly fifteen-page) documentation tree. Uniquely among the capabilities audited this run, this
+conclusion would hold even if an API were confirmed: Migration Assessment's documentation
+describes it as an API *consumer* (reaching into a registered source system's own SAP Process
+Orchestration APIs to extract data), and every one of its own objects is either action-triggered
+workflow (Create starts an extraction with a resulting status) or reporting output (assessment
+categories, readiness scores, effort estimates) — see "Implemented" below and
+`docs/guides/migration-assessment.md`.
 
 Integration Advisor research is done — no public API was found for any design-time object (MIG,
 MAG, Type System, Codelist, Shared Code, Global Parameters) across roughly eighty-five
@@ -235,10 +243,8 @@ already shipped (see "Implemented" below).
 
 ## v0.3.x
 
-- Migration Assessment, evaluated and implemented only where public APIs justify Terraform
-  management (priority 1 above)
-- The remaining Integration Suite capability audit and provider hardening pass (priorities 2 and
-  3 above)
+- The remaining Integration Suite capability audit and provider hardening pass (priorities 1 and
+  2 above)
 
 ## Later
 
