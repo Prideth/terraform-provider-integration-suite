@@ -1634,13 +1634,43 @@ var Catalog = []Feature{
 		},
 	},
 	{
-		Key:           "migration_assessment",
-		Domain:        "other_capability",
-		Name:          "Migration Assessment",
-		Description:   "SAP's integration migration assessment capability.",
+		Key:    "migration_assessment.source_system",
+		Domain: "other_capability",
+		Name:   "Migration Assessment Source System",
+		Description: "A registered SAP Process Orchestration system (7.31 SP28+, 7.40 SP23+, or " +
+			"7.50 SP06+) Migration Assessment extracts integration scenario data from.",
 		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonResearchRequired,
+		SupportReason: ReasonNoPublicAPI,
 		PublicAPI:     false,
+		Limitations: []string{
+			"No API-access or service-key documentation page exists anywhere in Migration " +
+				"Assessment's documentation tree (a small, roughly fifteen-page tree, entirely " +
+				"checked). Its own documentation instead describes Migration Assessment as an API " +
+				"*consumer*: it reaches into a registered source system's own SAP Process " +
+				"Orchestration APIs (via Cloud Connector/Destination service) to extract data — the " +
+				"opposite direction from a public API this provider could manage Migration " +
+				"Assessment's own objects through.",
+		},
+	},
+	{
+		Key:    "migration_assessment.extraction_and_evaluation",
+		Domain: "other_capability",
+		Name:   "Migration Assessment Extraction and Scenario Evaluation",
+		Description: "Data Extraction Requests, Scenario Evaluation Requests, and their resulting " +
+			"assessment-category/migration-readiness/effort-estimate reports.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonOutOfScope,
+		PublicAPI:     false,
+		Limitations: []string{
+			"Confirmed to be action-triggered workflow and reporting data, not desired-state " +
+				"configuration: SAP's own documentation describes choosing \"Create\" on a Data " +
+				"Extraction Request as starting an extraction process with a resulting Completed/" +
+				"Completed with warnings/Completed with errors status, and Scenario Evaluation " +
+				"results are assessment-category classifications, migration-readiness scores, and " +
+				"effort estimates — reporting output, the same category this provider already " +
+				"excludes for Message Processing Logs. Out of scope regardless of whether a public " +
+				"API is ever confirmed for triggering these actions.",
+		},
 	},
 	{
 		Key:           "data_space_integration",
