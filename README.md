@@ -169,6 +169,14 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Edge Integration Cell Registration | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 | Edge Integration Cell Runtime Operations | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 
+### Integration Assessment
+
+| Feature | Status | Terraform Support |
+|---|:---:|---|
+| Integration Assessment Requests and Assessment Workflow | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
+| Integration Assessment Landscape Configuration | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+| Integration Assessment Master Data | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+
 ### Capability Provisioning
 
 | Feature | Status | Terraform Support |
@@ -187,12 +195,11 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Developer Hub | ↗️ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Event Mesh | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Integration Advisor | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
-| Integration Assessment | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
 | Migration Assessment | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
 | Open Connectors | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
 | Trading Partner Management | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
 
-17 supported · 11 partial · 3 read-only · 0 experimental · 38 unsupported · 1 planned as a separate provider, out of 70 evaluated Integration Suite features.
+17 supported · 11 partial · 3 read-only · 0 experimental · 40 unsupported · 1 planned as a separate provider, out of 72 evaluated Integration Suite features.
 
 <!-- END GENERATED FEATURE SUPPORT -->
 

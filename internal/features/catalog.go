@@ -1482,13 +1482,63 @@ var Catalog = []Feature{
 		},
 	},
 	{
-		Key:           "integration_assessment",
-		Domain:        "other_capability",
-		Name:          "Integration Assessment",
-		Description:   "SAP's integration landscape assessment capability.",
+		Key:    "integration_assessment.master_data",
+		Domain: "integration_assessment",
+		Name:   "Integration Assessment Master Data",
+		Description: "SAP Integration Solution Advisory Methodology (ISA-M) taxonomy: Domain, " +
+			"Style, Use Case Pattern, Integration Pattern, Key Characteristic (and its Group/Value/" +
+			"Recommendation), Deployment Model, Domain Determination — largely SAP-maintained " +
+			"reference content a tenant can review and adjust.",
 		SupportStatus: StatusUnsupported,
 		SupportReason: ReasonResearchRequired,
-		PublicAPI:     false,
+		PublicAPI:     true,
+		Limitations: []string{
+			"A confirmed, separate BTP service (\"Integration Assessment APIs\", entitlement " +
+				"integration-assessment) exposes these entities through two OAuth 2.0-secured base " +
+				"URLs (\"entities\" and \"management\") from its own service key — the general shape " +
+				"and full entity list are confirmed from SAP's own \"Integration Assessment APIs\" " +
+				"documentation page — but no worked request/response example was found in any " +
+				"reachable primary source (the SAP-docs mirror, an official PDF user guide, and an " +
+				"SAP TechEd hands-on sample repository were all checked and cover only UI procedures), " +
+				"so no field-level JSON schema could be confirmed for any entity in this group.",
+		},
+	},
+	{
+		Key:    "integration_assessment.landscape_configuration",
+		Domain: "integration_assessment",
+		Name:   "Integration Assessment Landscape Configuration",
+		Description: "Tenant-owned integration landscape inventory: Application, Application " +
+			"Instance, Technology, Technology Instance, Vendor, and their association entities " +
+			"(Technology Domain, Technology Style, Technology Key Characteristic).",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonResearchRequired,
+		PublicAPI:     true,
+		Limitations: []string{
+			"The strongest Terraform-candidate family in this capability: these are practitioner-" +
+				"authored configuration, not workflow or reporting data, and SAP documents concrete " +
+				"per-tenant limits confirming real, bounded storage (maximum 20000 Applications, 20000 " +
+				"Application Instances, 50 Technologies, 150 Technology Instances, 10000 Vendors) — " +
+				"but, as with integration_assessment.master_data, no field-level JSON schema for any " +
+				"Create/Read/Update/Delete operation was found in any reachable primary source.",
+		},
+	},
+	{
+		Key:    "integration_assessment.assessment_workflow",
+		Domain: "integration_assessment",
+		Name:   "Integration Assessment Requests and Assessment Workflow",
+		Description: "Business solution/interface Request and Request Line Item workflow objects, " +
+			"the Integration Flow/Message Flow content they reference, and Request Line Item " +
+			"Technology Instance Decision.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonOutOfScope,
+		PublicAPI:     true,
+		Limitations: []string{
+			"Confirmed to be workflow/project state, not desired-state configuration: SAP documents " +
+				"an explicit Request status machine (draft -> new -> in progress -> completed, with a " +
+				"Reopen action), matching this provider's established Message Processing Log/" +
+				"Developer Hub Subscription category of exclusion — out of scope regardless of whether " +
+				"a field-level API contract is ever confirmed for it.",
+		},
 	},
 	{
 		Key:           "migration_assessment",

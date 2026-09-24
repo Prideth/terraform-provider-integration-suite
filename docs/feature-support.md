@@ -84,7 +84,9 @@ Do not conflate these: a feature can be fully supported by this provider and sti
 | `edge_integration_cell.runtime` | edge_integration_cell | unsupported (out_of_scope) | Yes | — | — | — | — | — | — | — |
 | `event_mesh` | other_capability | unsupported (out_of_scope) | No | — | — | — | — | — | — | — |
 | `integration_advisor` | other_capability | unsupported (research_required) | No | — | — | — | — | — | — | — |
-| `integration_assessment` | other_capability | unsupported (research_required) | No | — | — | — | — | — | — | — |
+| `integration_assessment.assessment_workflow` | integration_assessment | unsupported (out_of_scope) | Yes | — | — | — | — | — | — | — |
+| `integration_assessment.landscape_configuration` | integration_assessment | unsupported (research_required) | Yes | — | — | — | — | — | — | — |
+| `integration_assessment.master_data` | integration_assessment | unsupported (research_required) | Yes | — | — | — | — | — | — | — |
 | `integration_cell.runtime` | integration_cell | unsupported (no_public_api) | No | — | — | — | — | — | — | — |
 | `integration_cell.virtual_host` | integration_cell | unsupported (no_public_api) | No | — | — | — | — | — | — | — |
 | `migration_assessment` | other_capability | unsupported (research_required) | No | — | — | — | — | — | — | — |
@@ -230,7 +232,10 @@ Grouped by why, not just that. A feature can be `partial` and reachable via one 
   - UpsertValMaps requires an already-existing source/target agency-identifier scheme, so entries cannot be managed independently of the artifact's own content.
 - **`data_space_integration`** — SAP's data space connectivity capability within Integration Suite.
 - **`integration_advisor`** — SAP's collaborative interface-content-design capability.
-- **`integration_assessment`** — SAP's integration landscape assessment capability.
+- **`integration_assessment.landscape_configuration`** — Tenant-owned integration landscape inventory: Application, Application Instance, Technology, Technology Instance, Vendor, and their association entities (Technology Domain, Technology Style, Technology Key Characteristic).
+  - The strongest Terraform-candidate family in this capability: these are practitioner-authored configuration, not workflow or reporting data, and SAP documents concrete per-tenant limits confirming real, bounded storage (maximum 20000 Applications, 20000 Application Instances, 50 Technologies, 150 Technology Instances, 10000 Vendors) — but, as with integration_assessment.master_data, no field-level JSON schema for any Create/Read/Update/Delete operation was found in any reachable primary source.
+- **`integration_assessment.master_data`** — SAP Integration Solution Advisory Methodology (ISA-M) taxonomy: Domain, Style, Use Case Pattern, Integration Pattern, Key Characteristic (and its Group/Value/Recommendation), Deployment Model, Domain Determination — largely SAP-maintained reference content a tenant can review and adjust.
+  - A confirmed, separate BTP service ("Integration Assessment APIs", entitlement integration-assessment) exposes these entities through two OAuth 2.0-secured base URLs ("entities" and "management") from its own service key — the general shape and full entity list are confirmed from SAP's own "Integration Assessment APIs" documentation page — but no worked request/response example was found in any reachable primary source (the SAP-docs mirror, an official PDF user guide, and an SAP TechEd hands-on sample repository were all checked and cover only UI procedures), so no field-level JSON schema could be confirmed for any entity in this group.
 - **`migration_assessment`** — SAP's integration migration assessment capability.
 - **`open_connectors`** — SAP's third-party SaaS connectivity capability within Integration Suite.
   - Not yet investigated by this project; listed so its absence is visible rather than silently omitted.
@@ -268,6 +273,8 @@ Grouped by why, not just that. A feature can be `partial` and reachable via one 
   - The exact entity keys and PATCH/POST payload shapes for RuntimeParameter and JobSchedule are not confirmed from a reachable primary source: the package's $metadata/EDMX and worked examples live behind SAP Business Accelerator Hub's authenticated catalog pages, which redirect unauthenticated requests to a login page, the same access limitation this project has documented repeatedly for other api.sap.com packages.
 - **`event_mesh`** — SAP's event broker service for asynchronous, event-driven integration.
   - Likely a separate BTP service outside this provider's Integration Suite content/capability boundary rather than a Cloud Integration design-time concern.
+- **`integration_assessment.assessment_workflow`** — Business solution/interface Request and Request Line Item workflow objects, the Integration Flow/Message Flow content they reference, and Request Line Item Technology Instance Decision.
+  - Confirmed to be workflow/project state, not desired-state configuration: SAP documents an explicit Request status machine (draft -> new -> in progress -> completed, with a Reopen action), matching this provider's established Message Processing Log/Developer Hub Subscription category of exclusion — out of scope regardless of whether a field-level API contract is ever confirmed for it.
 - **`security.ssh_key`** — An SSH-capable key pair used for SFTP public-key authentication.
   - Reverified for this feature family and corrected: SAP's Security Content API overview lists no independent "SSH Key" resource, and the tenant keystore's own "Creating a Key Pair/SSH Key Pair" UI documentation uses the identical Key Pair attribute set (alias, key type, key size, signature algorithm, subject DN fields, validity) for both — "Create > Key Pair" and "Create > SSH Key" are the same underlying mechanism with a different label. No separate SSHKeyGenerationRequests field contract (mandatory/optional fields, example body) was found documented anywhere.
   - An RSA or DSA sapintegrationsuite_key_pair's public key can be exported in OpenSSH format via public_key_openssh, backed by SAP's confirmed KeystoreEntries('<hexalias>')/Sshkey/$value — this covers the SSH use case without a separate resource. EC key pairs are documented as unsupported for this export.
