@@ -2,10 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
-## Unreleased
+## 0.1.0 - 2026-09-24
 
-Initial development toward v0.1.0. See `ROADMAP.md` for what is planned and
-`docs/` for the API discovery this release is based on.
+Initial release. See `ROADMAP.md` for what is planned next and `docs/` for
+the API discovery this release is based on.
 
 ### Added
 
@@ -145,6 +145,81 @@ Initial development toward v0.1.0. See `ROADMAP.md` for what is planned and
   `golangci-lint` v2.13.2, `hashicorp/setup-terraform@v4`) instead of versions that had drifted
   behind what those actions currently require, which is why lint CI had started failing before
   ever reaching the actual linters.
+- `sapintegrationsuite_number_range`, a write-only-lifecycle resource for Cloud Integration
+  Number Ranges: SAP documents confirmed `Create`/`Update` for this entity but no `GET` or
+  `DELETE` anywhere, so Read is a documented no-op that trusts state rather than contacting SAP,
+  and Import/Delete both refuse explicitly with an actionable error instead of guessing at an
+  unconfirmed operation. The runtime counter (`CurrentValue`) is a version-gated write-only
+  attribute (`current_value_wo`/`current_value_wo_version`), never an ordinary reconciled field,
+  so an apply that only changes static configuration can never reset a counter that has since
+  advanced through live EDI/EDIFACT processing. Variables, Data Stores, and Data Store Entries
+  were evaluated in the same research pass and are deliberately unsupported: no independent
+  creation API, and/or the object is runtime business data, not desired-state configuration. See
+  `docs/guides/runtime-stores-and-number-ranges.md`.
+- Security Content keystore management: `data.sapintegrationsuite_keystore_entry` and
+  `data.sapintegrationsuite_keystore_entries` for read-only entry discovery,
+  `sapintegrationsuite_certificate` for X.509 certificate lifecycle management (drift detection
+  uses a locally-computed SHA-256 fingerprint of the DER bytes, not raw PEM text, so re-wrapped or
+  CRLF-converted PEM content never causes a spurious diff), and `sapintegrationsuite_key_pair` for
+  SAP-generated key pairs — private key material never enters this provider or its state. There is
+  no separate "SSH Key" resource: SAP's own documentation treats it as the same Key Pair mechanism.
+  Certificate Chain, Secure Parameter, and Known Hosts were evaluated and remain unimplemented,
+  either without a confirmed public contract or without any public API at all. See
+  `docs/guides/security-content.md`.
+- Research findings for SAP's current, API-artifact-centric API Management model (API Artifacts,
+  Runtime Profiles, Integration Cell, Virtual Hosts, Policies, Reusable API Artifacts) and for Edge
+  Integration Cell: after a thorough documentation pass covering both areas, this provider found no
+  public API for API Artifacts or their deployment, Integration Cell activation/runtime status, or
+  Integration Cell/Edge Integration Cell Virtual Hosts — real, UI-documented SAP functionality with
+  no REST/OData contract behind it. Edge Integration Cell's own local monitoring API
+  (`/local/api/v1`, Message Processing Logs/Message Stores) and Operations Cockpit API
+  (`/local/api/eic/v1`) are confirmed real and reachable, but excluded as runtime/monitoring data
+  and Kubernetes-adjacent operational configuration respectively, the same category this provider
+  already excludes for Cloud Integration's own Message Processing Logs. See
+  `docs/guides/current-api-management.md` and `docs/guides/edge-integration-cell.md`.
+- Classic API Management: an optional, independent `provider.api_management` configuration block
+  (and matching `SAP_INTEGRATION_SUITE_API_MANAGEMENT_*` environment variables) authenticating
+  against the API Portal's own `apiportal-apiaccess` service plan, entirely separate from the
+  `oauth` block used for Cloud Integration. A new `internal/client/apimanagementclassic` package
+  backs four resources, each scoped to exactly what SAP's `Management.svc` OData API confirms:
+  `sapintegrationsuite_api_provider` (Create/Read/Delete only — SAP's own Piper tooling documents
+  create-only support for this entity — Internet connection type only, with bounded jittered-backoff
+  polling after Create to wait out SAP's documented ~20-second eventual-consistency window),
+  `sapintegrationsuite_api_product` (full CRUD, confirmed verbatim from SAP's own worked Create/
+  Update examples, including reconciled custom `additional_properties`),
+  `sapintegrationsuite_api_management_certificate_store_reference` (full CRUD — the best-confirmed
+  object in this whole provider, with complete request/response bodies documented for every
+  operation), and `sapintegrationsuite_api_key_value_map` (Create/Read/Delete, unencrypted maps
+  only — this provider could not confirm how an encrypted entry's value is returned by `GET`, so it
+  rejects `encrypted = true` outright rather than risk leaking a secret into state). Matching data
+  sources exist for all four. Classic API Proxy, its deployment, and its policy model are
+  deliberately not implemented: the entity, its `GET`/`DELETE`, and its ZIP bundle structure are
+  all confirmed, but no reachable primary source shows the Create/Update wire format for the bundle
+  content itself. See `docs/guides/classic-api-management.md`.
+- Research findings, without any resulting resources, for Integration Assessment (a separate BTP
+  service with a fully confirmed 19-entity inventory but no confirmed field-level schema for any
+  entity), Trading Partner Management (no public API found for any design-time object across
+  roughly ninety documentation pages; agreement activation is confirmed to push generated entries
+  into the Partner Directory this provider already manages directly), Integration Advisor (no
+  public API found across roughly eighty-five pages; artifact injection into Cloud Integration is a
+  confirmed UI wizard with no REST equivalent), and Migration Assessment (no public API for its own
+  objects — it is documented as an API *consumer* of a registered source system's own SAP Process
+  Orchestration APIs — and every object is action-triggered workflow or reporting output by nature,
+  so this conclusion would hold even if an API were later confirmed). See
+  `docs/guides/integration-assessment.md`, `docs/guides/trading-partner-management.md`,
+  `docs/guides/integration-advisor.md`, and `docs/guides/migration-assessment.md`.
+- A full sweep of the remaining Integration Suite capability surface against current SAP
+  documentation, adding two previously-uncatalogued areas (API Composition's Business Data Graph —
+  the strongest confirmed-but-unimplemented finding in this whole catalog, with complete verbatim
+  Create/Read/Update worked examples; OData Provisioning) and reclassifying three placeholders with
+  real evidence in place of guesses (Event Mesh and Developer Hub are both tracked as
+  `separate_provider`, deliberately excluded because each belongs to a different provider's
+  boundary by design — Developer Hub is planned as its own, independently versioned Terraform
+  provider, working name `Prideth/terraform-provider-sap-developer-hub`; Data Space Integration is
+  confirmed `research_required` with a real, separately credentialed API; Open Connectors is a
+  deliberate `out_of_scope` judgment, a catalog of 170+ independent third-party connector types
+  that does not fit this provider's schema-first design). See `docs/provider-scope.md` and
+  `docs/sap-api-references.md`.
 
 ### Changed
 
@@ -175,6 +250,10 @@ Initial development toward v0.1.0. See `ROADMAP.md` for what is planned and
 - The `terraform-fmt` lint job now runs against a small matrix (Terraform 1.11.0, the documented
   floor for write-only attribute support, and 1.16.3, the current stable release) instead of
   whatever `hashicorp/setup-terraform` happened to install by default.
+- `sapintegrationsuite_api_provider`'s `password_wo` attribute is now also marked `Sensitive`,
+  matching every other credential-shaped write-only attribute in this provider (it was previously
+  `WriteOnly` without `Sensitive`, an inconsistency a repository-wide hardening audit found and
+  corrected before this release).
 
 ### Known limitations
 
@@ -238,3 +317,18 @@ Initial development toward v0.1.0. See `ROADMAP.md` for what is planned and
   strongly implied but not stated explicitly by SAP's documentation, and whether tag names
   must be unique, whether permitted values are case-sensitive, and whether SAP preserves
   submitted ordering are all unconfirmed. See `docs/guides/custom-tag-configurations.md`.
+- `sapintegrationsuite_number_range` has no Read, no Import, and no Delete — see the Added entry
+  above and `docs/guides/runtime-stores-and-number-ranges.md` for the full reasoning.
+- `sapintegrationsuite_api_provider` has no in-place Update (every attribute is
+  `RequiresReplace`) and only supports the "Internet" connection type; SAP documents three
+  further connection types (On Premise, Open Connectors, Cloud Integration) with no confirmed
+  field-level JSON mapping this provider could find. `sapintegrationsuite_api_product`'s
+  `api_proxy_names` is set only at Create time (also `RequiresReplace`), since SAP's confirmed
+  Update payload never includes that association. `sapintegrationsuite_api_key_value_map` has no
+  in-place Update and does not support encrypted maps at all. There is no
+  `sapintegrationsuite_api_proxy` resource — see `docs/guides/classic-api-management.md` for all
+  four limitations in full.
+- No acceptance tests exist in this repository yet. Every phase of this provider's development so
+  far has worked from documentation research without live SAP tenant credentials, so test coverage
+  is unit-test (`httptest`-based) only; the `TF_ACC=1`-gated acceptance test workflow and
+  convention are in place for future contributors with tenant access. See `CONTRIBUTING.md`.
