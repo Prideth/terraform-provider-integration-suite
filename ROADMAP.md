@@ -15,21 +15,26 @@ matrix.
 
 Development branches from `dev`, in this order, until superseded by an explicit reprioritization:
 
-1. **Trading Partner Management** — company/subsidiary/trading-partner profiles, communication
-   partner profiles, and agreement templates, kept conceptually and architecturally distinct from
-   the already-implemented Partner Directory runtime configuration it can generate. See
-   `docs/guides/trading-partner-management.md`.
-2. **Integration Advisor** — Message Implementation Guidelines, Mapping Guidelines, type systems,
+1. **Integration Advisor** — Message Implementation Guidelines, Mapping Guidelines, type systems,
    B2B standards, and codelists, implemented only where a public API exposes persistent,
    independently identified design-time artifacts.
-3. **Migration Assessment** — source-system, rule, effort, and assessment-result objects,
+2. **Migration Assessment** — source-system, rule, effort, and assessment-result objects,
    expected to be mostly workflow/analysis-request data rather than desired-state configuration.
-4. **Remaining Integration Suite capability audit** — a full sweep of every capability area this
+3. **Remaining Integration Suite capability audit** — a full sweep of every capability area this
    provider has not yet formally classified (Open Connectors, Event Mesh, Data Space Integration,
    and others), each resolved to a concrete provider-boundary decision.
-5. **Provider completion and hardening** — a catalog-wide accuracy audit, README/documentation
+4. **Provider completion and hardening** — a catalog-wide accuracy audit, README/documentation
    regeneration, and repository-wide quality/security review once the phases above have
    established this provider's practical ceiling of currently reachable public APIs.
+
+Trading Partner Management research is done — no public API was found for any design-time object
+(Company/Trading Partner/Communication Partner Profile, Agreement Template, Agreement) across
+roughly ninety documentation pages checked, using the same negative-evidence method (absence of a
+dedicated API-access page) that has proven reliable for every capability audited so far.
+Activating a trading partner agreement is confirmed to push generated entries into Partner
+Directory, which this provider already manages directly and continues to treat as the correct,
+existing surface for that runtime data — see "Implemented" below and
+`docs/guides/trading-partner-management.md`.
 
 Integration Assessment is done for its currently reachable public API surface — a separate BTP
 service subscription, dual-base-URL OAuth authentication, and a fully confirmed 19-entity
@@ -224,10 +229,10 @@ already shipped (see "Implemented" below).
 
 ## v0.3.x
 
-- Trading Partner Management, Integration Advisor, and Migration Assessment, each evaluated and
-  implemented only where public APIs justify Terraform management (priorities 1 through 3 above)
-- The remaining Integration Suite capability audit and provider hardening pass (priorities 4 and
-  5 above)
+- Integration Advisor and Migration Assessment, each evaluated and implemented only where public
+  APIs justify Terraform management (priorities 1 and 2 above)
+- The remaining Integration Suite capability audit and provider hardening pass (priorities 3 and
+  4 above)
 
 ## Later
 

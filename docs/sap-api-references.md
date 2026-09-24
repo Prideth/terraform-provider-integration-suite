@@ -1203,6 +1203,39 @@ budget was directed at the desired-state-configuration candidates above instead.
   `UserCredentialParameters` is treated as a credential store, and even that is modeled
   conservatively — see the write-only `password_wo` design in `docs/resource-design.md`.
 
+## Trading Partner Management
+
+- **SAP product area**: Integration Suite / Trading Partner Management (B2B/EDI partner
+  onboarding), under *Design* > *B2B Scenarios*.
+- **Research method and result**: the method that worked for Classic API Management
+  (`accessing-api-management-apis-programmatically-...md`) and Integration Assessment
+  (`creating-service-instance-and-service-key-to-enable-api-calling-...md`) — search the
+  capability's entire documentation tree for a dedicated API-access or service-key page — was
+  applied here and found nothing. Roughly ninety pages under
+  `docs/ISuite_Trading_Partner_Management/` in the SAP-docs mirror were enumerated by path;
+  a targeted `grep` for "API", "REST", "OData", "service key", and "service instance" across the
+  capability overview, task/permissions, export, and configuration-manager pages (the ones most
+  likely to mention programmatic access if it existed) returned zero matches.
+- **What is documented, all UI-only**: a *Download* button on Company Profile, Trading Partner,
+  Agreement Template, and Agreement produces a browser-downloaded JSON file
+  (`company.json`, `TradingPartner_<name>.json`, `Template_<name>.json`, `Agreement_<name>.json`)
+  — confirming these objects are internally JSON-shaped, but not evidence of a REST endpoint.
+- **Confirmed relationship to Partner Directory** (`partner-directory-data-1d92d5c.md`, quoted
+  verbatim): "When a trading partner agreement gets activated, the complete agreement information
+  gets pushed into the partner directory. An entry is created in the partner directory for each
+  business transaction activity in the agreement and for each Interchange Envelope extraction."
+  Generated entries are visible read-only under *Partner Directory Data*, prefixed `SAP_TPM`.
+  This confirms Trading Partner Management is a design-time workflow that bulk-generates entries
+  in the same Partner Directory store this provider already manages directly — not a separate
+  storage layer, and not something this provider represents as its own set of resources even if
+  an API for the trigger itself were confirmed, since activation-triggered generation is an
+  imperative side effect, not desired-state configuration.
+- **Consequence for this phase's Terraform decisions**: no resource or data source implemented.
+  This is an Outcome-C finding (real, UI-documented SAP functionality, no public API found),
+  the same category as Current API Management's family, reached through the same negative-
+  evidence method that has proven reliable across every capability audited so far. See
+  `docs/guides/trading-partner-management.md`.
+
 ## Integration Assessment
 
 - **SAP product area**: SAP Integration Solution Advisory Methodology (ISA-M) / Integration

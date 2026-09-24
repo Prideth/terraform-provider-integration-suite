@@ -1651,6 +1651,40 @@ artifact ZIP content is already treated), policies would be managed as part of
 `sapintegrationsuite_api_proxy`'s own content once that resource exists, never as a separate
 `sapintegrationsuite_api_proxy_policy` resource reproducing SAP's policy schema catalog.
 
+## Trading Partner Management — suitability check
+
+This phase's research question was, again, whether a public API exists at all — and unlike
+Classic API Management and Integration Assessment, the answer here is no, reached through the
+same negative-evidence method (absence of a dedicated API-access documentation page, consistently
+present for every capability in this provider that does have a confirmed public API) applied
+across roughly ninety documentation pages.
+
+### Company Profile, Trading Partner Profile, Communication Partner Profile, Agreement Template,
+### Agreement — no resource, no data source
+
+1. **Who creates it**: a practitioner, under *Design* > *B2B Scenarios*.
+2. **Configuration vs. runtime state**: configuration — design-time content a practitioner
+   authors, which would be a legitimate Terraform candidate if a public API existed.
+3–13. Moot — no Create/Read/Update/Delete API found documented anywhere for any of these
+   objects, despite export/import (JSON download/upload) and full lifecycle management (create,
+   activate, deactivate, copy, migrate, version) all being thoroughly documented as UI
+   procedures.
+14. **Resource / Data Source / unsupported / out of scope**: **unsupported, `no_public_api`** —
+   the same Outcome C this provider already reached for Current API Management's object family.
+
+### Partner Directory generation on agreement activation — out of scope regardless
+
+1. **Who triggers it**: a practitioner, choosing *Activate* on a trading partner agreement.
+2. **Configuration vs. imperative action**: confirmed imperative — SAP's own documentation
+   describes activation as an action that "pushes" the complete agreement into Partner Directory,
+   not a state Terraform's plan/apply model reconciles.
+14. **Resource / Data Source / unsupported / out of scope**: **unsupported, `out_of_scope`** —
+   this provider already manages the Partner Directory entries this process happens to generate,
+   directly, through the confirmed API those resources already use (see
+   `docs/guides/partner-directory.md`). Wrapping the *generation trigger itself* as a resource
+   would model an action, not desired state, the same reasoning this provider already applies to
+   Developer Hub's Subscription approval workflow and Integration Assessment's Request objects.
+
 ## Integration Assessment — suitability check
 
 This phase's research question was again the usual one (does a public API exist), and the answer
