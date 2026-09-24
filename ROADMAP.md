@@ -11,13 +11,25 @@ For what this provider *version* actually supports today, feature by feature, se
 this document describes direction and sequencing, not the authoritative current support
 matrix.
 
-## Current development priority
+## Current status
 
-Development branches from `dev`, in this order, until superseded by an explicit reprioritization:
+Current public API coverage is complete for this round of development: every SAP Integration
+Suite capability this provider knows about (Cloud Integration, Security Content, Partner
+Directory, Classic API Management, current API Management/API Artifacts, Integration Cell, Edge
+Integration Cell, Developer Hub, API Composition, Integration Assessment, Trading Partner
+Management, Integration Advisor, Migration Assessment, Data Space Integration, Event Mesh, Open
+Connectors, OData Provisioning) has been researched and classified, and every object with a
+confirmed public API contract this provider judged Terraform-suitable has been implemented. The
+provider completion and hardening pass — a catalog-wide accuracy audit, a repository-wide
+quality/security review, and a `password_wo` schema fix this pass found and corrected — is also
+done; see "Implemented" below for what that produced.
 
-1. **Provider completion and hardening** — a catalog-wide accuracy audit, README/documentation
-   regeneration, and repository-wide quality/security review, now that the capability audit below
-   has established this provider's practical ceiling of currently reachable public APIs.
+Future work follows newly published SAP APIs and incoming feature requests, not a fixed backlog.
+The clearest concrete opportunities already identified, in case SAP's documented API surface
+moves first, are listed in the "Confirmed-but-not-yet-implemented capabilities" section of
+`docs/provider-scope.md` — API Composition's Business Data Graph (already the strongest evidence
+of any unimplemented object in this catalog), Classic API Management's API Proxy content upload,
+Data Space Integration, OData Provisioning, and Integration Assessment's Landscape Configuration.
 
 The remaining Integration Suite capability audit is done. Two capability areas had no prior
 catalog entry at all and were added: **API Composition** (Business Data Graph, activated
@@ -168,7 +180,7 @@ already shipped (see "Implemented" below).
   - `data.sapintegrationsuite_partner_authorized_user`
 - Security Content credentials (write-only secrets, in-place redeploy via `PUT` — see
   `docs/guides/security-content.md`; most other Security Content artifact types remain
-  unimplemented, see "Current development priority" above):
+  unimplemented, see `docs/guides/security-content.md` for the full boundary):
   - `sapintegrationsuite_user_credential`
   - `data.sapintegrationsuite_user_credential`
   - `sapintegrationsuite_oauth2_client_credential`
@@ -265,7 +277,7 @@ already shipped (see "Implemented" below).
 
 ## v0.3.x
 
-- The provider hardening pass (priority 1 above)
+The provider hardening pass is done — see "Current status" above.
 
 ## Later
 
