@@ -1461,13 +1461,77 @@ var Catalog = []Feature{
 		PublicAPI:     false,
 	},
 	{
-		Key:           "trading_partner_management",
-		Domain:        "other_capability",
-		Name:          "Trading Partner Management",
-		Description:   "SAP's B2B trading partner management capability.",
+		Key:    "trading_partner_management.company_profile",
+		Domain: "other_capability",
+		Name:   "Trading Partner Management Company Profile",
+		Description: "The tenant's own company profile and its subsidiaries, the initiator side " +
+			"of every trading partner agreement.",
 		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonResearchRequired,
+		SupportReason: ReasonNoPublicAPI,
 		PublicAPI:     false,
+		Limitations: []string{
+			"Reconfirmed: no \"accessing APIs programmatically\", API reference, or service-instance/" +
+				"service-key page exists anywhere in SAP's entire Trading Partner Management " +
+				"documentation tree (roughly 90 pages checked) — the same kind of page that, when " +
+				"present, confirmed a real public API for Classic API Management and Integration " +
+				"Assessment. Content is downloadable as JSON through a UI Download button only " +
+				"(company.json), never through a documented REST endpoint.",
+		},
+	},
+	{
+		Key:    "trading_partner_management.partner_profile",
+		Domain: "other_capability",
+		Name:   "Trading Partner Management Partner Profile",
+		Description: "Trading partner profiles and communication partner profiles: the " +
+			"counterparty side of a trading partner agreement.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonNoPublicAPI,
+		PublicAPI:     false,
+		Limitations: []string{
+			"Same evidence as trading_partner_management.company_profile: UI-only (Design > B2B " +
+				"Scenarios), downloadable as JSON, no documented REST/OData endpoint found.",
+		},
+	},
+	{
+		Key:           "trading_partner_management.agreement_template",
+		Domain:        "other_capability",
+		Name:          "Trading Partner Management Agreement Template",
+		Description:   "A reusable template defining the shape of trading partner agreements created from it.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonNoPublicAPI,
+		PublicAPI:     false,
+	},
+	{
+		Key:    "trading_partner_management.agreement",
+		Domain: "other_capability",
+		Name:   "Trading Partner Management Agreement",
+		Description: "A trading partner agreement: business transaction activities, identifiers, " +
+			"and integration/message flow configuration between the tenant's company profile and a " +
+			"trading partner.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonNoPublicAPI,
+		PublicAPI:     false,
+	},
+	{
+		Key:    "trading_partner_management.partner_directory_generation",
+		Domain: "other_capability",
+		Name:   "Trading Partner Management Partner Directory Generation",
+		Description: "The generated Partner Directory entries (String/Binary Parameters, prefixed " +
+			"\"SAP_TPM\") an agreement's activation pushes into Partner Directory for runtime use by " +
+			"generic integration flows.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonOutOfScope,
+		PublicAPI:     false,
+		Limitations: []string{
+			"Confirmed, verbatim: \"When a trading partner agreement gets activated, the complete " +
+				"agreement information gets pushed into the partner directory.\" This is a UI-triggered " +
+				"(Activate action), one-way generation side effect, not an independent create/update " +
+				"operation this provider's already-implemented Partner Directory resources " +
+				"(sapintegrationsuite_partner_string_parameter and siblings) could safely manage or " +
+				"even represent — out of scope for the same reason this provider does not model other " +
+				"imperative generation/replication actions as resources, regardless of whether a " +
+				"public API for the trigger itself is ever confirmed.",
+		},
 	},
 	{
 		Key:           "event_mesh",
