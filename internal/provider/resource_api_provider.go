@@ -143,6 +143,7 @@ func (r *apiProviderResource) Schema(_ context.Context, _ resource.SchemaRequest
 			},
 			"password_wo": schema.StringAttribute{
 				Optional:  true,
+				Sensitive: true,
 				WriteOnly: true,
 				Description: "Password for auth_type = \"BASIC\" connections. Write-only: Terraform " +
 					"never stores this in plan or state. Since this resource has no Update, there is no " +

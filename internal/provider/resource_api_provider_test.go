@@ -25,6 +25,21 @@ func apiProviderSchema(t *testing.T) schema.Schema {
 	return resp.Schema
 }
 
+func TestAPIProviderResource_Schema_PasswordWOIsSensitiveAndWriteOnly(t *testing.T) {
+	s := apiProviderSchema(t)
+
+	attr, ok := s.Attributes["password_wo"].(schema.StringAttribute)
+	if !ok {
+		t.Fatal("password_wo is not a schema.StringAttribute")
+	}
+	if !attr.WriteOnly {
+		t.Error("password_wo must be WriteOnly")
+	}
+	if !attr.Sensitive {
+		t.Error("password_wo must be Sensitive, matching every other credential-shaped write-only attribute in this provider")
+	}
+}
+
 func TestAPIProviderResource_Schema_EveryAttributeIsRequiresReplace(t *testing.T) {
 	s := apiProviderSchema(t)
 

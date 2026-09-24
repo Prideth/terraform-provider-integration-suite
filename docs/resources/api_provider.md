@@ -58,7 +58,7 @@ variable "backend_password" {
 
 - `auth_type` (String) Authentication method for connection requests to the backend. The only value this provider found confirmed in a worked example is "BASIC"; this attribute is not validated against a closed enum, since SAP's full set of accepted values is not confirmed.
 - `description` (String)
-- `password_wo` (String, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Password for auth_type = "BASIC" connections. Write-only: Terraform never stores this in plan or state. Since this resource has no Update, there is no companion _wo_version attribute — any change to this value already requires replacing the whole resource, the same as every other attribute here.
+- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Password for auth_type = "BASIC" connections. Write-only: Terraform never stores this in plan or state. Since this resource has no Update, there is no companion _wo_version attribute — any change to this value already requires replacing the whole resource, the same as every other attribute here.
 - `path_prefix` (String) Relative path prefix for SAP Gateway catalog service discovery (Catalog Service Settings). Only relevant for SAP Gateway-enabled SAP NetWeaver backends.
 - `port` (Number) The backend port. SAP's UI documents 443 for SSL connections and 8080 otherwise as typical values, not enforced defaults.
 - `service_collection_url` (String) Relative path from which the SAP Gateway catalog service should be fetched, for example "/CATALOGSERVICE/ServiceCollection". Only relevant for SAP Gateway-enabled SAP NetWeaver backends.
