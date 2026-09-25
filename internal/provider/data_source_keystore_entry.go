@@ -30,7 +30,7 @@ func (d *keystoreEntryDataSource) Schema(_ context.Context, _ datasource.SchemaR
 			"its alias, with the certificate details SAP stores for it: subject and issuer, " +
 			"validity, fingerprints, and who owns and last changed the entry. Backed by the " +
 			"KeystoreEntries entity of the Security Content OData V2 API. Read-only.",
-		Attributes: keystoreEntryAttributes(true),
+		Attributes: keystoreEntryDataSourceAttributes(),
 	}
 }
 
@@ -90,19 +90,26 @@ func (d *keystoreEntryDataSource) Configure(_ context.Context, req datasource.Co
 }
 
 func (d *keystoreEntryDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	var config keystoreEntryModel
+	var config keystoreEntryDataSourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(d.client, config.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	entry, err := d.client.GetKeystoreEntry(ctx, config.Alias.ValueString())
+	entry, err := client.GetKeystoreEntry(ctx, config.Alias.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read SAP Integration Suite keystore entry", diagnosticDetail(err))
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, keystoreEntryToModel(entry))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, keystoreEntryDataSourceModel{
+		keystoreEntryModel: keystoreEntryToModel(entry),
+		RuntimeLocationID:  config.RuntimeLocationID,
+	})...)
 }
 
 // keystoreEntryModel is shared between the single and collection keystore
@@ -159,4 +166,17 @@ func keystoreEntryToModel(entry *securitycontent.KeystoreEntry) keystoreEntryMod
 		LastModifiedBy:     stringOrNull(entry.LastModifiedBy),
 		LastModifiedTime:   odataDateToRFC3339(entry.LastModifiedTime),
 	}
+}
+
+// keystoreEntryDataSourceModel adds the lookup-only runtime_location_id to the
+// entry fields shared with the collection data source's list items.
+type keystoreEntryDataSourceModel struct {
+	keystoreEntryModel
+	RuntimeLocationID types.String `tfsdk:"runtime_location_id"`
+}
+
+func keystoreEntryDataSourceAttributes() map[string]schema.Attribute {
+	attrs := keystoreEntryAttributes(true)
+	attrs["runtime_location_id"] = runtimeLocationDataSourceAttribute()
+	return attrs
 }

@@ -28,6 +28,7 @@ func (d *partnerAuthorizedUserDataSource) Schema(_ context.Context, _ datasource
 		Description: "Reads an existing Partner Directory authorized user mapping by its " +
 			"communication user, without managing it as a resource.",
 		Attributes: map[string]schema.Attribute{
+			"runtime_location_id": runtimeLocationDataSourceAttribute(),
 			"id": schema.StringAttribute{
 				Computed:    true,
 				Description: "Same value as user.",
@@ -65,12 +66,18 @@ func (d *partnerAuthorizedUserDataSource) Read(ctx context.Context, req datasour
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(d.client, config.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	au, err := d.client.GetAuthorizedUser(ctx, config.User.ValueString())
+	au, err := client.GetAuthorizedUser(ctx, config.User.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read SAP Integration Suite Partner Directory authorized user", diagnosticDetail(err))
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, authorizedUserToModel(au))...)
+	m := authorizedUserToModel(au)
+	m.RuntimeLocationID = config.RuntimeLocationID
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }

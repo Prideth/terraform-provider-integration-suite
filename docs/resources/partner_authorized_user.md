@@ -27,6 +27,10 @@ resource "sapintegrationsuite_partner_authorized_user" "commuser" {
 - `partner_id` (String) The Partner ID (Pid) this user is authorized for. Mutable in place: SAP documents PUT for repointing an existing mapping at a different Pid.
 - `user` (String) The communication user this mapping authorizes. Whether SAP normalizes this value's case internally has not been confirmed; this provider passes it through exactly as configured.
 
+### Optional
+
+- `runtime_location_id` (String) Runtime location ID of the Edge Integration Cell to address, for example "myedge". Leave unset for the cloud runtime. SAP shows the ID in the Integration Suite monitoring URL after selecting the Edge Integration Cell as runtime ({"edge":{"runtimeLocationId":"myedge"}}). Requests then go to /location/<id>/api/v1 on the same tenant host. Changing it replaces the resource.
+
 ### Read-Only
 
 - `id` (String) Same value as user: the mapping's identity is the communication user itself.

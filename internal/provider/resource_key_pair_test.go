@@ -76,6 +76,7 @@ func keyPairConfigValue(objType tftypes.Object, overrides map[string]tftypes.Val
 	base := map[string]tftypes.Value{
 		"id":                      tftypes.NewValue(tftypes.String, nil),
 		"alias":                   tftypes.NewValue(tftypes.String, "my-keypair"),
+		"runtime_location_id":     tftypes.NewValue(tftypes.String, nil),
 		"key_type":                tftypes.NewValue(tftypes.String, "RSA"),
 		"signature_algorithm":     tftypes.NewValue(tftypes.String, nil),
 		"key_size":                tftypes.NewValue(tftypes.Number, 2048),
@@ -296,8 +297,9 @@ func TestKeyPairResource_Delete_SubmitsOnlyItsOwnAlias(t *testing.T) {
 	objType := s.Type().TerraformType(ctx).(tftypes.Object)
 
 	stateRaw := keyPairConfigValue(objType, map[string]tftypes.Value{
-		"id":    tftypes.NewValue(tftypes.String, "tf-acc-keypair-only"),
-		"alias": tftypes.NewValue(tftypes.String, "tf-acc-keypair-only"),
+		"id":                  tftypes.NewValue(tftypes.String, "tf-acc-keypair-only"),
+		"alias":               tftypes.NewValue(tftypes.String, "tf-acc-keypair-only"),
+		"runtime_location_id": tftypes.NewValue(tftypes.String, nil),
 	})
 
 	req := resource.DeleteRequest{State: tfsdk.State{Schema: s, Raw: stateRaw}}

@@ -43,6 +43,7 @@ type partnerUserCredentialParameterModel struct {
 	User              types.String `tfsdk:"user"`
 	PasswordWO        types.String `tfsdk:"password_wo"`
 	PasswordWOVersion types.String `tfsdk:"password_wo_version"`
+	RuntimeLocationID types.String `tfsdk:"runtime_location_id"`
 }
 
 func (r *partnerUserCredentialParameterResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -65,6 +66,7 @@ func (r *partnerUserCredentialParameterResource) Schema(_ context.Context, _ res
 			"in a single OData batch request; this provider always issues it standalone. See " +
 			"docs/guides/partner-directory.md for the full security analysis.",
 		Attributes: map[string]schema.Attribute{
+			"runtime_location_id": runtimeLocationResourceAttribute(),
 			"id": schema.StringAttribute{
 				Computed:    true,
 				Description: "Composite identifier in the form \"<partner_id>/<parameter_id>\".",
@@ -140,6 +142,10 @@ func (r *partnerUserCredentialParameterResource) Create(ctx context.Context, req
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, plan.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
 	var password types.String
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, pathRoot("password_wo"), &password)...)
@@ -147,7 +153,7 @@ func (r *partnerUserCredentialParameterResource) Create(ctx context.Context, req
 		return
 	}
 
-	created, err := r.client.CreateUserCredentialParameter(ctx,
+	created, err := client.CreateUserCredentialParameter(ctx,
 		plan.PartnerID.ValueString(), plan.ParameterID.ValueString(), plan.User.ValueString(), password.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to create SAP Integration Suite Partner Directory user credential parameter", diagnosticDetail(err))
@@ -170,8 +176,12 @@ func (r *partnerUserCredentialParameterResource) Read(ctx context.Context, req r
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, state.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	ucp, err := r.client.GetUserCredentialParameter(ctx, state.PartnerID.ValueString(), state.ParameterID.ValueString())
+	ucp, err := client.GetUserCredentialParameter(ctx, state.PartnerID.ValueString(), state.ParameterID.ValueString())
 	if err != nil {
 		var apiErr *apierror.Error
 		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
@@ -210,8 +220,12 @@ func (r *partnerUserCredentialParameterResource) Delete(ctx context.Context, req
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, state.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	err := r.client.DeleteUserCredentialParameter(ctx, state.PartnerID.ValueString(), state.ParameterID.ValueString())
+	err := client.DeleteUserCredentialParameter(ctx, state.PartnerID.ValueString(), state.ParameterID.ValueString())
 	if err != nil {
 		var apiErr *apierror.Error
 		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
@@ -230,11 +244,13 @@ func (r *partnerUserCredentialParameterResource) Delete(ctx context.Context, req
 // actually changes — this is an inherent, documented limitation of
 // importing a write-only-secret resource, not a bug.
 func (r *partnerUserCredentialParameterResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	partnerID, parameterID, err := splitCompositeID(req.ID)
+	loc, parts, err := splitLocatedImportID(req.ID, 2)
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid import ID", err.Error())
 		return
 	}
+	partnerID, parameterID := parts[0], parts[1]
+	setImportedRuntimeLocation(ctx, loc, resp.State.SetAttribute, &resp.Diagnostics)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRoot("partner_id"), partnerID)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRoot("parameter_id"), parameterID)...)
 }

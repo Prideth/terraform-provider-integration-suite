@@ -35,6 +35,10 @@ output "backend_ca_fingerprint" {
 - `alias` (String) The keystore entry's alias. This is the entity's actual identity (SAP's OData key is this alias' hex encoding, computed internally — you never provide it), so it is RequiresReplace: SAP documents a separate, explicit rename operation (PUT KeystoreEntries('<hex>')?renameAlias=<new>) this resource does not use, to keep lifecycle behavior predictable.
 - `certificate` (String) The X.509 certificate in PEM format ("-----BEGIN CERTIFICATE-----...-----END CERTIFICATE-----"). Not Sensitive: public certificate content is not confidential. On refresh, if the certificate actually deployed on the tenant is byte-identical in substance to this value (compared via certificate_sha256, not raw text — see that attribute), this provider keeps your own PEM text unchanged in state rather than replacing it with SAP's own re-serialization, so differences in line wrapping or line endings never produce a spurious plan diff. A genuinely different certificate on the tenant does update this value, surfacing real drift.
 
+### Optional
+
+- `runtime_location_id` (String) Runtime location ID of the Edge Integration Cell to address, for example "myedge". Leave unset for the cloud runtime. SAP shows the ID in the Integration Suite monitoring URL after selecting the Edge Integration Cell as runtime ({"edge":{"runtimeLocationId":"myedge"}}). Requests then go to /location/<id>/api/v1 on the same tenant host. Changing it replaces the resource.
+
 ### Read-Only
 
 - `certificate_sha256` (String) The SHA-256 fingerprint (lowercase hex) of the certificate's DER bytes, computed locally by this provider from the certificate content — not a value SAP's API returns. Used internally to detect genuine certificate changes independent of PEM text formatting; exposed because it is generally more useful for policy checks and cross-referencing than comparing raw PEM text.

@@ -27,6 +27,10 @@ data "sapintegrationsuite_partner_binary_parameter" "order_schema" {
 - `parameter_id` (String) The binary parameter's technical ID.
 - `partner_id` (String) The Partner ID (Pid) this parameter is scoped to.
 
+### Optional
+
+- `runtime_location_id` (String) Runtime location ID of the Edge Integration Cell to address, for example "myedge". Leave unset for the cloud runtime. SAP shows the ID in the Integration Suite monitoring URL after selecting the Edge Integration Cell as runtime ({"edge":{"runtimeLocationId":"myedge"}}). Requests then go to /location/<id>/api/v1 on the same tenant host.
+
 ### Read-Only
 
 - `content_type` (String) The content's documented type (for example xml, xsd, zip, crt).

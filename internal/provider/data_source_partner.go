@@ -21,7 +21,8 @@ type partnerDataSource struct {
 }
 
 type partnerDataSourceModel struct {
-	Pid types.String `tfsdk:"pid"`
+	Pid               types.String `tfsdk:"pid"`
+	RuntimeLocationID types.String `tfsdk:"runtime_location_id"`
 }
 
 func (d *partnerDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -37,6 +38,7 @@ func (d *partnerDataSource) Schema(_ context.Context, _ datasource.SchemaRequest
 			"UserCredentialParameter references it), and deleting a Pid is documented as cascading " +
 			"to every entity that belongs to it — see docs/guides/partner-directory.md.",
 		Attributes: map[string]schema.Attribute{
+			"runtime_location_id": runtimeLocationDataSourceAttribute(),
 			"pid": schema.StringAttribute{
 				Required:    true,
 				Description: "The Partner ID to look up.",
@@ -66,12 +68,16 @@ func (d *partnerDataSource) Read(ctx context.Context, req datasource.ReadRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(d.client, config.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	p, err := d.client.GetPartner(ctx, config.Pid.ValueString())
+	p, err := client.GetPartner(ctx, config.Pid.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read SAP Integration Suite Partner Directory partner", diagnosticDetail(err))
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, partnerDataSourceModel{Pid: types.StringValue(p.Pid)})...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, partnerDataSourceModel{RuntimeLocationID: config.RuntimeLocationID, Pid: types.StringValue(p.Pid)})...)
 }

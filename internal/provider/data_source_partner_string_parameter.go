@@ -29,6 +29,7 @@ func (d *partnerStringParameterDataSource) Schema(_ context.Context, _ datasourc
 		Description: "Reads an existing Partner Directory string parameter by its (partner_id, " +
 			"parameter_id) key, without managing it as a resource.",
 		Attributes: map[string]schema.Attribute{
+			"runtime_location_id": runtimeLocationDataSourceAttribute(),
 			"id": schema.StringAttribute{
 				Computed:    true,
 				Description: "Composite identifier in the form \"<partner_id>/<parameter_id>\".",
@@ -70,14 +71,18 @@ func (d *partnerStringParameterDataSource) Read(ctx context.Context, req datasou
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(d.client, config.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	sp, err := d.client.GetStringParameter(ctx, config.PartnerID.ValueString(), config.ParameterID.ValueString())
+	sp, err := client.GetStringParameter(ctx, config.PartnerID.ValueString(), config.ParameterID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read SAP Integration Suite Partner Directory string parameter", diagnosticDetail(err))
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, partnerStringParameterModel{
+	resp.Diagnostics.Append(resp.State.Set(ctx, partnerStringParameterModel{RuntimeLocationID: config.RuntimeLocationID,
 		ID:          types.StringValue(sp.Pid + "/" + sp.Id),
 		PartnerID:   types.StringValue(sp.Pid),
 		ParameterID: types.StringValue(sp.Id),

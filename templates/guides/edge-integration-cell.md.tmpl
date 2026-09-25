@@ -202,14 +202,19 @@ the Edge Integration Cell in the *Runtime* selector. The browser URL then contai
 **Changing it** replaces the resource: the object is created on the new runtime and removed
 from the old one. For deployments that means an undeploy on the old runtime.
 
-**Importing** takes the location as an optional first segment, for example
-`plant-a/ERP_BASIC` for a credential or `plant-a/ORDERS/order_flow` for a deployment. Without
-the prefix, the cloud runtime is assumed.
+**Which resources take it.** The five deployment resources, the user and OAuth2 credentials,
+certificates, key pairs, and the Partner Directory resources (string, binary and user credential
+parameters, authorized users, alternative partners). The matching data sources, including the
+keystore and partner lookups, take it as well.
+
+**Importing** uses an explicit prefix in front of the regular import ID:
+`location:plant-a/ERP_BASIC` for a credential, `location:plant-a/ORDERS/order_flow` for a
+deployment. Without the prefix, the cloud runtime is assumed. The prefix is explicit rather
+than positional because keystore aliases may themselves contain `/`.
 
 **Why experimental.** SAP documents the prefix once for all operations, with no per-operation
 examples, and SAP's own CI/CD tooling still described the path as unpublished in May 2026. It
-has not yet been verified against a tenant with an Edge Integration Cell. Certificates, key
-pairs, keystore reads and Partner Directory resources do not take `runtime_location_id` yet.
+has not yet been verified against a tenant with an Edge Integration Cell.
 `edge_integration_cell.deployment_target` in `docs/feature-support.md` tracks the status.
 
 ## Access Policy replication: readable, not writable

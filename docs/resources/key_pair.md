@@ -62,6 +62,7 @@ resource "sapintegrationsuite_key_pair" "ec_signing" {
 - `locality` (String) Locality (L) of the subject distinguished name.
 - `organization` (String) Organization (O) of the subject distinguished name.
 - `organization_unit` (String) Organizational unit (OU) of the subject distinguished name.
+- `runtime_location_id` (String) Runtime location ID of the Edge Integration Cell to address, for example "myedge". Leave unset for the cloud runtime. SAP shows the ID in the Integration Suite monitoring URL after selecting the Edge Integration Cell as runtime ({"edge":{"runtimeLocationId":"myedge"}}). Requests then go to /location/<id>/api/v1 on the same tenant host. Changing it replaces the resource.
 - `signature_algorithm` (String) The signing algorithm, from a fixed enum that depends on key_type (RSA: SHA-512/RSA (SAP's default), SHA-256/RSA, SHA-384/RSA, SHA-224/RSA, SHA-1/RSA; DSA: SHA-256/DSA, SHA-224/DSA, SHA-1/DSA; EC: SHA-512/ECDSA, SHA-256/ECDSA, SHA-1/ECDSA). Left unset, SAP applies its own default; this provider cannot confirm this value is returned by a subsequent read, so it is not Computed — it is trusted from your configuration once generation succeeds, the same as every other write-only-in-practice generation parameter below.
 - `state` (String) State or province (ST) of the subject distinguished name.
 - `valid_not_after` (String) Upper boundary of the certificate's validity period, RFC 3339. Left unset, SAP defaults to the current time plus three years.

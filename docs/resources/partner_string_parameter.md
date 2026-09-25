@@ -29,6 +29,10 @@ resource "sapintegrationsuite_partner_string_parameter" "receiver_address" {
 - `partner_id` (String) The Partner ID (Pid) this parameter is scoped to. Does not need to already exist: SAP creates it implicitly on the first entity that references it.
 - `value` (String) The parameter's text value.
 
+### Optional
+
+- `runtime_location_id` (String) Runtime location ID of the Edge Integration Cell to address, for example "myedge". Leave unset for the cloud runtime. SAP shows the ID in the Integration Suite monitoring URL after selecting the Edge Integration Cell as runtime ({"edge":{"runtimeLocationId":"myedge"}}). Requests then go to /location/<id>/api/v1 on the same tenant host. Changing it replaces the resource.
+
 ### Read-Only
 
 - `id` (String) Composite identifier in the form "<partner_id>/<parameter_id>".

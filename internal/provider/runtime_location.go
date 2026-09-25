@@ -57,21 +57,34 @@ func locatedClient[T interface{ AtLocation(string) (T, error) }](c T, loc types.
 	return located, true
 }
 
-// splitLocatedImportID splits an import ID made of parts segments separated by
-// "/", optionally preceded by a runtime location ID segment. It returns the
-// location ("" for the cloud runtime) and the remaining segments.
+// importLocationPrefix marks an import ID that addresses an Edge Integration
+// Cell: "location:<runtime location id>/<regular import ID>". An explicit
+// prefix keeps the form unambiguous even for identifiers that may themselves
+// contain "/", such as keystore aliases.
+const importLocationPrefix = "location:"
+
+// splitLocatedImportID splits an import ID into an optional runtime location
+// ("" for the cloud runtime) and the regular import ID's segments. With parts
+// == 1 the regular ID is returned whole, so it may contain "/".
 func splitLocatedImportID(id string, parts int) (string, []string, error) {
-	segments := strings.Split(id, "/")
 	var loc string
-	switch len(segments) {
-	case parts:
-	case parts + 1:
-		loc, segments = segments[0], segments[1:]
-		if err := v2.ValidateRuntimeLocationID(loc); err != nil {
+	if strings.HasPrefix(id, importLocationPrefix) {
+		prefixed, rest, found := strings.Cut(strings.TrimPrefix(id, importLocationPrefix), "/")
+		if !found {
+			return "", nil, fmt.Errorf("expected %q followed by \"/\" and the regular import ID, got %q", importLocationPrefix+"<runtime location id>", id)
+		}
+		if err := v2.ValidateRuntimeLocationID(prefixed); err != nil {
 			return "", nil, err
 		}
-	default:
-		return "", nil, fmt.Errorf("expected %d segments separated by \"/\", optionally preceded by a runtime location ID, got %q", parts, id)
+		loc, id = prefixed, rest
+	}
+
+	segments := []string{id}
+	if parts > 1 {
+		segments = strings.Split(id, "/")
+		if len(segments) != parts {
+			return "", nil, fmt.Errorf("expected %d segments separated by \"/\" (optionally preceded by %q), got %q", parts, importLocationPrefix+"<runtime location id>/", id)
+		}
 	}
 	for _, s := range segments {
 		if s == "" {

@@ -121,13 +121,14 @@ func TestCertificateResource_Create(t *testing.T) {
 	objType := s.Type().TerraformType(ctx).(tftypes.Object)
 
 	planRaw := tftypes.NewValue(objType, map[string]tftypes.Value{
-		"id":                 tftypes.NewValue(tftypes.String, nil),
-		"alias":              tftypes.NewValue(tftypes.String, "my-cert"),
-		"certificate":        tftypes.NewValue(tftypes.String, pemContent),
-		"certificate_sha256": tftypes.NewValue(tftypes.String, nil),
-		"subject_dn":         tftypes.NewValue(tftypes.String, nil),
-		"issuer_dn":          tftypes.NewValue(tftypes.String, nil),
-		"serial_number":      tftypes.NewValue(tftypes.String, nil),
+		"id":                  tftypes.NewValue(tftypes.String, nil),
+		"alias":               tftypes.NewValue(tftypes.String, "my-cert"),
+		"runtime_location_id": tftypes.NewValue(tftypes.String, nil),
+		"certificate":         tftypes.NewValue(tftypes.String, pemContent),
+		"certificate_sha256":  tftypes.NewValue(tftypes.String, nil),
+		"subject_dn":          tftypes.NewValue(tftypes.String, nil),
+		"issuer_dn":           tftypes.NewValue(tftypes.String, nil),
+		"serial_number":       tftypes.NewValue(tftypes.String, nil),
 	})
 
 	req := resource.CreateRequest{Plan: tfsdk.Plan{Schema: s, Raw: planRaw}}
@@ -166,13 +167,14 @@ func TestCertificateResource_Create_RejectsInvalidCertificate(t *testing.T) {
 	objType := s.Type().TerraformType(ctx).(tftypes.Object)
 
 	planRaw := tftypes.NewValue(objType, map[string]tftypes.Value{
-		"id":                 tftypes.NewValue(tftypes.String, nil),
-		"alias":              tftypes.NewValue(tftypes.String, "bad-cert"),
-		"certificate":        tftypes.NewValue(tftypes.String, "not a certificate"),
-		"certificate_sha256": tftypes.NewValue(tftypes.String, nil),
-		"subject_dn":         tftypes.NewValue(tftypes.String, nil),
-		"issuer_dn":          tftypes.NewValue(tftypes.String, nil),
-		"serial_number":      tftypes.NewValue(tftypes.String, nil),
+		"id":                  tftypes.NewValue(tftypes.String, nil),
+		"alias":               tftypes.NewValue(tftypes.String, "bad-cert"),
+		"runtime_location_id": tftypes.NewValue(tftypes.String, nil),
+		"certificate":         tftypes.NewValue(tftypes.String, "not a certificate"),
+		"certificate_sha256":  tftypes.NewValue(tftypes.String, nil),
+		"subject_dn":          tftypes.NewValue(tftypes.String, nil),
+		"issuer_dn":           tftypes.NewValue(tftypes.String, nil),
+		"serial_number":       tftypes.NewValue(tftypes.String, nil),
 	})
 
 	req := resource.CreateRequest{Plan: tfsdk.Plan{Schema: s, Raw: planRaw}}
@@ -204,13 +206,14 @@ func TestCertificateResource_Read_PreservesFormattingWhenUnchanged(t *testing.T)
 	objType := s.Type().TerraformType(ctx).(tftypes.Object)
 
 	stateRaw := tftypes.NewValue(objType, map[string]tftypes.Value{
-		"id":                 tftypes.NewValue(tftypes.String, "my-cert"),
-		"alias":              tftypes.NewValue(tftypes.String, "my-cert"),
-		"certificate":        tftypes.NewValue(tftypes.String, pemContent),
-		"certificate_sha256": tftypes.NewValue(tftypes.String, "placeholder"),
-		"subject_dn":         tftypes.NewValue(tftypes.String, "placeholder"),
-		"issuer_dn":          tftypes.NewValue(tftypes.String, "placeholder"),
-		"serial_number":      tftypes.NewValue(tftypes.String, "placeholder"),
+		"id":                  tftypes.NewValue(tftypes.String, "my-cert"),
+		"alias":               tftypes.NewValue(tftypes.String, "my-cert"),
+		"runtime_location_id": tftypes.NewValue(tftypes.String, nil),
+		"certificate":         tftypes.NewValue(tftypes.String, pemContent),
+		"certificate_sha256":  tftypes.NewValue(tftypes.String, "placeholder"),
+		"subject_dn":          tftypes.NewValue(tftypes.String, "placeholder"),
+		"issuer_dn":           tftypes.NewValue(tftypes.String, "placeholder"),
+		"serial_number":       tftypes.NewValue(tftypes.String, "placeholder"),
 	})
 
 	req := resource.ReadRequest{State: tfsdk.State{Schema: s, Raw: stateRaw}}
@@ -246,13 +249,14 @@ func TestCertificateResource_Read_DetectsGenuineDrift(t *testing.T) {
 	objType := s.Type().TerraformType(ctx).(tftypes.Object)
 
 	stateRaw := tftypes.NewValue(objType, map[string]tftypes.Value{
-		"id":                 tftypes.NewValue(tftypes.String, "my-cert"),
-		"alias":              tftypes.NewValue(tftypes.String, "my-cert"),
-		"certificate":        tftypes.NewValue(tftypes.String, original),
-		"certificate_sha256": tftypes.NewValue(tftypes.String, "placeholder"),
-		"subject_dn":         tftypes.NewValue(tftypes.String, "placeholder"),
-		"issuer_dn":          tftypes.NewValue(tftypes.String, "placeholder"),
-		"serial_number":      tftypes.NewValue(tftypes.String, "placeholder"),
+		"id":                  tftypes.NewValue(tftypes.String, "my-cert"),
+		"alias":               tftypes.NewValue(tftypes.String, "my-cert"),
+		"runtime_location_id": tftypes.NewValue(tftypes.String, nil),
+		"certificate":         tftypes.NewValue(tftypes.String, original),
+		"certificate_sha256":  tftypes.NewValue(tftypes.String, "placeholder"),
+		"subject_dn":          tftypes.NewValue(tftypes.String, "placeholder"),
+		"issuer_dn":           tftypes.NewValue(tftypes.String, "placeholder"),
+		"serial_number":       tftypes.NewValue(tftypes.String, "placeholder"),
 	})
 
 	req := resource.ReadRequest{State: tfsdk.State{Schema: s, Raw: stateRaw}}
@@ -287,13 +291,14 @@ func TestCertificateResource_Delete_SubmitsOnlyItsOwnAlias(t *testing.T) {
 	objType := s.Type().TerraformType(ctx).(tftypes.Object)
 
 	stateRaw := tftypes.NewValue(objType, map[string]tftypes.Value{
-		"id":                 tftypes.NewValue(tftypes.String, "tf-acc-cert-only"),
-		"alias":              tftypes.NewValue(tftypes.String, "tf-acc-cert-only"),
-		"certificate":        tftypes.NewValue(tftypes.String, "placeholder"),
-		"certificate_sha256": tftypes.NewValue(tftypes.String, "placeholder"),
-		"subject_dn":         tftypes.NewValue(tftypes.String, "placeholder"),
-		"issuer_dn":          tftypes.NewValue(tftypes.String, "placeholder"),
-		"serial_number":      tftypes.NewValue(tftypes.String, "placeholder"),
+		"id":                  tftypes.NewValue(tftypes.String, "tf-acc-cert-only"),
+		"alias":               tftypes.NewValue(tftypes.String, "tf-acc-cert-only"),
+		"runtime_location_id": tftypes.NewValue(tftypes.String, nil),
+		"certificate":         tftypes.NewValue(tftypes.String, "placeholder"),
+		"certificate_sha256":  tftypes.NewValue(tftypes.String, "placeholder"),
+		"subject_dn":          tftypes.NewValue(tftypes.String, "placeholder"),
+		"issuer_dn":           tftypes.NewValue(tftypes.String, "placeholder"),
+		"serial_number":       tftypes.NewValue(tftypes.String, "placeholder"),
 	})
 
 	req := resource.DeleteRequest{State: tfsdk.State{Schema: s, Raw: stateRaw}}
@@ -323,13 +328,14 @@ func TestCertificateResource_Delete_SAPOwnedEntrySurfacesError(t *testing.T) {
 	objType := s.Type().TerraformType(ctx).(tftypes.Object)
 
 	stateRaw := tftypes.NewValue(objType, map[string]tftypes.Value{
-		"id":                 tftypes.NewValue(tftypes.String, "sap_owned"),
-		"alias":              tftypes.NewValue(tftypes.String, "sap_owned"),
-		"certificate":        tftypes.NewValue(tftypes.String, "placeholder"),
-		"certificate_sha256": tftypes.NewValue(tftypes.String, "placeholder"),
-		"subject_dn":         tftypes.NewValue(tftypes.String, "placeholder"),
-		"issuer_dn":          tftypes.NewValue(tftypes.String, "placeholder"),
-		"serial_number":      tftypes.NewValue(tftypes.String, "placeholder"),
+		"id":                  tftypes.NewValue(tftypes.String, "sap_owned"),
+		"alias":               tftypes.NewValue(tftypes.String, "sap_owned"),
+		"runtime_location_id": tftypes.NewValue(tftypes.String, nil),
+		"certificate":         tftypes.NewValue(tftypes.String, "placeholder"),
+		"certificate_sha256":  tftypes.NewValue(tftypes.String, "placeholder"),
+		"subject_dn":          tftypes.NewValue(tftypes.String, "placeholder"),
+		"issuer_dn":           tftypes.NewValue(tftypes.String, "placeholder"),
+		"serial_number":       tftypes.NewValue(tftypes.String, "placeholder"),
 	})
 
 	req := resource.DeleteRequest{State: tfsdk.State{Schema: s, Raw: stateRaw}}

@@ -27,11 +27,12 @@ type alternativePartnerResource struct {
 }
 
 type alternativePartnerModel struct {
-	ID         types.String `tfsdk:"id"`
-	Agency     types.String `tfsdk:"agency"`
-	Scheme     types.String `tfsdk:"scheme"`
-	ExternalID types.String `tfsdk:"external_id"`
-	PartnerID  types.String `tfsdk:"partner_id"`
+	ID                types.String `tfsdk:"id"`
+	Agency            types.String `tfsdk:"agency"`
+	Scheme            types.String `tfsdk:"scheme"`
+	ExternalID        types.String `tfsdk:"external_id"`
+	PartnerID         types.String `tfsdk:"partner_id"`
+	RuntimeLocationID types.String `tfsdk:"runtime_location_id"`
 }
 
 func (r *alternativePartnerResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -47,6 +48,7 @@ func (r *alternativePartnerResource) Schema(_ context.Context, _ resource.Schema
 			"(Hexagency/Hexscheme/Hexid); this provider computes that internally and never " +
 			"exposes it as something a practitioner sets directly.",
 		Attributes: map[string]schema.Attribute{
+			"runtime_location_id": runtimeLocationResourceAttribute(),
 			"id": schema.StringAttribute{
 				Computed: true,
 				Description: "Composite identifier in the form " +
@@ -109,8 +111,12 @@ func (r *alternativePartnerResource) Create(ctx context.Context, req resource.Cr
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, plan.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	created, err := r.client.CreateAlternativePartner(ctx, partnerdirectory.AlternativePartner{
+	created, err := client.CreateAlternativePartner(ctx, partnerdirectory.AlternativePartner{
 		Agency: plan.Agency.ValueString(),
 		Scheme: plan.Scheme.ValueString(),
 		Id:     plan.ExternalID.ValueString(),
@@ -121,7 +127,9 @@ func (r *alternativePartnerResource) Create(ctx context.Context, req resource.Cr
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, alternativePartnerToModel(created))...)
+	m := alternativePartnerToModel(created)
+	m.RuntimeLocationID = plan.RuntimeLocationID
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }
 
 func (r *alternativePartnerResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -130,8 +138,12 @@ func (r *alternativePartnerResource) Read(ctx context.Context, req resource.Read
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, state.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	ap, err := r.client.GetAlternativePartner(ctx, state.Agency.ValueString(), state.Scheme.ValueString(), state.ExternalID.ValueString())
+	ap, err := client.GetAlternativePartner(ctx, state.Agency.ValueString(), state.Scheme.ValueString(), state.ExternalID.ValueString())
 	if err != nil {
 		var apiErr *apierror.Error
 		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
@@ -142,7 +154,9 @@ func (r *alternativePartnerResource) Read(ctx context.Context, req resource.Read
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, alternativePartnerToModel(ap))...)
+	m := alternativePartnerToModel(ap)
+	m.RuntimeLocationID = state.RuntimeLocationID
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }
 
 func (r *alternativePartnerResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -151,8 +165,12 @@ func (r *alternativePartnerResource) Update(ctx context.Context, req resource.Up
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, plan.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	err := r.client.UpdateAlternativePartner(ctx, plan.Agency.ValueString(), plan.Scheme.ValueString(), plan.ExternalID.ValueString(), plan.PartnerID.ValueString())
+	err := client.UpdateAlternativePartner(ctx, plan.Agency.ValueString(), plan.Scheme.ValueString(), plan.ExternalID.ValueString(), plan.PartnerID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to update SAP Integration Suite alternative partner", diagnosticDetail(err))
 		return
@@ -175,8 +193,12 @@ func (r *alternativePartnerResource) Delete(ctx context.Context, req resource.De
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, state.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	err := r.client.DeleteAlternativePartner(ctx, state.Agency.ValueString(), state.Scheme.ValueString(), state.ExternalID.ValueString())
+	err := client.DeleteAlternativePartner(ctx, state.Agency.ValueString(), state.Scheme.ValueString(), state.ExternalID.ValueString())
 	if err != nil {
 		var apiErr *apierror.Error
 		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
@@ -191,11 +213,17 @@ func (r *alternativePartnerResource) Delete(ctx context.Context, req resource.De
 // import ID is always well-formed no matter what characters the plain
 // agency/scheme/external_id strings contain.
 func (r *alternativePartnerResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	agency, scheme, externalID, err := parseAlternativePartnerImportID(req.ID)
+	loc, parts, err := splitLocatedImportID(req.ID, 1)
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid import ID", err.Error())
 		return
 	}
+	agency, scheme, externalID, err := parseAlternativePartnerImportID(parts[0])
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid import ID", err.Error())
+		return
+	}
+	setImportedRuntimeLocation(ctx, loc, resp.State.SetAttribute, &resp.Diagnostics)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRoot("agency"), agency)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRoot("scheme"), scheme)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRoot("external_id"), externalID)...)

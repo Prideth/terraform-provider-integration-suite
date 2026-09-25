@@ -45,6 +45,10 @@ resource "sapintegrationsuite_partner_user_credential_parameter" "receiver" {
 - `password_wo_version` (String) An arbitrary value (for example a counter or timestamp) that a practitioner changes to signal that password_wo's value has changed and the credential should be rotated. Since no in-place password update is confirmed, changing this value replaces the resource (delete the old credential, create a new one with the new password).
 - `user` (String) The communication username.
 
+### Optional
+
+- `runtime_location_id` (String) Runtime location ID of the Edge Integration Cell to address, for example "myedge". Leave unset for the cloud runtime. SAP shows the ID in the Integration Suite monitoring URL after selecting the Edge Integration Cell as runtime ({"edge":{"runtimeLocationId":"myedge"}}). Requests then go to /location/<id>/api/v1 on the same tenant host. Changing it replaces the resource.
+
 ### Read-Only
 
 - `id` (String) Composite identifier in the form "<partner_id>/<parameter_id>".

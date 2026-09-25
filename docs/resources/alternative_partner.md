@@ -31,6 +31,10 @@ resource "sapintegrationsuite_alternative_partner" "sender" {
 - `partner_id` (String) The internal Partner ID (Pid) this external identity resolves to. Mutable in place: SAP documents PUT for repointing an existing mapping at a different Pid.
 - `scheme` (String) The external identification scheme, for example "SenderInterface".
 
+### Optional
+
+- `runtime_location_id` (String) Runtime location ID of the Edge Integration Cell to address, for example "myedge". Leave unset for the cloud runtime. SAP shows the ID in the Integration Suite monitoring URL after selecting the Edge Integration Cell as runtime ({"edge":{"runtimeLocationId":"myedge"}}). Requests then go to /location/<id>/api/v1 on the same tenant host. Changing it replaces the resource.
+
 ### Read-Only
 
 - `id` (String) Composite identifier in the form "<hex_agency>/<hex_scheme>/<hex_external_id>" (each segment hex-encoded so the identifier is well-formed regardless of what characters agency, scheme, and external_id contain).

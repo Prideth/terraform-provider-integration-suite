@@ -25,9 +25,10 @@ type partnerAuthorizedUserResource struct {
 }
 
 type partnerAuthorizedUserModel struct {
-	ID        types.String `tfsdk:"id"`
-	User      types.String `tfsdk:"user"`
-	PartnerID types.String `tfsdk:"partner_id"`
+	ID                types.String `tfsdk:"id"`
+	User              types.String `tfsdk:"user"`
+	PartnerID         types.String `tfsdk:"partner_id"`
+	RuntimeLocationID types.String `tfsdk:"runtime_location_id"`
 }
 
 func (r *partnerAuthorizedUserResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -43,6 +44,7 @@ func (r *partnerAuthorizedUserResource) Schema(_ context.Context, _ resource.Sch
 			"manages the Partner Directory mapping — it never creates, modifies, or deletes the " +
 			"underlying BTP user, OAuth client, or communication user credential itself.",
 		Attributes: map[string]schema.Attribute{
+			"runtime_location_id": runtimeLocationResourceAttribute(),
 			"id": schema.StringAttribute{
 				Computed:    true,
 				Description: "Same value as user: the mapping's identity is the communication user itself.",
@@ -89,8 +91,12 @@ func (r *partnerAuthorizedUserResource) Create(ctx context.Context, req resource
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, plan.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	created, err := r.client.CreateAuthorizedUser(ctx, partnerdirectory.AuthorizedUser{
+	created, err := client.CreateAuthorizedUser(ctx, partnerdirectory.AuthorizedUser{
 		User: plan.User.ValueString(),
 		Pid:  plan.PartnerID.ValueString(),
 	})
@@ -99,7 +105,9 @@ func (r *partnerAuthorizedUserResource) Create(ctx context.Context, req resource
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, authorizedUserToModel(created))...)
+	m := authorizedUserToModel(created)
+	m.RuntimeLocationID = plan.RuntimeLocationID
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }
 
 func (r *partnerAuthorizedUserResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -108,8 +116,12 @@ func (r *partnerAuthorizedUserResource) Read(ctx context.Context, req resource.R
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, state.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	au, err := r.client.GetAuthorizedUser(ctx, state.User.ValueString())
+	au, err := client.GetAuthorizedUser(ctx, state.User.ValueString())
 	if err != nil {
 		var apiErr *apierror.Error
 		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
@@ -120,7 +132,9 @@ func (r *partnerAuthorizedUserResource) Read(ctx context.Context, req resource.R
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, authorizedUserToModel(au))...)
+	m := authorizedUserToModel(au)
+	m.RuntimeLocationID = state.RuntimeLocationID
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }
 
 func (r *partnerAuthorizedUserResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -129,8 +143,12 @@ func (r *partnerAuthorizedUserResource) Update(ctx context.Context, req resource
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, plan.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	err := r.client.UpdateAuthorizedUser(ctx, plan.User.ValueString(), plan.PartnerID.ValueString())
+	err := client.UpdateAuthorizedUser(ctx, plan.User.ValueString(), plan.PartnerID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to update SAP Integration Suite Partner Directory authorized user", diagnosticDetail(err))
 		return
@@ -149,8 +167,12 @@ func (r *partnerAuthorizedUserResource) Delete(ctx context.Context, req resource
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, state.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	err := r.client.DeleteAuthorizedUser(ctx, state.User.ValueString())
+	err := client.DeleteAuthorizedUser(ctx, state.User.ValueString())
 	if err != nil {
 		var apiErr *apierror.Error
 		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
@@ -161,8 +183,14 @@ func (r *partnerAuthorizedUserResource) Delete(ctx context.Context, req resource
 }
 
 func (r *partnerAuthorizedUserResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, pathRoot("user"), req, resp)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRootID(), req.ID)...)
+	loc, parts, err := splitLocatedImportID(req.ID, 1)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid import ID", err.Error())
+		return
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRoot("user"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRootID(), parts[0])...)
+	setImportedRuntimeLocation(ctx, loc, resp.State.SetAttribute, &resp.Diagnostics)
 }
 
 func authorizedUserToModel(au *partnerdirectory.AuthorizedUser) partnerAuthorizedUserModel {

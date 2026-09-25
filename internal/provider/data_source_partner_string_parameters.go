@@ -21,8 +21,9 @@ type partnerStringParametersDataSource struct {
 }
 
 type partnerStringParametersDataSourceModel struct {
-	PartnerID types.String                      `tfsdk:"partner_id"`
-	Values    []partnerStringParameterListEntry `tfsdk:"values"`
+	PartnerID         types.String                      `tfsdk:"partner_id"`
+	Values            []partnerStringParameterListEntry `tfsdk:"values"`
+	RuntimeLocationID types.String                      `tfsdk:"runtime_location_id"`
 }
 
 type partnerStringParameterListEntry struct {
@@ -42,6 +43,7 @@ func (d *partnerStringParametersDataSource) Schema(_ context.Context, _ datasour
 			"entity set that can hold large numbers of entries per partner, so this always returns " +
 			"the complete set, not just the first page.",
 		Attributes: map[string]schema.Attribute{
+			"runtime_location_id": runtimeLocationDataSourceAttribute(),
 			"partner_id": schema.StringAttribute{
 				Required:    true,
 				Description: "The Partner ID (Pid) to list string parameters for.",
@@ -87,8 +89,12 @@ func (d *partnerStringParametersDataSource) Read(ctx context.Context, req dataso
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(d.client, config.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	params, err := d.client.ListStringParameters(ctx, config.PartnerID.ValueString())
+	params, err := client.ListStringParameters(ctx, config.PartnerID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to list SAP Integration Suite Partner Directory string parameters", diagnosticDetail(err))
 		return
@@ -102,7 +108,7 @@ func (d *partnerStringParametersDataSource) Read(ctx context.Context, req dataso
 		})
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, partnerStringParametersDataSourceModel{
+	resp.Diagnostics.Append(resp.State.Set(ctx, partnerStringParametersDataSourceModel{RuntimeLocationID: config.RuntimeLocationID,
 		PartnerID: config.PartnerID,
 		Values:    values,
 	})...)

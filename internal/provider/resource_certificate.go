@@ -30,6 +30,7 @@ type certificateModel struct {
 	SubjectDN         types.String `tfsdk:"subject_dn"`
 	IssuerDN          types.String `tfsdk:"issuer_dn"`
 	SerialNumber      types.String `tfsdk:"serial_number"`
+	RuntimeLocationID types.String `tfsdk:"runtime_location_id"`
 }
 
 func (r *certificateResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -50,6 +51,7 @@ func (r *certificateResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"resource owns, never a caller-supplied list. See docs/guides/security-content.md, " +
 			"including how this provider handles SAP-owned keystore entries.",
 		Attributes: map[string]schema.Attribute{
+			"runtime_location_id": runtimeLocationResourceAttribute(),
 			"id": schema.StringAttribute{
 				Computed:    true,
 				Description: "Always equal to alias.",
@@ -139,6 +141,10 @@ func (r *certificateResource) Create(ctx context.Context, req resource.CreateReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, plan.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
 	alias := plan.Alias.ValueString()
 	content := []byte(plan.Certificate.ValueString())
@@ -149,7 +155,7 @@ func (r *certificateResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
-	if err := r.client.PutCertificate(ctx, alias, content); err != nil {
+	if err := client.PutCertificate(ctx, alias, content); err != nil {
 		resp.Diagnostics.AddError("Failed to import SAP Integration Suite certificate", diagnosticDetail(err))
 		return
 	}
@@ -165,9 +171,13 @@ func (r *certificateResource) Read(ctx context.Context, req resource.ReadRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, state.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
 	alias := state.Alias.ValueString()
-	remotePEM, err := r.client.GetCertificate(ctx, alias)
+	remotePEM, err := client.GetCertificate(ctx, alias)
 	if err != nil {
 		if isNotFound(err) {
 			resp.State.RemoveResource(ctx)
@@ -203,6 +213,10 @@ func (r *certificateResource) Update(ctx context.Context, req resource.UpdateReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, plan.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
 	alias := plan.Alias.ValueString()
 	content := []byte(plan.Certificate.ValueString())
@@ -213,7 +227,7 @@ func (r *certificateResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
-	if err := r.client.PutCertificate(ctx, alias, content); err != nil {
+	if err := client.PutCertificate(ctx, alias, content); err != nil {
 		resp.Diagnostics.AddError("Failed to update SAP Integration Suite certificate", diagnosticDetail(err))
 		return
 	}
@@ -237,8 +251,12 @@ func (r *certificateResource) Delete(ctx context.Context, req resource.DeleteReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, state.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	err := r.client.DeleteKeystoreEntries(ctx, []string{state.Alias.ValueString()})
+	err := client.DeleteKeystoreEntries(ctx, []string{state.Alias.ValueString()})
 	if err != nil {
 		if isNotFound(err) {
 			return
@@ -248,7 +266,13 @@ func (r *certificateResource) Delete(ctx context.Context, req resource.DeleteReq
 }
 
 func (r *certificateResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, pathRoot("alias"), req, resp)
+	loc, parts, err := splitLocatedImportID(req.ID, 1)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid import ID", err.Error())
+		return
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRoot("alias"), parts[0])...)
+	setImportedRuntimeLocation(ctx, loc, resp.State.SetAttribute, &resp.Diagnostics)
 }
 
 func applyCertificateMetadata(m *certificateModel, meta *securitycontent.CertificateMetadata) {

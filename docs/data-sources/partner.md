@@ -24,3 +24,7 @@ data "sapintegrationsuite_partner" "existing" {
 ### Required
 
 - `pid` (String) The Partner ID to look up.
+
+### Optional
+
+- `runtime_location_id` (String) Runtime location ID of the Edge Integration Cell to address, for example "myedge". Leave unset for the cloud runtime. SAP shows the ID in the Integration Suite monitoring URL after selecting the Edge Integration Cell as runtime ({"edge":{"runtimeLocationId":"myedge"}}). Requests then go to /location/<id>/api/v1 on the same tenant host.

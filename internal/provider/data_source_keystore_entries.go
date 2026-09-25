@@ -5,6 +5,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/securitycontent"
 )
@@ -20,7 +21,8 @@ type keystoreEntriesDataSource struct {
 }
 
 type keystoreEntriesDataSourceModel struct {
-	Entries []keystoreEntryModel `tfsdk:"entries"`
+	Entries           []keystoreEntryModel `tfsdk:"entries"`
+	RuntimeLocationID types.String         `tfsdk:"runtime_location_id"`
 }
 
 func (d *keystoreEntriesDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -35,6 +37,7 @@ func (d *keystoreEntriesDataSource) Schema(_ context.Context, _ datasource.Schem
 			"finding certificates that are about to expire. Entries are sorted by alias, since SAP " +
 			"does not document a response order.",
 		Attributes: map[string]schema.Attribute{
+			"runtime_location_id": runtimeLocationDataSourceAttribute(),
 			"entries": schema.ListNestedAttribute{
 				Computed:    true,
 				Description: "Every entry in the tenant keystore, sorted by alias.",
@@ -61,8 +64,18 @@ func (d *keystoreEntriesDataSource) Configure(_ context.Context, req datasource.
 	d.client = securitycontent.New(data.HTTPClient, data.Host)
 }
 
-func (d *keystoreEntriesDataSource) Read(ctx context.Context, _ datasource.ReadRequest, resp *datasource.ReadResponse) {
-	entries, err := d.client.ListKeystoreEntries(ctx)
+func (d *keystoreEntriesDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var config keystoreEntriesDataSourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	client, ok := locatedClient(d.client, config.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
+
+	entries, err := client.ListKeystoreEntries(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to list SAP Integration Suite keystore entries", diagnosticDetail(err))
 		return
@@ -74,5 +87,5 @@ func (d *keystoreEntriesDataSource) Read(ctx context.Context, _ datasource.ReadR
 		models = append(models, keystoreEntryToModel(&entry))
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, keystoreEntriesDataSourceModel{Entries: models})...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, keystoreEntriesDataSourceModel{Entries: models, RuntimeLocationID: config.RuntimeLocationID})...)
 }

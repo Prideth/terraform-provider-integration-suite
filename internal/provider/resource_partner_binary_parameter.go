@@ -35,12 +35,13 @@ type partnerBinaryParameterResource struct {
 }
 
 type partnerBinaryParameterModel struct {
-	ID          types.String `tfsdk:"id"`
-	PartnerID   types.String `tfsdk:"partner_id"`
-	ParameterID types.String `tfsdk:"parameter_id"`
-	ContentType types.String `tfsdk:"content_type"`
-	Content     types.String `tfsdk:"content"`
-	ContentHash types.String `tfsdk:"content_hash"`
+	ID                types.String `tfsdk:"id"`
+	PartnerID         types.String `tfsdk:"partner_id"`
+	ParameterID       types.String `tfsdk:"parameter_id"`
+	ContentType       types.String `tfsdk:"content_type"`
+	Content           types.String `tfsdk:"content"`
+	ContentHash       types.String `tfsdk:"content_hash"`
+	RuntimeLocationID types.String `tfsdk:"runtime_location_id"`
 }
 
 func (r *partnerBinaryParameterResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -59,6 +60,7 @@ func (r *partnerBinaryParameterResource) Schema(_ context.Context, _ resource.Sc
 			"instead (content_type \"zip\" is automatically unzipped by the XML Validator and XSLT " +
 			"Mapping steps).",
 		Attributes: map[string]schema.Attribute{
+			"runtime_location_id": runtimeLocationResourceAttribute(),
 			"id": schema.StringAttribute{
 				Computed:    true,
 				Description: "Composite identifier in the form \"<partner_id>/<parameter_id>\".",
@@ -147,6 +149,10 @@ func (r *partnerBinaryParameterResource) Create(ctx context.Context, req resourc
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, plan.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
 	content, err := readAndValidateBinaryParameterContent(plan.Content.ValueString(), plan.ContentHash.ValueString())
 	if err != nil {
@@ -154,13 +160,15 @@ func (r *partnerBinaryParameterResource) Create(ctx context.Context, req resourc
 		return
 	}
 
-	created, err := r.client.CreateBinaryParameter(ctx, plan.PartnerID.ValueString(), plan.ParameterID.ValueString(), plan.ContentType.ValueString(), content)
+	created, err := client.CreateBinaryParameter(ctx, plan.PartnerID.ValueString(), plan.ParameterID.ValueString(), plan.ContentType.ValueString(), content)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to create SAP Integration Suite Partner Directory binary parameter", diagnosticDetail(err))
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, binaryParameterToModel(created, plan))...)
+	m := binaryParameterToModel(created, plan)
+	m.RuntimeLocationID = plan.RuntimeLocationID
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }
 
 func (r *partnerBinaryParameterResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -169,8 +177,12 @@ func (r *partnerBinaryParameterResource) Read(ctx context.Context, req resource.
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, state.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	bp, err := r.client.GetBinaryParameter(ctx, state.PartnerID.ValueString(), state.ParameterID.ValueString())
+	bp, err := client.GetBinaryParameter(ctx, state.PartnerID.ValueString(), state.ParameterID.ValueString())
 	if err != nil {
 		var apiErr *apierror.Error
 		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
@@ -181,13 +193,19 @@ func (r *partnerBinaryParameterResource) Read(ctx context.Context, req resource.
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, binaryParameterToModel(bp, state))...)
+	m := binaryParameterToModel(bp, state)
+	m.RuntimeLocationID = state.RuntimeLocationID
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }
 
 func (r *partnerBinaryParameterResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan partnerBinaryParameterModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	client, ok := locatedClient(r.client, plan.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
 		return
 	}
 
@@ -197,7 +215,7 @@ func (r *partnerBinaryParameterResource) Update(ctx context.Context, req resourc
 		return
 	}
 
-	err = r.client.UpdateBinaryParameter(ctx, plan.PartnerID.ValueString(), plan.ParameterID.ValueString(), plan.ContentType.ValueString(), content)
+	err = client.UpdateBinaryParameter(ctx, plan.PartnerID.ValueString(), plan.ParameterID.ValueString(), plan.ContentType.ValueString(), content)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to update SAP Integration Suite Partner Directory binary parameter", diagnosticDetail(err))
 		return
@@ -219,8 +237,12 @@ func (r *partnerBinaryParameterResource) Delete(ctx context.Context, req resourc
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, state.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	err := r.client.DeleteBinaryParameter(ctx, state.PartnerID.ValueString(), state.ParameterID.ValueString())
+	err := client.DeleteBinaryParameter(ctx, state.PartnerID.ValueString(), state.ParameterID.ValueString())
 	if err != nil {
 		var apiErr *apierror.Error
 		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
@@ -231,11 +253,13 @@ func (r *partnerBinaryParameterResource) Delete(ctx context.Context, req resourc
 }
 
 func (r *partnerBinaryParameterResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	partnerID, parameterID, err := splitCompositeID(req.ID)
+	loc, parts, err := splitLocatedImportID(req.ID, 2)
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid import ID", err.Error())
 		return
 	}
+	partnerID, parameterID := parts[0], parts[1]
+	setImportedRuntimeLocation(ctx, loc, resp.State.SetAttribute, &resp.Diagnostics)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRoot("partner_id"), partnerID)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRoot("parameter_id"), parameterID)...)
 }

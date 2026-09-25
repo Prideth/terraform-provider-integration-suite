@@ -21,11 +21,12 @@ type partnerBinaryParameterDataSource struct {
 }
 
 type partnerBinaryParameterDataSourceModel struct {
-	ID          types.String `tfsdk:"id"`
-	PartnerID   types.String `tfsdk:"partner_id"`
-	ParameterID types.String `tfsdk:"parameter_id"`
-	ContentType types.String `tfsdk:"content_type"`
-	Value       types.String `tfsdk:"value"`
+	ID                types.String `tfsdk:"id"`
+	PartnerID         types.String `tfsdk:"partner_id"`
+	ParameterID       types.String `tfsdk:"parameter_id"`
+	ContentType       types.String `tfsdk:"content_type"`
+	Value             types.String `tfsdk:"value"`
+	RuntimeLocationID types.String `tfsdk:"runtime_location_id"`
 }
 
 func (d *partnerBinaryParameterDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -38,6 +39,7 @@ func (d *partnerBinaryParameterDataSource) Schema(_ context.Context, _ datasourc
 			"parameter_id) key, without managing it as a resource. value is the raw base64-encoded " +
 			"content exactly as SAP returns it.",
 		Attributes: map[string]schema.Attribute{
+			"runtime_location_id": runtimeLocationDataSourceAttribute(),
 			"id": schema.StringAttribute{
 				Computed:    true,
 				Description: "Composite identifier in the form \"<partner_id>/<parameter_id>\".",
@@ -83,14 +85,18 @@ func (d *partnerBinaryParameterDataSource) Read(ctx context.Context, req datasou
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(d.client, config.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	bp, err := d.client.GetBinaryParameter(ctx, config.PartnerID.ValueString(), config.ParameterID.ValueString())
+	bp, err := client.GetBinaryParameter(ctx, config.PartnerID.ValueString(), config.ParameterID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read SAP Integration Suite Partner Directory binary parameter", diagnosticDetail(err))
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, partnerBinaryParameterDataSourceModel{
+	resp.Diagnostics.Append(resp.State.Set(ctx, partnerBinaryParameterDataSourceModel{RuntimeLocationID: config.RuntimeLocationID,
 		ID:          types.StringValue(bp.Pid + "/" + bp.Id),
 		PartnerID:   types.StringValue(bp.Pid),
 		ParameterID: types.StringValue(bp.Id),

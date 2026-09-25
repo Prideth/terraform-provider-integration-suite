@@ -28,6 +28,7 @@ func (d *alternativePartnerDataSource) Schema(_ context.Context, _ datasource.Sc
 		Description: "Reads an existing Partner Directory alternative partner mapping by its " +
 			"(agency, scheme, external_id) tuple, without managing it as a resource.",
 		Attributes: map[string]schema.Attribute{
+			"runtime_location_id": runtimeLocationDataSourceAttribute(),
 			"id": schema.StringAttribute{
 				Computed:    true,
 				Description: "Composite identifier in the form \"<hex_agency>/<hex_scheme>/<hex_external_id>\".",
@@ -73,12 +74,18 @@ func (d *alternativePartnerDataSource) Read(ctx context.Context, req datasource.
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(d.client, config.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	ap, err := d.client.GetAlternativePartner(ctx, config.Agency.ValueString(), config.Scheme.ValueString(), config.ExternalID.ValueString())
+	ap, err := client.GetAlternativePartner(ctx, config.Agency.ValueString(), config.Scheme.ValueString(), config.ExternalID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read SAP Integration Suite alternative partner", diagnosticDetail(err))
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, alternativePartnerToModel(ap))...)
+	m := alternativePartnerToModel(ap)
+	m.RuntimeLocationID = config.RuntimeLocationID
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }

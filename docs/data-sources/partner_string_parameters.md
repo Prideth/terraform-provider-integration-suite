@@ -29,6 +29,10 @@ output "partner_string_parameter_ids" {
 
 - `partner_id` (String) The Partner ID (Pid) to list string parameters for.
 
+### Optional
+
+- `runtime_location_id` (String) Runtime location ID of the Edge Integration Cell to address, for example "myedge". Leave unset for the cloud runtime. SAP shows the ID in the Integration Suite monitoring URL after selecting the Edge Integration Cell as runtime ({"edge":{"runtimeLocationId":"myedge"}}). Requests then go to /location/<id>/api/v1 on the same tenant host.
+
 ### Read-Only
 
 - `values` (Attributes List) Every string parameter belonging to partner_id. (see [below for nested schema](#nestedatt--values))

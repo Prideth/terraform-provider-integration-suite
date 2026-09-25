@@ -661,8 +661,8 @@ statement is general; there are no per-operation examples. Corroborating and con
   Pre-work to support EIC — do not use productively. Subject to change." SAP Help published the
   pattern two months later.
 
-The provider implements it as `runtime_location_id` on the deployment resources and the user and
-OAuth2 credential resources and data sources, marked experimental until verified on a tenant
+The provider implements it as `runtime_location_id` on the deployment, credential, certificate,
+key pair and Partner Directory resources and their data sources, marked experimental until verified on a tenant
 with an Edge Integration Cell. For Number Ranges, Variables and Data Stores the same prefix would
 apply; those resources are out of scope or write-only for other reasons.
 

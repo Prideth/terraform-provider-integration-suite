@@ -34,13 +34,13 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
-- Experimental Edge Integration Cell targeting: the five deployment
-  resources, `sapintegrationsuite_user_credential`,
-  `sapintegrationsuite_oauth2_client_credential` and the two credential data
-  sources accept an optional `runtime_location_id`. Requests then go to
-  `/location/<id>/api/v1` on the tenant host, the service root SAP Help
-  documents for Edge Integration Cells. Import IDs take the location as an
-  optional first segment.
+- Experimental Edge Integration Cell targeting: the deployment resources,
+  the user and OAuth2 credentials, certificates, key pairs and the Partner
+  Directory resources, plus their data sources, accept an optional
+  `runtime_location_id`. Requests then go to `/location/<id>/api/v1` on the
+  tenant host, the service root SAP Help documents for Edge Integration
+  Cells. Import IDs take the location as an explicit prefix,
+  `location:<id>/<regular import ID>`.
 - `sapintegrationsuite_integration_flow_configuration` sets externalized
   parameters of an integration flow through SAP's documented
   `$links/Configurations` update. Only the listed keys are managed, each

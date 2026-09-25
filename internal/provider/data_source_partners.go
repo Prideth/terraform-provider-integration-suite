@@ -21,7 +21,8 @@ type partnersDataSource struct {
 }
 
 type partnersDataSourceModel struct {
-	Pids []types.String `tfsdk:"pids"`
+	Pids              []types.String `tfsdk:"pids"`
+	RuntimeLocationID types.String   `tfsdk:"runtime_location_id"`
 }
 
 func (d *partnersDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -36,6 +37,7 @@ func (d *partnersDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 			"docs/guides/partner-directory.md. Follows SAP's server-driven paging to return the " +
 			"complete list, not just its first page.",
 		Attributes: map[string]schema.Attribute{
+			"runtime_location_id": runtimeLocationDataSourceAttribute(),
 			"pids": schema.ListAttribute{
 				Computed:    true,
 				ElementType: types.StringType,
@@ -60,8 +62,18 @@ func (d *partnersDataSource) Configure(_ context.Context, req datasource.Configu
 	d.client = partnerdirectory.New(data.HTTPClient, data.Host)
 }
 
-func (d *partnersDataSource) Read(ctx context.Context, _ datasource.ReadRequest, resp *datasource.ReadResponse) {
-	partners, err := d.client.ListPartners(ctx)
+func (d *partnersDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var config partnersDataSourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	client, ok := locatedClient(d.client, config.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
+
+	partners, err := client.ListPartners(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to list SAP Integration Suite Partner Directory partners", diagnosticDetail(err))
 		return
@@ -72,5 +84,5 @@ func (d *partnersDataSource) Read(ctx context.Context, _ datasource.ReadRequest,
 		pids = append(pids, types.StringValue(p.Pid))
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, partnersDataSourceModel{Pids: pids})...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, partnersDataSourceModel{Pids: pids, RuntimeLocationID: config.RuntimeLocationID})...)
 }

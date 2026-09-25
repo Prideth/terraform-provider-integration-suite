@@ -73,6 +73,7 @@ type keyPairModel struct {
 	ValidNotBefore        types.String `tfsdk:"valid_not_before"`
 	ValidNotAfter         types.String `tfsdk:"valid_not_after"`
 	PublicKeyOpenSSH      types.String `tfsdk:"public_key_openssh"`
+	RuntimeLocationID     types.String `tfsdk:"runtime_location_id"`
 }
 
 func (r *keyPairResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -92,6 +93,7 @@ func (r *keyPairResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"operation for a generated key pair, so every attribute that defines the generated key " +
 			"material is RequiresReplace.",
 		Attributes: map[string]schema.Attribute{
+			"runtime_location_id": runtimeLocationResourceAttribute(),
 			"id": schema.StringAttribute{
 				Computed:    true,
 				Description: "Always equal to alias.",
@@ -326,6 +328,10 @@ func (r *keyPairResource) Create(ctx context.Context, req resource.CreateRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, plan.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
 	genReq, diags := keyPairGenerationRequestFromModel(plan)
 	resp.Diagnostics.Append(diags...)
@@ -333,7 +339,7 @@ func (r *keyPairResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	if err := r.client.GenerateKeyPair(ctx, genReq); err != nil {
+	if err := client.GenerateKeyPair(ctx, genReq); err != nil {
 		resp.Diagnostics.AddError("Failed to generate SAP Integration Suite key pair", diagnosticDetail(err))
 		return
 	}
@@ -360,7 +366,11 @@ func (r *keyPairResource) Read(ctx context.Context, req resource.ReadRequest, re
 // write, the same pattern this provider uses wherever an API's Read
 // cannot verify everything its Create accepted.
 func (r *keyPairResource) readAfterWrite(ctx context.Context, alias string, base keyPairModel, diags *diag.Diagnostics, state *tfsdk.State) {
-	entry, err := r.client.GetKeystoreEntry(ctx, alias)
+	client, ok := locatedClient(r.client, base.RuntimeLocationID, diags)
+	if !ok {
+		return
+	}
+	entry, err := client.GetKeystoreEntry(ctx, alias)
 	if err != nil {
 		if isNotFound(err) {
 			state.RemoveResource(ctx)
@@ -377,7 +387,7 @@ func (r *keyPairResource) readAfterWrite(ctx context.Context, alias string, base
 	base.ValidNotAfter = stringOrNull(entry.ValidNotAfter)
 
 	if entry.KeyType == "RSA" || entry.KeyType == "DSA" {
-		if pub, sshErr := r.client.GetSSHPublicKey(ctx, alias); sshErr == nil {
+		if pub, sshErr := client.GetSSHPublicKey(ctx, alias); sshErr == nil {
 			base.PublicKeyOpenSSH = types.StringValue(string(pub))
 		} else {
 			base.PublicKeyOpenSSH = types.StringNull()
@@ -412,8 +422,12 @@ func (r *keyPairResource) Delete(ctx context.Context, req resource.DeleteRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, state.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	err := r.client.DeleteKeystoreEntries(ctx, []string{state.Alias.ValueString()})
+	err := client.DeleteKeystoreEntries(ctx, []string{state.Alias.ValueString()})
 	if err != nil {
 		if isNotFound(err) {
 			return
@@ -431,7 +445,13 @@ func (r *keyPairResource) Delete(ctx context.Context, req resource.DeleteRequest
 // value this provider could not actually verify — see
 // docs/guides/security-content.md.
 func (r *keyPairResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, pathRoot("alias"), req, resp)
+	loc, parts, err := splitLocatedImportID(req.ID, 1)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid import ID", err.Error())
+		return
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRoot("alias"), parts[0])...)
+	setImportedRuntimeLocation(ctx, loc, resp.State.SetAttribute, &resp.Diagnostics)
 }
 
 func keyPairGenerationRequestFromModel(m keyPairModel) (securitycontent.KeyPairGenerationRequest, diag.Diagnostics) {
