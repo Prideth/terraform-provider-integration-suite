@@ -287,6 +287,7 @@ func (p *sapIntegrationSuiteProvider) Resources(_ context.Context) []func() reso
 		NewIntegrationPackageResource,
 		NewIntegrationFlowResource,
 		NewIntegrationFlowDeploymentResource,
+		NewIntegrationFlowConfigurationResource,
 		NewAccessPolicyResource,
 		NewAccessPolicyReferenceResource,
 		NewValueMappingResource,

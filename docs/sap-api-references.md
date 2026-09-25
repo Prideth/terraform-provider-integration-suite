@@ -44,6 +44,32 @@ API. This document is that trace.
 - **Required roles**: as above, plus deploy-specific scopes for the runtime artifact
   operations
 
+## `sapintegrationsuite_integration_flow_configuration`
+
+*Added September 2026.*
+
+- **SAP product area**: Cloud Integration, externalized parameters of integration flows
+  (*Configure* in the Design UI)
+- **Official API**: Integration Content API, resource *Configurations of Integration Flow*. SAP
+  Help's Integration Content page: "You can read or update integration flow configurations. You
+  can access integration flow configurations through the `IntegrationDesigntimeArtifacts`
+  resource."
+- **Documented request** (*Integration Flow Example Requests*, "Update Integration Flow
+  Configuration Parameters"): `PUT /IntegrationDesigntimeArtifacts(Id='{Id}',Version='{Version}')/$links/Configurations('{ParameterKey}')`
+  with body `{"ParameterValue": "...", "DataType": "xsd:string"}`, plus a `$batch` variant.
+- **Corroboration**: SAP's Piper library, step `integrationArtifactUpdateConfiguration`
+  (`cmd/integrationArtifactUpdateConfiguration.go`), sends the same PUT with only
+  `ParameterValue`.
+- **`$metadata`**: entity type `Configuration`, key `ParameterKey`, properties
+  `ParameterValue`, `DataType`, `Description`; navigation `Configurations` on
+  `IntegrationDesigntimeArtifact`; entity set `Configurations`. Checked by the contract test.
+- **Read**: `GET IntegrationDesigntimeArtifacts(Id,Version)/Configurations`. Standard navigation
+  read, covered by the documented "read" capability.
+- **Not offered**: create or delete of a parameter. Parameters are defined in the flow model, so
+  destroy only removes the resource from state.
+- **Provider choices**: only listed keys are managed; the existing `DataType` is resent with
+  each value; unknown keys are rejected before any write.
+
 ## `sapintegrationsuite_value_mapping` / `..._deployment`
 
 - **SAP product area**: Integration Suite / Cloud Integration

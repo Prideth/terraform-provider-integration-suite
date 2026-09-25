@@ -63,6 +63,7 @@ Do not conflate these: a feature can be fully supported by this provider and sti
 | `cloud_integration.integration_adapter` | cloud_integration | partial (public_api_incomplete) | Yes | Yes | Yes | — | Yes | Yes | — | Resource + Data Source |
 | `cloud_integration.integration_adapter_deployment` | cloud_integration | partial (public_api_incomplete) | Yes | Yes | Yes | — | Yes | — | Yes | Resource |
 | `cloud_integration.integration_flow` | cloud_integration | supported | Yes | Yes | Yes | Yes | Yes | Yes | — | Resource |
+| `cloud_integration.integration_flow_configuration` | cloud_integration | supported | Yes | Yes | Yes | Yes | — | Yes | — | Resource |
 | `cloud_integration.integration_flow_deployment` | cloud_integration | supported | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Resource |
 | `cloud_integration.integration_package` | cloud_integration | supported | Yes | Yes | Yes | Yes | Yes | Yes | — | Resource + Data Source |
 | `cloud_integration.message_mapping` | cloud_integration | supported | Yes | Yes | Yes | Yes | Yes | Yes | — | Resource + Data Source |

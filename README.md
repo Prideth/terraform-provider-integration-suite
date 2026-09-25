@@ -87,6 +87,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Integration Adapter | ⚠️ | Resource + Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
 | Integration Adapter Deployment | ⚠️ | Resource — see [feature-support.md](docs/feature-support.md#all-features) |
 | Integration Flow | ✅ | Resource |
+| Integration Flow Configuration | ✅ | Resource |
 | Integration Flow Deployment | ✅ | Resource |
 | Integration Package | ✅ | Resource + Data Source |
 | Message Mapping | ✅ | Resource + Data Source |
@@ -212,7 +213,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Trading Partner Management Partner Directory Generation | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Trading Partner Management Partner Profile | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 
-17 supported · 11 partial · 4 read-only · 0 experimental · 51 unsupported · 2 planned as a separate provider, out of 85 evaluated Integration Suite features.
+18 supported · 11 partial · 4 read-only · 0 experimental · 51 unsupported · 2 planned as a separate provider, out of 86 evaluated Integration Suite features.
 
 <!-- END GENERATED FEATURE SUPPORT -->
 

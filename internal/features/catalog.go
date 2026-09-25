@@ -125,6 +125,31 @@ var Catalog = []Feature{
 		Operations:      Operations{Create: true, Read: true, Update: true, Delete: true, Import: true, Deploy: true, Undeploy: true},
 	},
 	{
+		Key:    "cloud_integration.integration_flow_configuration",
+		Domain: "cloud_integration",
+		Name:   "Integration Flow Configuration",
+		Description: "Externalized parameters of an integration flow (receiver hosts, endpoint " +
+			"addresses, credential names and similar values set per environment).",
+		SupportStatus: StatusSupported,
+		ResourceTypes: []string{"sapintegrationsuite_integration_flow_configuration"},
+		PublicAPI:     true,
+		APIProtocol:   "OData V2",
+		Limitations: []string{
+			"Only the keys listed in parameters are managed; other parameters keep their values. " +
+				"SAP documents reading and updating parameters (PUT " +
+				"IntegrationDesigntimeArtifacts(Id,Version)/$links/Configurations('<key>')), not " +
+				"creating or deleting them: parameters come from the flow model. Destroying the " +
+				"resource therefore leaves the values in place and only stops managing them.",
+			"New values take effect at runtime only after a redeploy. Reference the parameters in " +
+				"redeploy_triggers of sapintegrationsuite_integration_flow_deployment to redeploy " +
+				"automatically.",
+			"SAP does not document whether uploading new flow content keeps parameter values. If " +
+				"it resets them, the next plan shows the managed keys as drift and applying writes " +
+				"them again.",
+		},
+		Operations: Operations{Create: true, Read: true, Update: true, Import: true},
+	},
+	{
 		Key:           "cloud_integration.value_mapping",
 		Domain:        "cloud_integration",
 		Name:          "Value Mapping",

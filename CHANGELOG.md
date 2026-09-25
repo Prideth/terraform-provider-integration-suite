@@ -34,6 +34,15 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- `sapintegrationsuite_integration_flow_configuration` sets externalized
+  parameters of an integration flow through SAP's documented
+  `$links/Configurations` update. Only the listed keys are managed, each
+  parameter's data type is kept, and unknown keys are rejected before
+  anything is written. Destroy leaves the values in place, since SAP offers
+  no way to delete a parameter.
+- `sapintegrationsuite_integration_flow_deployment` has a `redeploy_triggers`
+  map that redeploys the flow in place when it changes, so new parameter
+  values reach the runtime.
 - `sapintegrationsuite_oauth2_client_credential` and its data source gain
   `client_authentication`, `scope_content_type`, `resource` and `audience`,
   the property names confirmed by a tenant `$metadata`. They are optional

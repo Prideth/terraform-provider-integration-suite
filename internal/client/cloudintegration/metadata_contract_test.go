@@ -32,6 +32,8 @@ func TestWireContractAgainstMetadata(t *testing.T) {
 		{serviceEndpointsEntitySet, ServiceEndpoint{}},
 		{"EntryPoints", EntryPoint{}},
 		{"APIDefinitions", APIDefinition{}},
+		{integrationFlowConfigurationsEntitySet, IntegrationFlowConfiguration{}},
+		{integrationFlowConfigurationsEntitySet, integrationFlowConfigurationWrite{}},
 		{valueMappingDesigntimeArtifactsEntitySet, ValueMapping{}},
 	}
 	for _, s := range structs {
@@ -53,6 +55,10 @@ func TestWireContractAgainstMetadata(t *testing.T) {
 	m.AssertKey(t, runtimeArtifactsEntitySet, "Id", "Edm.String")
 	m.AssertKey(t, numberRangesEntitySet, "Name", "Edm.String")
 	m.AssertKey(t, customTagConfigurationsEntitySet, "Id", "Edm.String")
+	m.AssertKey(t, integrationFlowConfigurationsEntitySet, "ParameterKey", "Edm.String")
+	if et := m.EntityTypeOf(t, integrationDesigntimeArtifactsEntitySet); et != nil && !et.Properties["Configurations"].Navigation {
+		t.Error("IntegrationDesigntimeArtifact has no Configurations navigation property")
+	}
 
 	m.AssertFunctionImport(t, "DeployIntegrationDesigntimeArtifact", "POST", "Id", "Version")
 	m.AssertFunctionImport(t, "DeployMessageMappingDesigntimeArtifact", "POST", "Id", "Version")

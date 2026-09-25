@@ -27,12 +27,13 @@ type integrationFlowDeploymentResource struct {
 }
 
 type integrationFlowDeploymentModel struct {
-	ID          types.String   `tfsdk:"id"`
-	PackageID   types.String   `tfsdk:"package_id"`
-	FlowID      types.String   `tfsdk:"flow_id"`
-	FlowVersion types.String   `tfsdk:"flow_version"`
-	Status      types.String   `tfsdk:"status"`
-	Timeouts    timeouts.Value `tfsdk:"timeouts"`
+	ID               types.String   `tfsdk:"id"`
+	PackageID        types.String   `tfsdk:"package_id"`
+	FlowID           types.String   `tfsdk:"flow_id"`
+	FlowVersion      types.String   `tfsdk:"flow_version"`
+	Status           types.String   `tfsdk:"status"`
+	RedeployTriggers types.Map      `tfsdk:"redeploy_triggers"`
+	Timeouts         timeouts.Value `tfsdk:"timeouts"`
 }
 
 func (r *integrationFlowDeploymentResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -78,6 +79,14 @@ func (r *integrationFlowDeploymentResource) Schema(_ context.Context, _ resource
 			"status": schema.StringAttribute{
 				Computed:    true,
 				Description: "The runtime status SAP reports for this deployment (for example STARTED or ERROR).",
+			},
+			"redeploy_triggers": schema.MapAttribute{
+				Optional:    true,
+				ElementType: types.StringType,
+				Description: "Arbitrary values that redeploy the flow in place whenever they change, for " +
+					"example the parameters of a sapintegrationsuite_integration_flow_configuration. " +
+					"Changed externalized parameters only take effect at runtime after a redeploy, and " +
+					"flow_version does not change when only parameters change.",
 			},
 		},
 		Blocks: map[string]schema.Block{
@@ -131,7 +140,7 @@ func (r *integrationFlowDeploymentResource) Create(ctx context.Context, req reso
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, deploymentToModel(plan.PackageID.ValueString(), artifact, plan.Timeouts))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, deploymentToModel(plan.PackageID.ValueString(), artifact, plan.Timeouts, plan.RedeployTriggers))...)
 }
 
 func (r *integrationFlowDeploymentResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -157,7 +166,7 @@ func (r *integrationFlowDeploymentResource) Read(ctx context.Context, req resour
 	// different version outside Terraform, or if a deployment failed
 	// part-way. Writing it into flow_version (a Required, non-Computed
 	// attribute) is what makes that visible as drift on the next plan.
-	resp.Diagnostics.Append(resp.State.Set(ctx, deploymentToModel(state.PackageID.ValueString(), artifact, state.Timeouts))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, deploymentToModel(state.PackageID.ValueString(), artifact, state.Timeouts, state.RedeployTriggers))...)
 }
 
 func (r *integrationFlowDeploymentResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -186,7 +195,7 @@ func (r *integrationFlowDeploymentResource) Update(ctx context.Context, req reso
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, deploymentToModel(plan.PackageID.ValueString(), artifact, plan.Timeouts))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, deploymentToModel(plan.PackageID.ValueString(), artifact, plan.Timeouts, plan.RedeployTriggers))...)
 }
 
 func (r *integrationFlowDeploymentResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -224,13 +233,14 @@ func (r *integrationFlowDeploymentResource) ImportState(ctx context.Context, req
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRoot("flow_id"), flowID)...)
 }
 
-func deploymentToModel(packageID string, artifact *cloudintegration.RuntimeArtifact, tf timeouts.Value) integrationFlowDeploymentModel {
+func deploymentToModel(packageID string, artifact *cloudintegration.RuntimeArtifact, tf timeouts.Value, triggers types.Map) integrationFlowDeploymentModel {
 	return integrationFlowDeploymentModel{
-		ID:          types.StringValue(packageID + "/" + artifact.ID),
-		PackageID:   types.StringValue(packageID),
-		FlowID:      types.StringValue(artifact.ID),
-		FlowVersion: types.StringValue(artifact.Version),
-		Status:      types.StringValue(artifact.Status),
-		Timeouts:    tf,
+		ID:               types.StringValue(packageID + "/" + artifact.ID),
+		PackageID:        types.StringValue(packageID),
+		FlowID:           types.StringValue(artifact.ID),
+		FlowVersion:      types.StringValue(artifact.Version),
+		Status:           types.StringValue(artifact.Status),
+		Timeouts:         tf,
+		RedeployTriggers: triggers,
 	}
 }
