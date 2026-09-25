@@ -86,8 +86,9 @@ elsewhere, it confirms names, keys and types but not which operations SAP accept
 - **Explicit versions.** `…SaveAsVersion` function imports (`Id`, `SaveAsVersion`) exist for
   integration flows, message mappings, script collections, value mappings, data types, message
   types, fault message types and service interfaces. SAP Help's *Integration Flow Example
-  Requests* documents `IntegrationDesigntimeArtifactSaveAsVersion` after a PUT. The provider does
-  not use it yet (`cloud_integration.design_time_versioning`, `not_implemented`).
+  Requests* documents `IntegrationDesigntimeArtifactSaveAsVersion` after a PUT. The provider uses
+  it through `save_as_version` on integration flows, message mappings and script collections
+  (`cloud_integration.design_time_versioning`, `partial`).
 - **New design-time artifact types.** `DataTypeDesigntimeArtifacts`,
   `MessageTypeDesigntimeArtifacts`, `FaultMessageTypeDesigntimeArtifacts` and
   `ServiceInterfaceDesigntimeArtifacts`, all keyed by `Id` and `Version` with `Namespace` and

@@ -34,6 +34,11 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- `save_as_version` on `sapintegrationsuite_integration_flow`,
+  `sapintegrationsuite_message_mapping` and
+  `sapintegrationsuite_script_collection` saves uploaded content under an
+  explicit version through SAP's documented `…SaveAsVersion` function
+  imports. A new version is saved only when the value changes.
 - Experimental Edge Integration Cell targeting: the deployment resources,
   the user and OAuth2 credentials, certificates, key pairs and the Partner
   Directory resources, plus their data sources, accept an optional

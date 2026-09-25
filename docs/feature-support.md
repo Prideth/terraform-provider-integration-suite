@@ -62,7 +62,7 @@ Do not conflate these: a feature can be fully supported by this provider and sti
 | `cloud_integration.data_store` | cloud_integration | unsupported (out_of_scope) | Yes | — | — | — | — | — | — | — |
 | `cloud_integration.data_store_entry` | cloud_integration | unsupported (out_of_scope) | Yes | — | — | — | — | — | — | — |
 | `cloud_integration.data_type` | cloud_integration | unsupported (public_api_incomplete) | Yes | — | — | — | — | — | — | — |
-| `cloud_integration.design_time_versioning` | cloud_integration | unsupported (not_implemented) | Yes | — | — | — | — | — | — | — |
+| `cloud_integration.design_time_versioning` | cloud_integration | partial (not_implemented) | Yes | Yes | — | Yes | — | — | — | Resource |
 | `cloud_integration.integration_adapter` | cloud_integration | partial (public_api_incomplete) | Yes | Yes | Yes | — | Yes | Yes | — | Resource + Data Source |
 | `cloud_integration.integration_adapter_deployment` | cloud_integration | partial (public_api_incomplete) | Yes | Yes | Yes | — | Yes | — | Yes | Resource |
 | `cloud_integration.integration_flow` | cloud_integration | supported | Yes | Yes | Yes | Yes | Yes | Yes | — | Resource |
@@ -140,9 +140,10 @@ Grouped by why, not just that. A feature can be `partial` and reachable via one 
   - The strongest confirmed-but-unimplemented finding from this provider's capability audit: a genuine, separately entitled "API Composition" service (plan configuration) exposes a Configuration API at {region-specific host}/configuration/v1/sap.graph/GraphConfiguration, confirmed with verbatim worked examples for Create (POST, full sample body with businessDataGraphIdentifier/dataSources/locatingPolicy), Read (GET by ID), and Update (PATCH by ID); Delete is explicitly stated to exist ("Whether you need to create, update, or delete business data graphs, this API provides an automated option") but no verbatim DELETE example was captured during this audit pass.
   - Authentication reuses this provider's existing OAuth 2.0 client-credentials pattern, but through a third distinct credential set: a Process Integration Runtime service instance on the integration-flow plan (explicitly documented as NOT the same api plan this provider's own oauth block already uses), separate again from provider.api_management's apiportal-apiaccess credentials.
   - Deliberately not implemented in this audit-only phase: this phase's scope is classification, not implementation. Recommended as the top candidate for a future dedicated phase, given the unusually strong Create/Read/Update evidence already on record — stronger than most objects this provider has implemented to date.
-- **`cloud_integration.design_time_versioning`** — Saving a design-time artifact under an explicit version number (for example 1.0.3) instead of working only on the active draft.
-  - SAP's API offers this and the provider has not implemented it yet. SAP Help documents POST /IntegrationDesigntimeArtifactSaveAsVersion?Id=''&SaveAsVersion='' (after a PUT of the content), and the tenant $metadata has the same function import with parameters Id and SaveAsVersion for message mappings, script collections, value mappings, data types, message types, fault message types and service interfaces.
-  - Until then the design-time resources work on the active version, and the version they report is whatever SAP assigns.
+- **`cloud_integration.design_time_versioning`** — Saving a design-time artifact under an explicit version number (for example 1.0.3) instead of working only on the active draft. (partial support already implemented — see Limitations below)
+  - save_as_version calls <Artifact>SaveAsVersion?Id=''&SaveAsVersion='' after the content upload, as SAP Help documents for IntegrationDesigntimeArtifactSaveAsVersion; the tenant $metadata confirms the same function import for message mappings and script collections. A new version is saved only when save_as_version changes.
+  - Not yet available for value mappings: that resource replaces the artifact on every change, and a version bump must not recreate it. Data types, message types, fault message types and service interfaces have the function import too but no resource.
+  - SAP does not document what happens when the version already exists or is lower than the current one; SAP's error is passed through unchanged.
 
 ### Public API details are not fully confirmed
 

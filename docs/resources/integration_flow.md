@@ -20,6 +20,10 @@ resource "sapintegrationsuite_integration_flow" "metering" {
 
   content      = "${path.module}/iflows/metering.zip"
   content_hash = filesha256("${path.module}/iflows/metering.zip")
+
+  # Optional: save each release under an explicit version. Bump it together
+  # with the content; a new version is saved only when this value changes.
+  save_as_version = "1.0.3"
 }
 ```
 
@@ -36,6 +40,7 @@ resource "sapintegrationsuite_integration_flow" "metering" {
 
 - `content` (String) Path to the local ZIP file containing the integration flow project, for example "${path.module}/iflows/metering.zip". Required to manage the flow's content; left as-is on import until a matching configuration is applied, since SAP does not return a local file path for an existing design-time artifact.
 - `content_hash` (String) SHA-256 hash of the content file, for example filesha256("${path.module}/iflows/metering.zip"). Terraform only re-uploads the file when this hash changes.
+- `save_as_version` (String) Version to save the uploaded integration flow under, for example "1.0.3", using SAP's SaveAsVersion function import. Without it, SAP keeps its own version number and uploads update the current draft. The content is saved as a new version only when this value changes, so bump it together with the content for each release; version then reports what SAP recorded.
 
 ### Read-Only
 

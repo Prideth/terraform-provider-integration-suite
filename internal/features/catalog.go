@@ -214,20 +214,27 @@ var Catalog = []Feature{
 		Name:   "Design-Time Artifact Versioning",
 		Description: "Saving a design-time artifact under an explicit version number (for example " +
 			"1.0.3) instead of working only on the active draft.",
-		SupportStatus: StatusUnsupported,
+		SupportStatus: StatusPartial,
 		SupportReason: ReasonNotImplemented,
-		PublicAPI:     true,
-		APIProtocol:   "OData V2 (function imports)",
-		Planned:       true,
-		Limitations: []string{
-			"SAP's API offers this and the provider has not implemented it yet. SAP Help documents " +
-				"POST /IntegrationDesigntimeArtifactSaveAsVersion?Id=''&SaveAsVersion='' (after a PUT " +
-				"of the content), and the tenant $metadata has the same function import with " +
-				"parameters Id and SaveAsVersion for message mappings, script collections, value " +
-				"mappings, data types, message types, fault message types and service interfaces.",
-			"Until then the design-time resources work on the active version, and the version they " +
-				"report is whatever SAP assigns.",
+		ResourceTypes: []string{
+			"sapintegrationsuite_integration_flow",
+			"sapintegrationsuite_message_mapping",
+			"sapintegrationsuite_script_collection",
 		},
+		PublicAPI:   true,
+		APIProtocol: "OData V2 (function imports)",
+		Limitations: []string{
+			"save_as_version calls <Artifact>SaveAsVersion?Id=''&SaveAsVersion='' after the content " +
+				"upload, as SAP Help documents for IntegrationDesigntimeArtifactSaveAsVersion; the " +
+				"tenant $metadata confirms the same function import for message mappings and script " +
+				"collections. A new version is saved only when save_as_version changes.",
+			"Not yet available for value mappings: that resource replaces the artifact on every " +
+				"change, and a version bump must not recreate it. Data types, message types, fault " +
+				"message types and service interfaces have the function import too but no resource.",
+			"SAP does not document what happens when the version already exists or is lower than " +
+				"the current one; SAP's error is passed through unchanged.",
+		},
+		Operations: Operations{Create: true, Update: true},
 	},
 	{
 		Key:    "cloud_integration.data_type",

@@ -75,3 +75,23 @@ func TestClient_UpdateIntegrationFlowConfiguration_EscapesKey(t *testing.T) {
 		t.Errorf("path = %q, want quote doubled: %q", gotPath, want)
 	}
 }
+
+func TestClient_SaveIntegrationFlowAsVersion_DocumentedRequest(t *testing.T) {
+	var gotMethod, gotURI string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotURI = r.Method, r.URL.RequestURI()
+		_, _ = w.Write([]byte(`{"d": {"Id": "Order_Flow", "Version": "1.0.3", "Name": "Order Flow"}}`))
+	}))
+	defer server.Close()
+
+	flow, err := New(http.DefaultClient, server.URL).SaveIntegrationFlowAsVersion(context.Background(), "Order_Flow", "1.0.3")
+	if err != nil {
+		t.Fatalf("SaveIntegrationFlowAsVersion() error: %v", err)
+	}
+	if want := "/api/v1/IntegrationDesigntimeArtifactSaveAsVersion?Id='Order_Flow'&SaveAsVersion='1.0.3'"; gotMethod != http.MethodPost || gotURI != want {
+		t.Errorf("got %s %s, want POST %s", gotMethod, gotURI, want)
+	}
+	if flow.Version != "1.0.3" {
+		t.Errorf("Version = %q, want 1.0.3", flow.Version)
+	}
+}

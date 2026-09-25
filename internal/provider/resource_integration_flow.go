@@ -34,13 +34,14 @@ type integrationFlowResource struct {
 }
 
 type integrationFlowModel struct {
-	ID          types.String `tfsdk:"id"`
-	PackageID   types.String `tfsdk:"package_id"`
-	FlowID      types.String `tfsdk:"flow_id"`
-	Name        types.String `tfsdk:"name"`
-	Content     types.String `tfsdk:"content"`
-	ContentHash types.String `tfsdk:"content_hash"`
-	Version     types.String `tfsdk:"version"`
+	ID            types.String `tfsdk:"id"`
+	PackageID     types.String `tfsdk:"package_id"`
+	FlowID        types.String `tfsdk:"flow_id"`
+	Name          types.String `tfsdk:"name"`
+	Content       types.String `tfsdk:"content"`
+	ContentHash   types.String `tfsdk:"content_hash"`
+	Version       types.String `tfsdk:"version"`
+	SaveAsVersion types.String `tfsdk:"save_as_version"`
 }
 
 func (r *integrationFlowResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -104,6 +105,7 @@ func (r *integrationFlowResource) Schema(_ context.Context, _ resource.SchemaReq
 				Computed:    true,
 				Description: "The design-time version SAP assigned to the most recent upload.",
 			},
+			"save_as_version": saveAsVersionAttribute("integration flow"),
 		},
 	}
 }
@@ -145,6 +147,17 @@ func (r *integrationFlowResource) Create(ctx context.Context, req resource.Creat
 		resp.Diagnostics.AddError("Failed to create SAP Integration Suite integration flow", diagnosticDetail(err))
 		return
 	}
+	if v, due := versionToSave(plan.SaveAsVersion, types.StringNull()); due {
+		saved, err := r.client.SaveIntegrationFlowAsVersion(ctx, plan.FlowID.ValueString(), v)
+		if err != nil {
+			unsaved := plan
+			unsaved.SaveAsVersion = types.StringNull()
+			resp.Diagnostics.Append(resp.State.Set(ctx, flowToModel(plan.PackageID.ValueString(), flow, unsaved))...)
+			resp.Diagnostics.AddError("Integration flow created, but saving it as version "+v+" failed", diagnosticDetail(err))
+			return
+		}
+		flow.Version = saved.Version
+	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, flowToModel(plan.PackageID.ValueString(), flow, plan))...)
 }
@@ -173,6 +186,8 @@ func (r *integrationFlowResource) Read(ctx context.Context, req resource.ReadReq
 func (r *integrationFlowResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan integrationFlowModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	var prior integrationFlowModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -191,6 +206,17 @@ func (r *integrationFlowResource) Update(ctx context.Context, req resource.Updat
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to update SAP Integration Suite integration flow", diagnosticDetail(err))
 		return
+	}
+	if v, due := versionToSave(plan.SaveAsVersion, prior.SaveAsVersion); due {
+		saved, err := r.client.SaveIntegrationFlowAsVersion(ctx, plan.FlowID.ValueString(), v)
+		if err != nil {
+			unsaved := plan
+			unsaved.SaveAsVersion = prior.SaveAsVersion
+			resp.Diagnostics.Append(resp.State.Set(ctx, flowToModel(plan.PackageID.ValueString(), flow, unsaved))...)
+			resp.Diagnostics.AddError("Integration flow updated, but saving it as version "+v+" failed", diagnosticDetail(err))
+			return
+		}
+		flow.Version = saved.Version
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, flowToModel(plan.PackageID.ValueString(), flow, plan))...)
@@ -225,13 +251,14 @@ func (r *integrationFlowResource) ImportState(ctx context.Context, req resource.
 
 func flowToModel(packageID string, flow *cloudintegration.IntegrationFlow, previous integrationFlowModel) integrationFlowModel {
 	return integrationFlowModel{
-		ID:          types.StringValue(packageID + "/" + flow.ID),
-		PackageID:   types.StringValue(packageID),
-		FlowID:      types.StringValue(flow.ID),
-		Name:        types.StringValue(flow.Name),
-		Content:     previous.Content,
-		ContentHash: previous.ContentHash,
-		Version:     types.StringValue(flow.Version),
+		ID:            types.StringValue(packageID + "/" + flow.ID),
+		PackageID:     types.StringValue(packageID),
+		FlowID:        types.StringValue(flow.ID),
+		Name:          types.StringValue(flow.Name),
+		Content:       previous.Content,
+		ContentHash:   previous.ContentHash,
+		Version:       types.StringValue(flow.Version),
+		SaveAsVersion: previous.SaveAsVersion,
 	}
 }
 

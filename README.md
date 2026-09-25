@@ -85,7 +85,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Data Store | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Data Store Entry | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Data Type | ❌ | Planned — API details unconfirmed — see [feature-support.md](docs/feature-support.md#all-features) |
-| Design-Time Artifact Versioning | ❌ | Planned — see [feature-support.md](docs/feature-support.md#all-features) |
+| Design-Time Artifact Versioning | ⚠️ | Resource — see [feature-support.md](docs/feature-support.md#all-features) |
 | Integration Adapter | ⚠️ | Resource + Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
 | Integration Adapter Deployment | ⚠️ | Resource — see [feature-support.md](docs/feature-support.md#all-features) |
 | Integration Flow | ✅ | Resource |
@@ -218,7 +218,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Trading Partner Management Partner Directory Generation | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Trading Partner Management Partner Profile | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 
-18 supported · 11 partial · 4 read-only · 1 experimental · 55 unsupported · 2 planned as a separate provider, out of 91 evaluated Integration Suite features.
+18 supported · 12 partial · 4 read-only · 1 experimental · 54 unsupported · 2 planned as a separate provider, out of 91 evaluated Integration Suite features.
 
 <!-- END GENERATED FEATURE SUPPORT -->
 

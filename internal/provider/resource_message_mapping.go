@@ -30,13 +30,14 @@ type messageMappingResource struct {
 }
 
 type messageMappingModel struct {
-	ID          types.String `tfsdk:"id"`
-	PackageID   types.String `tfsdk:"package_id"`
-	MappingID   types.String `tfsdk:"mapping_id"`
-	Name        types.String `tfsdk:"name"`
-	Content     types.String `tfsdk:"content"`
-	ContentHash types.String `tfsdk:"content_hash"`
-	Version     types.String `tfsdk:"version"`
+	ID            types.String `tfsdk:"id"`
+	PackageID     types.String `tfsdk:"package_id"`
+	MappingID     types.String `tfsdk:"mapping_id"`
+	Name          types.String `tfsdk:"name"`
+	Content       types.String `tfsdk:"content"`
+	ContentHash   types.String `tfsdk:"content_hash"`
+	Version       types.String `tfsdk:"version"`
+	SaveAsVersion types.String `tfsdk:"save_as_version"`
 }
 
 func (r *messageMappingResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -108,6 +109,7 @@ func (r *messageMappingResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Computed:    true,
 				Description: "The design-time version SAP assigned to the most recent upload.",
 			},
+			"save_as_version": saveAsVersionAttribute("message mapping"),
 		},
 	}
 }
@@ -149,6 +151,17 @@ func (r *messageMappingResource) Create(ctx context.Context, req resource.Create
 		resp.Diagnostics.AddError("Failed to create SAP Integration Suite message mapping", diagnosticDetail(err))
 		return
 	}
+	if v, due := versionToSave(plan.SaveAsVersion, types.StringNull()); due {
+		saved, err := r.client.SaveMessageMappingAsVersion(ctx, plan.MappingID.ValueString(), v)
+		if err != nil {
+			unsaved := plan
+			unsaved.SaveAsVersion = types.StringNull()
+			resp.Diagnostics.Append(resp.State.Set(ctx, messageMappingToModel(plan.PackageID.ValueString(), mapping, unsaved))...)
+			resp.Diagnostics.AddError("Message mapping created, but saving it as version "+v+" failed", diagnosticDetail(err))
+			return
+		}
+		mapping.Version = saved.Version
+	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, messageMappingToModel(plan.PackageID.ValueString(), mapping, plan))...)
 }
@@ -177,6 +190,8 @@ func (r *messageMappingResource) Read(ctx context.Context, req resource.ReadRequ
 func (r *messageMappingResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan messageMappingModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	var prior messageMappingModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -195,6 +210,17 @@ func (r *messageMappingResource) Update(ctx context.Context, req resource.Update
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to update SAP Integration Suite message mapping", diagnosticDetail(err))
 		return
+	}
+	if v, due := versionToSave(plan.SaveAsVersion, prior.SaveAsVersion); due {
+		saved, err := r.client.SaveMessageMappingAsVersion(ctx, plan.MappingID.ValueString(), v)
+		if err != nil {
+			unsaved := plan
+			unsaved.SaveAsVersion = prior.SaveAsVersion
+			resp.Diagnostics.Append(resp.State.Set(ctx, messageMappingToModel(plan.PackageID.ValueString(), mapping, unsaved))...)
+			resp.Diagnostics.AddError("Message mapping updated, but saving it as version "+v+" failed", diagnosticDetail(err))
+			return
+		}
+		mapping.Version = saved.Version
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, messageMappingToModel(plan.PackageID.ValueString(), mapping, plan))...)
@@ -229,12 +255,13 @@ func (r *messageMappingResource) ImportState(ctx context.Context, req resource.I
 
 func messageMappingToModel(packageID string, mapping *cloudintegration.MessageMapping, previous messageMappingModel) messageMappingModel {
 	return messageMappingModel{
-		ID:          types.StringValue(packageID + "/" + mapping.ID),
-		PackageID:   types.StringValue(packageID),
-		MappingID:   types.StringValue(mapping.ID),
-		Name:        types.StringValue(mapping.Name),
-		Content:     previous.Content,
-		ContentHash: previous.ContentHash,
-		Version:     types.StringValue(mapping.Version),
+		ID:            types.StringValue(packageID + "/" + mapping.ID),
+		PackageID:     types.StringValue(packageID),
+		MappingID:     types.StringValue(mapping.ID),
+		Name:          types.StringValue(mapping.Name),
+		Content:       previous.Content,
+		ContentHash:   previous.ContentHash,
+		Version:       types.StringValue(mapping.Version),
+		SaveAsVersion: previous.SaveAsVersion,
 	}
 }

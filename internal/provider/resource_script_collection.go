@@ -37,6 +37,7 @@ type scriptCollectionModel struct {
 	Content            types.String `tfsdk:"content"`
 	ContentHash        types.String `tfsdk:"content_hash"`
 	Version            types.String `tfsdk:"version"`
+	SaveAsVersion      types.String `tfsdk:"save_as_version"`
 }
 
 func (r *scriptCollectionResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -106,6 +107,7 @@ func (r *scriptCollectionResource) Schema(_ context.Context, _ resource.SchemaRe
 				Computed:    true,
 				Description: "The design-time version SAP assigned to the most recent upload.",
 			},
+			"save_as_version": saveAsVersionAttribute("script collection"),
 		},
 	}
 }
@@ -147,6 +149,17 @@ func (r *scriptCollectionResource) Create(ctx context.Context, req resource.Crea
 		resp.Diagnostics.AddError("Failed to create SAP Integration Suite script collection", diagnosticDetail(err))
 		return
 	}
+	if v, due := versionToSave(plan.SaveAsVersion, types.StringNull()); due {
+		saved, err := r.client.SaveScriptCollectionAsVersion(ctx, plan.ScriptCollectionID.ValueString(), v)
+		if err != nil {
+			unsaved := plan
+			unsaved.SaveAsVersion = types.StringNull()
+			resp.Diagnostics.Append(resp.State.Set(ctx, scriptCollectionToModel(plan.PackageID.ValueString(), sc, unsaved))...)
+			resp.Diagnostics.AddError("Script collection created, but saving it as version "+v+" failed", diagnosticDetail(err))
+			return
+		}
+		sc.Version = saved.Version
+	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, scriptCollectionToModel(plan.PackageID.ValueString(), sc, plan))...)
 }
@@ -175,6 +188,8 @@ func (r *scriptCollectionResource) Read(ctx context.Context, req resource.ReadRe
 func (r *scriptCollectionResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan scriptCollectionModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	var prior scriptCollectionModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -193,6 +208,17 @@ func (r *scriptCollectionResource) Update(ctx context.Context, req resource.Upda
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to update SAP Integration Suite script collection", diagnosticDetail(err))
 		return
+	}
+	if v, due := versionToSave(plan.SaveAsVersion, prior.SaveAsVersion); due {
+		saved, err := r.client.SaveScriptCollectionAsVersion(ctx, plan.ScriptCollectionID.ValueString(), v)
+		if err != nil {
+			unsaved := plan
+			unsaved.SaveAsVersion = prior.SaveAsVersion
+			resp.Diagnostics.Append(resp.State.Set(ctx, scriptCollectionToModel(plan.PackageID.ValueString(), sc, unsaved))...)
+			resp.Diagnostics.AddError("Script collection updated, but saving it as version "+v+" failed", diagnosticDetail(err))
+			return
+		}
+		sc.Version = saved.Version
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, scriptCollectionToModel(plan.PackageID.ValueString(), sc, plan))...)
@@ -234,5 +260,6 @@ func scriptCollectionToModel(packageID string, sc *cloudintegration.ScriptCollec
 		Content:            previous.Content,
 		ContentHash:        previous.ContentHash,
 		Version:            types.StringValue(sc.Version),
+		SaveAsVersion:      previous.SaveAsVersion,
 	}
 }

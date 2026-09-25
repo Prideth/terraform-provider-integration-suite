@@ -65,4 +65,7 @@ func TestWireContractAgainstMetadata(t *testing.T) {
 	m.AssertFunctionImport(t, "DeployScriptCollectionDesigntimeArtifact", "POST", "Id", "Version")
 	m.AssertFunctionImport(t, "DeployValueMappingDesigntimeArtifact", "POST", "Id", "Version")
 	m.AssertFunctionImport(t, "DeployIntegrationAdapterDesigntimeArtifact", "POST", "Id")
+	for _, fi := range []string{"IntegrationDesigntimeArtifactSaveAsVersion", "MessageMappingDesigntimeArtifactSaveAsVersion", "ScriptCollectionDesigntimeArtifactSaveAsVersion"} {
+		m.AssertFunctionImport(t, fi, "POST", "Id", "SaveAsVersion")
+	}
 }
