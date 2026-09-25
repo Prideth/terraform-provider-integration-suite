@@ -174,7 +174,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Feature | Status | Terraform Support |
 |---|:---:|---|
 | Edge Integration Cell Access Policy Replication | 👁️ | Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
-| Edge Integration Cell Deployment Targeting | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
+| Edge Integration Cell Runtime Targeting | 🧪 | Resource + Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
 | Edge Integration Cell Local API Access | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Edge Integration Cell Registration | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 | Edge Integration Cell Runtime Operations | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
@@ -217,7 +217,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Trading Partner Management Partner Directory Generation | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Trading Partner Management Partner Profile | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 
-18 supported · 11 partial · 4 read-only · 0 experimental · 55 unsupported · 2 planned as a separate provider, out of 90 evaluated Integration Suite features.
+18 supported · 11 partial · 4 read-only · 1 experimental · 54 unsupported · 2 planned as a separate provider, out of 90 evaluated Integration Suite features.
 
 <!-- END GENERATED FEATURE SUPPORT -->
 

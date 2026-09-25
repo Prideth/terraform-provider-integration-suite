@@ -27,12 +27,13 @@ type messageMappingDeploymentResource struct {
 }
 
 type messageMappingDeploymentModel struct {
-	ID             types.String   `tfsdk:"id"`
-	PackageID      types.String   `tfsdk:"package_id"`
-	MappingID      types.String   `tfsdk:"mapping_id"`
-	MappingVersion types.String   `tfsdk:"mapping_version"`
-	Status         types.String   `tfsdk:"status"`
-	Timeouts       timeouts.Value `tfsdk:"timeouts"`
+	ID                types.String   `tfsdk:"id"`
+	PackageID         types.String   `tfsdk:"package_id"`
+	MappingID         types.String   `tfsdk:"mapping_id"`
+	MappingVersion    types.String   `tfsdk:"mapping_version"`
+	Status            types.String   `tfsdk:"status"`
+	Timeouts          timeouts.Value `tfsdk:"timeouts"`
+	RuntimeLocationID types.String   `tfsdk:"runtime_location_id"`
 }
 
 func (r *messageMappingDeploymentResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -49,6 +50,7 @@ func (r *messageMappingDeploymentResource) Schema(_ context.Context, _ resource.
 			"references the mapping — SAP does not deploy referenced message mappings " +
 			"automatically either, so a configuration must create this resource explicitly.",
 		Attributes: map[string]schema.Attribute{
+			"runtime_location_id": runtimeLocationResourceAttribute(),
 			"id": schema.StringAttribute{
 				Computed:    true,
 				Description: "Composite identifier in the form \"<package_id>/<mapping_id>\".",
@@ -114,6 +116,10 @@ func (r *messageMappingDeploymentResource) Create(ctx context.Context, req resou
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, plan.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
 	timeout, diags := plan.Timeouts.Create(ctx, 10*time.Minute)
 	resp.Diagnostics.Append(diags...)
@@ -123,18 +129,20 @@ func (r *messageMappingDeploymentResource) Create(ctx context.Context, req resou
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	if err := r.client.DeployMessageMapping(ctx, plan.MappingID.ValueString(), plan.MappingVersion.ValueString()); err != nil {
+	if err := client.DeployMessageMapping(ctx, plan.MappingID.ValueString(), plan.MappingVersion.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Failed to deploy SAP Integration Suite message mapping", diagnosticDetail(err))
 		return
 	}
 
-	artifact, err := waitForRuntimeArtifact(ctx, r.client, plan.MappingID.ValueString())
+	artifact, err := waitForRuntimeArtifact(ctx, client, plan.MappingID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Deployment did not reach a ready state", diagnosticDetail(err))
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, messageMappingDeploymentToModel(plan.PackageID.ValueString(), artifact, plan.Timeouts))...)
+	m := messageMappingDeploymentToModel(plan.PackageID.ValueString(), artifact, plan.Timeouts)
+	m.RuntimeLocationID = plan.RuntimeLocationID
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }
 
 func (r *messageMappingDeploymentResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -143,8 +151,12 @@ func (r *messageMappingDeploymentResource) Read(ctx context.Context, req resourc
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, state.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	artifact, err := r.client.GetRuntimeArtifact(ctx, state.MappingID.ValueString())
+	artifact, err := client.GetRuntimeArtifact(ctx, state.MappingID.ValueString())
 	if err != nil {
 		var apiErr *apierror.Error
 		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
@@ -160,13 +172,19 @@ func (r *messageMappingDeploymentResource) Read(ctx context.Context, req resourc
 	// different version outside Terraform, or if a deployment failed
 	// part-way. Writing it into mapping_version (a Required, non-Computed
 	// attribute) is what makes that visible as drift on the next plan.
-	resp.Diagnostics.Append(resp.State.Set(ctx, messageMappingDeploymentToModel(state.PackageID.ValueString(), artifact, state.Timeouts))...)
+	m := messageMappingDeploymentToModel(state.PackageID.ValueString(), artifact, state.Timeouts)
+	m.RuntimeLocationID = state.RuntimeLocationID
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }
 
 func (r *messageMappingDeploymentResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan messageMappingDeploymentModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	client, ok := locatedClient(r.client, plan.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
 		return
 	}
 
@@ -178,24 +196,30 @@ func (r *messageMappingDeploymentResource) Update(ctx context.Context, req resou
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	if err := r.client.DeployMessageMapping(ctx, plan.MappingID.ValueString(), plan.MappingVersion.ValueString()); err != nil {
+	if err := client.DeployMessageMapping(ctx, plan.MappingID.ValueString(), plan.MappingVersion.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Failed to redeploy SAP Integration Suite message mapping", diagnosticDetail(err))
 		return
 	}
 
-	artifact, err := waitForRuntimeArtifact(ctx, r.client, plan.MappingID.ValueString())
+	artifact, err := waitForRuntimeArtifact(ctx, client, plan.MappingID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Deployment did not reach a ready state", diagnosticDetail(err))
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, messageMappingDeploymentToModel(plan.PackageID.ValueString(), artifact, plan.Timeouts))...)
+	m := messageMappingDeploymentToModel(plan.PackageID.ValueString(), artifact, plan.Timeouts)
+	m.RuntimeLocationID = plan.RuntimeLocationID
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }
 
 func (r *messageMappingDeploymentResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var state messageMappingDeploymentModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	client, ok := locatedClient(r.client, state.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
 		return
 	}
 
@@ -207,7 +231,7 @@ func (r *messageMappingDeploymentResource) Delete(ctx context.Context, req resou
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	err := r.client.UndeployRuntimeArtifact(ctx, state.MappingID.ValueString())
+	err := client.UndeployRuntimeArtifact(ctx, state.MappingID.ValueString())
 	if err != nil {
 		var apiErr *apierror.Error
 		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
@@ -218,11 +242,13 @@ func (r *messageMappingDeploymentResource) Delete(ctx context.Context, req resou
 }
 
 func (r *messageMappingDeploymentResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	packageID, mappingID, err := splitCompositeID(req.ID)
+	loc, parts, err := splitLocatedImportID(req.ID, 2)
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid import ID", err.Error())
 		return
 	}
+	packageID, mappingID := parts[0], parts[1]
+	setImportedRuntimeLocation(ctx, loc, resp.State.SetAttribute, &resp.Diagnostics)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRoot("package_id"), packageID)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRoot("mapping_id"), mappingID)...)
 }

@@ -41,6 +41,7 @@ type oauth2ClientCredentialModel struct {
 	Audience              types.String `tfsdk:"audience"`
 	ClientSecretWO        types.String `tfsdk:"client_secret_wo"`
 	ClientSecretWOVersion types.String `tfsdk:"client_secret_wo_version"`
+	RuntimeLocationID     types.String `tfsdk:"runtime_location_id"`
 }
 
 func (r *oauth2ClientCredentialResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -61,6 +62,7 @@ func (r *oauth2ClientCredentialResource) Schema(_ context.Context, _ resource.Sc
 			"re-entered on every edit, so this provider resends it on every apply that touches the " +
 			"resource. Requires Terraform CLI 1.11 or later for write-only attribute support.",
 		Attributes: map[string]schema.Attribute{
+			"runtime_location_id": runtimeLocationResourceAttribute(),
 			"id": schema.StringAttribute{
 				Required: true,
 				Description: "The credential artifact's name, also called its alias when used in an " +
@@ -133,6 +135,10 @@ func (r *oauth2ClientCredentialResource) Create(ctx context.Context, req resourc
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, plan.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
 	var clientSecret types.String
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, pathRoot("client_secret_wo"), &clientSecret)...)
@@ -140,7 +146,7 @@ func (r *oauth2ClientCredentialResource) Create(ctx context.Context, req resourc
 		return
 	}
 
-	created, err := r.client.CreateOAuth2ClientCredential(ctx, securitycontent.OAuth2ClientCredential{
+	created, err := client.CreateOAuth2ClientCredential(ctx, securitycontent.OAuth2ClientCredential{
 		Name:                 plan.ID.ValueString(),
 		Description:          plan.Description.ValueString(),
 		TokenServiceURL:      plan.TokenServiceURL.ValueString(),
@@ -156,7 +162,9 @@ func (r *oauth2ClientCredentialResource) Create(ctx context.Context, req resourc
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, oauth2ClientCredentialToModel(created, plan.ClientSecretWOVersion))...)
+	m := oauth2ClientCredentialToModel(created, plan.ClientSecretWOVersion)
+	m.RuntimeLocationID = plan.RuntimeLocationID
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }
 
 func (r *oauth2ClientCredentialResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -165,8 +173,12 @@ func (r *oauth2ClientCredentialResource) Read(ctx context.Context, req resource.
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, state.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	cred, err := r.client.GetOAuth2ClientCredential(ctx, state.ID.ValueString())
+	cred, err := client.GetOAuth2ClientCredential(ctx, state.ID.ValueString())
 	if err != nil {
 		var apiErr *apierror.Error
 		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
@@ -177,13 +189,19 @@ func (r *oauth2ClientCredentialResource) Read(ctx context.Context, req resource.
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, oauth2ClientCredentialToModel(cred, state.ClientSecretWOVersion))...)
+	m := oauth2ClientCredentialToModel(cred, state.ClientSecretWOVersion)
+	m.RuntimeLocationID = state.RuntimeLocationID
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }
 
 func (r *oauth2ClientCredentialResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan oauth2ClientCredentialModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	client, ok := locatedClient(r.client, plan.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
 		return
 	}
 
@@ -193,7 +211,7 @@ func (r *oauth2ClientCredentialResource) Update(ctx context.Context, req resourc
 		return
 	}
 
-	err := r.client.UpdateOAuth2ClientCredential(ctx, securitycontent.OAuth2ClientCredential{
+	err := client.UpdateOAuth2ClientCredential(ctx, securitycontent.OAuth2ClientCredential{
 		Name:                 plan.ID.ValueString(),
 		Description:          plan.Description.ValueString(),
 		TokenServiceURL:      plan.TokenServiceURL.ValueString(),
@@ -209,13 +227,15 @@ func (r *oauth2ClientCredentialResource) Update(ctx context.Context, req resourc
 		return
 	}
 
-	cred, err := r.client.GetOAuth2ClientCredential(ctx, plan.ID.ValueString())
+	cred, err := client.GetOAuth2ClientCredential(ctx, plan.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read back SAP Integration Suite OAuth2 client credential after update", diagnosticDetail(err))
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, oauth2ClientCredentialToModel(cred, plan.ClientSecretWOVersion))...)
+	m := oauth2ClientCredentialToModel(cred, plan.ClientSecretWOVersion)
+	m.RuntimeLocationID = plan.RuntimeLocationID
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }
 
 func (r *oauth2ClientCredentialResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -224,8 +244,12 @@ func (r *oauth2ClientCredentialResource) Delete(ctx context.Context, req resourc
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, state.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	err := r.client.DeleteOAuth2ClientCredential(ctx, state.ID.ValueString())
+	err := client.DeleteOAuth2ClientCredential(ctx, state.ID.ValueString())
 	if err != nil {
 		var apiErr *apierror.Error
 		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
@@ -240,7 +264,13 @@ func (r *oauth2ClientCredentialResource) Delete(ctx context.Context, req resourc
 // server-side equivalent — see userCredentialResource.ImportState's doc
 // comment, which applies identically here.
 func (r *oauth2ClientCredentialResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, pathRootID(), req, resp)
+	loc, parts, err := splitLocatedImportID(req.ID, 1)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid import ID", err.Error())
+		return
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRootID(), parts[0])...)
+	setImportedRuntimeLocation(ctx, loc, resp.State.SetAttribute, &resp.Diagnostics)
 }
 
 func oauth2ClientCredentialToModel(cred *securitycontent.OAuth2ClientCredential, clientSecretWOVersion types.String) oauth2ClientCredentialModel {

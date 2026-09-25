@@ -58,6 +58,7 @@ resource "sapintegrationsuite_user_credential" "success_factors" {
 - `company_id` (String) The SuccessFactors company ID (client instance) this credential connects to. Only meaningful when kind is "SuccessFactors"; SAP's UI hides this field for every other kind.
 - `description` (String) A free-text description of the credential artifact.
 - `kind` (String) The credential's system-specific type, as selected by SAP's "Type" UI field: unset (or empty) for a generic Basic/username-token credential, "SuccessFactors", or "OpenConnectors". Immutable: SAP's UI does not document changing an artifact's kind via Edit, only via delete and recreate, and this provider is conservative about a field that changes which other fields (for example company_id) are meaningful.
+- `runtime_location_id` (String) Runtime location ID of the Edge Integration Cell to address, for example "myedge". Leave unset for the cloud runtime. SAP shows the ID in the Integration Suite monitoring URL after selecting the Edge Integration Cell as runtime ({"edge":{"runtimeLocationId":"myedge"}}). Requests then go to /location/<id>/api/v1 on the same tenant host. Changing it replaces the resource.
 
 ## Import
 
@@ -67,4 +68,7 @@ The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/c
 
 ```shell
 terraform import sapintegrationsuite_user_credential.backend BACKEND_BASIC
+
+# A credential on an Edge Integration Cell: prefix the runtime location ID.
+terraform import sapintegrationsuite_user_credential.backend_edge plant-a/BACKEND_BASIC
 ```

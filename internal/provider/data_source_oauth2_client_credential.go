@@ -30,6 +30,7 @@ type oauth2ClientCredentialDataSourceModel struct {
 	ScopeContentType     types.String `tfsdk:"scope_content_type"`
 	Resource             types.String `tfsdk:"resource"`
 	Audience             types.String `tfsdk:"audience"`
+	RuntimeLocationID    types.String `tfsdk:"runtime_location_id"`
 }
 
 func (d *oauth2ClientCredentialDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -43,6 +44,7 @@ func (d *oauth2ClientCredentialDataSource) Schema(_ context.Context, _ datasourc
 			"returning a stored credential's secret, and this data source has no field for one even " +
 			"if it did.",
 		Attributes: map[string]schema.Attribute{
+			"runtime_location_id": runtimeLocationDataSourceAttribute(),
 			"id": schema.StringAttribute{
 				Required:    true,
 				Description: "The credential artifact's name (its OData key and adapter alias).",
@@ -104,8 +106,12 @@ func (d *oauth2ClientCredentialDataSource) Read(ctx context.Context, req datasou
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(d.client, config.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	cred, err := d.client.GetOAuth2ClientCredential(ctx, config.ID.ValueString())
+	cred, err := client.GetOAuth2ClientCredential(ctx, config.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read SAP Integration Suite OAuth2 client credential", diagnosticDetail(err))
 		return
@@ -113,6 +119,7 @@ func (d *oauth2ClientCredentialDataSource) Read(ctx context.Context, req datasou
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, oauth2ClientCredentialDataSourceModel{
 		ID:                   types.StringValue(cred.Name),
+		RuntimeLocationID:    config.RuntimeLocationID,
 		Description:          stringOrNull(cred.Description),
 		TokenServiceURL:      types.StringValue(cred.TokenServiceURL),
 		ClientID:             types.StringValue(cred.ClientID),

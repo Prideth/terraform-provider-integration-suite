@@ -21,11 +21,12 @@ type userCredentialDataSource struct {
 }
 
 type userCredentialDataSourceModel struct {
-	ID          types.String `tfsdk:"id"`
-	Kind        types.String `tfsdk:"kind"`
-	Description types.String `tfsdk:"description"`
-	User        types.String `tfsdk:"user"`
-	CompanyID   types.String `tfsdk:"company_id"`
+	ID                types.String `tfsdk:"id"`
+	Kind              types.String `tfsdk:"kind"`
+	Description       types.String `tfsdk:"description"`
+	User              types.String `tfsdk:"user"`
+	CompanyID         types.String `tfsdk:"company_id"`
+	RuntimeLocationID types.String `tfsdk:"runtime_location_id"`
 }
 
 func (d *userCredentialDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -38,6 +39,7 @@ func (d *userCredentialDataSource) Schema(_ context.Context, _ datasource.Schema
 			"Never returns the password: SAP's Security Content API does not document returning a " +
 			"stored credential's password, and this data source has no field for one even if it did.",
 		Attributes: map[string]schema.Attribute{
+			"runtime_location_id": runtimeLocationDataSourceAttribute(),
 			"id": schema.StringAttribute{
 				Required:    true,
 				Description: "The credential artifact's name (its OData key and adapter alias).",
@@ -83,18 +85,23 @@ func (d *userCredentialDataSource) Read(ctx context.Context, req datasource.Read
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(d.client, config.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	cred, err := d.client.GetUserCredential(ctx, config.ID.ValueString())
+	cred, err := client.GetUserCredential(ctx, config.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read SAP Integration Suite user credential", diagnosticDetail(err))
 		return
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, userCredentialDataSourceModel{
-		ID:          types.StringValue(cred.Name),
-		Kind:        stringOrNull(cred.Kind),
-		Description: stringOrNull(cred.Description),
-		User:        types.StringValue(cred.User),
-		CompanyID:   stringOrNull(cred.CompanyID),
+		ID:                types.StringValue(cred.Name),
+		RuntimeLocationID: config.RuntimeLocationID,
+		Kind:              stringOrNull(cred.Kind),
+		Description:       stringOrNull(cred.Description),
+		User:              types.StringValue(cred.User),
+		CompanyID:         stringOrNull(cred.CompanyID),
 	})...)
 }

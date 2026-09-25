@@ -27,10 +27,11 @@ type integrationAdapterDeploymentResource struct {
 }
 
 type integrationAdapterDeploymentModel struct {
-	ID        types.String   `tfsdk:"id"`
-	AdapterID types.String   `tfsdk:"adapter_id"`
-	Status    types.String   `tfsdk:"status"`
-	Timeouts  timeouts.Value `tfsdk:"timeouts"`
+	ID                types.String   `tfsdk:"id"`
+	AdapterID         types.String   `tfsdk:"adapter_id"`
+	Status            types.String   `tfsdk:"status"`
+	Timeouts          timeouts.Value `tfsdk:"timeouts"`
+	RuntimeLocationID types.String   `tfsdk:"runtime_location_id"`
 }
 
 func (r *integrationAdapterDeploymentResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -57,6 +58,7 @@ func (r *integrationAdapterDeploymentResource) Schema(_ context.Context, _ resou
 			"opposed to an adapter-specific status mechanism — see " +
 			"docs/guides/integration-adapters.md for what is and is not confirmed here.",
 		Attributes: map[string]schema.Attribute{
+			"runtime_location_id": runtimeLocationResourceAttribute(),
 			"id": schema.StringAttribute{
 				Computed:    true,
 				Description: "Equal to adapter_id.",
@@ -106,6 +108,10 @@ func (r *integrationAdapterDeploymentResource) Create(ctx context.Context, req r
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, plan.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
 	timeout, diags := plan.Timeouts.Create(ctx, 10*time.Minute)
 	resp.Diagnostics.Append(diags...)
@@ -115,18 +121,20 @@ func (r *integrationAdapterDeploymentResource) Create(ctx context.Context, req r
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	if err := r.client.DeployIntegrationAdapter(ctx, plan.AdapterID.ValueString()); err != nil {
+	if err := client.DeployIntegrationAdapter(ctx, plan.AdapterID.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Failed to deploy SAP Integration Suite integration adapter", diagnosticDetail(err))
 		return
 	}
 
-	artifact, err := waitForRuntimeArtifact(ctx, r.client, plan.AdapterID.ValueString())
+	artifact, err := waitForRuntimeArtifact(ctx, client, plan.AdapterID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Deployment did not reach a ready state", diagnosticDetail(err))
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, integrationAdapterDeploymentToModel(artifact, plan.Timeouts))...)
+	m := integrationAdapterDeploymentToModel(artifact, plan.Timeouts)
+	m.RuntimeLocationID = plan.RuntimeLocationID
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }
 
 func (r *integrationAdapterDeploymentResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -135,8 +143,12 @@ func (r *integrationAdapterDeploymentResource) Read(ctx context.Context, req res
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, state.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	artifact, err := r.client.GetRuntimeArtifact(ctx, state.AdapterID.ValueString())
+	artifact, err := client.GetRuntimeArtifact(ctx, state.AdapterID.ValueString())
 	if err != nil {
 		var apiErr *apierror.Error
 		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
@@ -147,7 +159,9 @@ func (r *integrationAdapterDeploymentResource) Read(ctx context.Context, req res
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, integrationAdapterDeploymentToModel(artifact, state.Timeouts))...)
+	m := integrationAdapterDeploymentToModel(artifact, state.Timeouts)
+	m.RuntimeLocationID = state.RuntimeLocationID
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }
 
 // Update is unreachable in practice: adapter_id is the only non-Computed
@@ -169,6 +183,10 @@ func (r *integrationAdapterDeploymentResource) Delete(ctx context.Context, req r
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, state.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
 	timeout, diags := state.Timeouts.Delete(ctx, 10*time.Minute)
 	resp.Diagnostics.Append(diags...)
@@ -178,7 +196,7 @@ func (r *integrationAdapterDeploymentResource) Delete(ctx context.Context, req r
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	err := r.client.UndeployRuntimeArtifact(ctx, state.AdapterID.ValueString())
+	err := client.UndeployRuntimeArtifact(ctx, state.AdapterID.ValueString())
 	if err != nil {
 		var apiErr *apierror.Error
 		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
@@ -189,8 +207,14 @@ func (r *integrationAdapterDeploymentResource) Delete(ctx context.Context, req r
 }
 
 func (r *integrationAdapterDeploymentResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRoot("adapter_id"), req.ID)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRootID(), req.ID)...)
+	loc, parts, err := splitLocatedImportID(req.ID, 1)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid import ID", err.Error())
+		return
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRoot("adapter_id"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRootID(), parts[0])...)
+	setImportedRuntimeLocation(ctx, loc, resp.State.SetAttribute, &resp.Diagnostics)
 }
 
 func integrationAdapterDeploymentToModel(artifact *cloudintegration.RuntimeArtifact, tf timeouts.Value) integrationAdapterDeploymentModel {

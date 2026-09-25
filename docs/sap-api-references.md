@@ -645,13 +645,26 @@ message data with no creation/deletion REST API at all.
 
 ### Edge Integration Cell
 
-The only hint of an Edge Integration Cell-specific runtime-location API path came from the
-Number Ranges "Runtimes" UI field mentioning "any active Edge Integration Cell nodes" (see
-above). No `/location/<runtime-location-id>/api/v1/...`-style path variant, or any other
-Edge-specific endpoint, was found documented for `NumberRanges`, `Variables`, `DataStores`, or
-`DataStoreEntries` in any page fetched this session. This remains genuinely unconfirmed and is
-not implemented — consistent with this provider's rule against guessing at undocumented
-endpoints.
+*Updated September 2026: the path variant this section once looked for is now documented.*
+
+SAP Help's Integration Content (`integration-content-d1679a8`), Security Content
+(`security-content-e01d3f0`) and Partner Directory (`partner-directory-0fe80dc`) pages, in the
+version synced on 2026-07-10, all state: "For Edge Integration Cell, use this,
+`https://<host address>/location/<runtime location id>/api/v1/<relative resource path>`". The
+statement is general; there are no per-operation examples. Corroborating and contrary signals:
+
+- Int4's Edge Integration Cell preparation guide uses the same prefix, "/location/<runtimeLocationId>"
+  (example "/location/myedge"), and says the ID appears in the Integration Suite monitoring URL
+  after selecting the Edge Integration Cell as runtime.
+- SAP's `cicd-actions-for-sap-integration-suite`, action `sync-pid-to-eic` version 1.2.0
+  (2026-05-05), takes the Edge URL as a template parameter and describes it as "Not published.
+  Pre-work to support EIC — do not use productively. Subject to change." SAP Help published the
+  pattern two months later.
+
+The provider implements it as `runtime_location_id` on the deployment resources and the user and
+OAuth2 credential resources and data sources, marked experimental until verified on a tenant
+with an Edge Integration Cell. For Number Ranges, Variables and Data Stores the same prefix would
+apply; those resources are out of scope or write-only for other reasons.
 
 ## `sapintegrationsuite_access_policy` / `..._reference`
 

@@ -52,6 +52,7 @@ resource "sapintegrationsuite_oauth2_client_credential" "backend" {
 - `client_authentication` (String) How the client ID and secret are sent to the token service, as SAP stores it in ClientAuthentication. The UI offers "Send as Body Parameter" (default) and "Send as Request Header"; the API constants for these are not documented. Passed through unchanged. Omitting the attribute keeps whatever value SAP currently holds; it cannot be cleared from Terraform.
 - `description` (String) A free-text description of the credential artifact.
 - `resource` (String) Resource identifier sent to the token service, for services that require one. Passed through unchanged. Omitting the attribute keeps whatever value SAP currently holds; it cannot be cleared from Terraform.
+- `runtime_location_id` (String) Runtime location ID of the Edge Integration Cell to address, for example "myedge". Leave unset for the cloud runtime. SAP shows the ID in the Integration Suite monitoring URL after selecting the Edge Integration Cell as runtime ({"edge":{"runtimeLocationId":"myedge"}}). Requests then go to /location/<id>/api/v1 on the same tenant host. Changing it replaces the resource.
 - `scope` (String) OAuth2 scope to request, if the token service requires one.
 - `scope_content_type` (String) Content type of the token request, as SAP stores it in ScopeContentType (the UI's "Content Type" field). Passed through unchanged. Omitting the attribute keeps whatever value SAP currently holds; it cannot be cleared from Terraform.
 
@@ -63,4 +64,7 @@ The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/c
 
 ```shell
 terraform import sapintegrationsuite_oauth2_client_credential.backend BACKEND_OAUTH
+
+# A credential on an Edge Integration Cell: prefix the runtime location ID.
+terraform import sapintegrationsuite_oauth2_client_credential.backend_edge plant-a/BACKEND_OAUTH
 ```

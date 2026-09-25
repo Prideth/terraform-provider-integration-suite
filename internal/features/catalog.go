@@ -1533,23 +1533,39 @@ var Catalog = []Feature{
 	{
 		Key:    "edge_integration_cell.deployment_target",
 		Domain: "edge_integration_cell",
-		Name:   "Edge Integration Cell Deployment Targeting",
-		Description: "Selecting which Edge Integration Cell node (as opposed to Cloud Integration or " +
-			"Integration Cell) a design-time artifact deploys to.",
-		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonNoPublicAPI,
-		PublicAPI:     false,
-		Limitations: []string{
-			"SAP's Operations UI documents a \"Runtimes\" field (\"one or more runtime nodes to deploy " +
-				"the artifact to, including Cloud Integration and any active Edge Integration Cell " +
-				"nodes\") on Number Ranges specifically, but neither of its two documented API examples " +
-				"(Add, Update) shows a runtime/location parameter — see docs/sap-api-references.md. " +
-				"The same gap holds for every confirmed Deploy action this provider already calls " +
-				"(IntegrationDesigntimeArtifacts, MessageMappingDesigntimeArtifacts, " +
-				"ScriptCollectionDesigntimeArtifacts, ValueMappingDesigntimeArtifacts): none documents a " +
-				"runtime-location/node-ID parameter, so this provider always targets the implicit default " +
-				"runtime and never guesses at an undocumented one.",
+		Name:   "Edge Integration Cell Runtime Targeting",
+		Description: "Addressing an Edge Integration Cell instead of the cloud runtime: deploying " +
+			"content to it and managing its security material, selected with runtime_location_id.",
+		SupportStatus: StatusExperimental,
+		SupportReason: ReasonPublicAPIIncomplete,
+		ResourceTypes: []string{
+			"sapintegrationsuite_integration_flow_deployment",
+			"sapintegrationsuite_message_mapping_deployment",
+			"sapintegrationsuite_script_collection_deployment",
+			"sapintegrationsuite_value_mapping_deployment",
+			"sapintegrationsuite_integration_adapter_deployment",
+			"sapintegrationsuite_user_credential",
+			"sapintegrationsuite_oauth2_client_credential",
 		},
+		DataSourceTypes: []string{
+			"sapintegrationsuite_user_credential",
+			"sapintegrationsuite_oauth2_client_credential",
+		},
+		PublicAPI:   true,
+		APIProtocol: "OData V2",
+		Limitations: []string{
+			"SAP Help's Integration Content, Security Content and Partner Directory pages (version " +
+				"of 2026-07-10) document https://<host>/location/<runtime location id>/api/v1/<path> for " +
+				"calling the same APIs against an Edge Integration Cell. The pattern is documented once " +
+				"for all operations, with no per-operation example, and SAP's own CI/CD tooling still " +
+				"called the path unpublished in May 2026. It has not been verified against a tenant with " +
+				"an Edge Integration Cell, hence experimental.",
+			"The runtime location ID is shown in the Integration Suite monitoring URL after selecting " +
+				"the Edge Integration Cell as runtime. Moving an object between runtimes replaces it.",
+			"Certificates, key pairs, keystore data sources and Partner Directory resources do not " +
+				"take runtime_location_id yet.",
+		},
+		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true, Deploy: true, Undeploy: true},
 	},
 	{
 		Key:    "edge_integration_cell.access_policy_replication",

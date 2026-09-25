@@ -25,6 +25,10 @@ data "sapintegrationsuite_oauth2_client_credential" "backend" {
 
 - `id` (String) The credential artifact's name (its OData key and adapter alias).
 
+### Optional
+
+- `runtime_location_id` (String) Runtime location ID of the Edge Integration Cell to address, for example "myedge". Leave unset for the cloud runtime. SAP shows the ID in the Integration Suite monitoring URL after selecting the Edge Integration Cell as runtime ({"edge":{"runtimeLocationId":"myedge"}}). Requests then go to /location/<id>/api/v1 on the same tenant host.
+
 ### Read-Only
 
 - `audience` (String) Audience identifier sent to the token service, if any.

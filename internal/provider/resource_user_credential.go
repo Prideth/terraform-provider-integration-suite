@@ -46,6 +46,7 @@ type userCredentialModel struct {
 	CompanyID         types.String `tfsdk:"company_id"`
 	PasswordWO        types.String `tfsdk:"password_wo"`
 	PasswordWOVersion types.String `tfsdk:"password_wo_version"`
+	RuntimeLocationID types.String `tfsdk:"runtime_location_id"`
 }
 
 func (r *userCredentialResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -63,6 +64,7 @@ func (r *userCredentialResource) Schema(_ context.Context, _ resource.SchemaRequ
 			"See docs/guides/security-content.md for the full security analysis, including which " +
 			"fields this provider could and could not confirm against SAP's documentation.",
 		Attributes: map[string]schema.Attribute{
+			"runtime_location_id": runtimeLocationResourceAttribute(),
 			"id": schema.StringAttribute{
 				Required: true,
 				Description: "The credential artifact's name. SAP's documentation states the name " +
@@ -143,6 +145,10 @@ func (r *userCredentialResource) Create(ctx context.Context, req resource.Create
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, plan.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
 	var password types.String
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, pathRoot("password_wo"), &password)...)
@@ -150,7 +156,7 @@ func (r *userCredentialResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	created, err := r.client.CreateUserCredential(ctx, securitycontent.UserCredential{
+	created, err := client.CreateUserCredential(ctx, securitycontent.UserCredential{
 		Name:        plan.ID.ValueString(),
 		Kind:        plan.Kind.ValueString(),
 		Description: plan.Description.ValueString(),
@@ -162,7 +168,9 @@ func (r *userCredentialResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, userCredentialToModel(created, plan.PasswordWOVersion))...)
+	m := userCredentialToModel(created, plan.PasswordWOVersion)
+	m.RuntimeLocationID = plan.RuntimeLocationID
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }
 
 func (r *userCredentialResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -171,8 +179,12 @@ func (r *userCredentialResource) Read(ctx context.Context, req resource.ReadRequ
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, state.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	cred, err := r.client.GetUserCredential(ctx, state.ID.ValueString())
+	cred, err := client.GetUserCredential(ctx, state.ID.ValueString())
 	if err != nil {
 		var apiErr *apierror.Error
 		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
@@ -183,13 +195,19 @@ func (r *userCredentialResource) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, userCredentialToModel(cred, state.PasswordWOVersion))...)
+	m := userCredentialToModel(cred, state.PasswordWOVersion)
+	m.RuntimeLocationID = state.RuntimeLocationID
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }
 
 func (r *userCredentialResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan userCredentialModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	client, ok := locatedClient(r.client, plan.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
 		return
 	}
 
@@ -199,7 +217,7 @@ func (r *userCredentialResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
-	err := r.client.UpdateUserCredential(ctx, securitycontent.UserCredential{
+	err := client.UpdateUserCredential(ctx, securitycontent.UserCredential{
 		Name:        plan.ID.ValueString(),
 		Kind:        plan.Kind.ValueString(),
 		Description: plan.Description.ValueString(),
@@ -211,13 +229,15 @@ func (r *userCredentialResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
-	cred, err := r.client.GetUserCredential(ctx, plan.ID.ValueString())
+	cred, err := client.GetUserCredential(ctx, plan.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read back SAP Integration Suite user credential after update", diagnosticDetail(err))
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, userCredentialToModel(cred, plan.PasswordWOVersion))...)
+	m := userCredentialToModel(cred, plan.PasswordWOVersion)
+	m.RuntimeLocationID = plan.RuntimeLocationID
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }
 
 func (r *userCredentialResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -226,8 +246,12 @@ func (r *userCredentialResource) Delete(ctx context.Context, req resource.Delete
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, state.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	err := r.client.DeleteUserCredential(ctx, state.ID.ValueString())
+	err := client.DeleteUserCredential(ctx, state.ID.ValueString())
 	if err != nil {
 		var apiErr *apierror.Error
 		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
@@ -248,7 +272,13 @@ func (r *userCredentialResource) Delete(ctx context.Context, req resource.Delete
 // deliberate password_wo_version, treat the imported credential's password
 // as owned by whatever process created it outside Terraform.
 func (r *userCredentialResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, pathRootID(), req, resp)
+	loc, parts, err := splitLocatedImportID(req.ID, 1)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid import ID", err.Error())
+		return
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRootID(), parts[0])...)
+	setImportedRuntimeLocation(ctx, loc, resp.State.SetAttribute, &resp.Diagnostics)
 }
 
 func userCredentialToModel(cred *securitycontent.UserCredential, passwordWOVersion types.String) userCredentialModel {

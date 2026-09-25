@@ -27,6 +27,7 @@ type HTTPDoer interface {
 // Client is the Partner Directory API client.
 type Client struct {
 	odata *v2.Client
+	host  string
 }
 
 // New builds a Partner Directory client. host is the tenant's Integration
@@ -36,5 +37,19 @@ type Client struct {
 // Integration Content and Security Content.
 func New(httpClient HTTPDoer, host string) *Client {
 	baseURL := strings.TrimRight(host, "/") + "/api/v1"
-	return &Client{odata: v2.New(httpClient, baseURL)}
+	return &Client{odata: v2.New(httpClient, baseURL), host: host}
+}
+
+// AtLocation returns a client for the same tenant that addresses the runtime
+// with the given runtime location ID, such as an Edge Integration Cell, through
+// /location/<id>/api/v1. An empty ID returns c unchanged (the cloud runtime).
+func (c *Client) AtLocation(runtimeLocationID string) (*Client, error) {
+	if runtimeLocationID == "" {
+		return c, nil
+	}
+	root, err := v2.ServiceRoot(c.host, runtimeLocationID)
+	if err != nil {
+		return nil, err
+	}
+	return &Client{odata: c.odata.WithBaseURL(root), host: c.host}, nil
 }

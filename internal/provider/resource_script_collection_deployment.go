@@ -33,6 +33,7 @@ type scriptCollectionDeploymentModel struct {
 	ScriptCollectionVersion types.String   `tfsdk:"script_collection_version"`
 	Status                  types.String   `tfsdk:"status"`
 	Timeouts                timeouts.Value `tfsdk:"timeouts"`
+	RuntimeLocationID       types.String   `tfsdk:"runtime_location_id"`
 }
 
 func (r *scriptCollectionDeploymentResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -48,6 +49,7 @@ func (r *scriptCollectionDeploymentResource) Schema(_ context.Context, _ resourc
 			"resource is never created implicitly by deploying an integration flow that " +
 			"references the collection.",
 		Attributes: map[string]schema.Attribute{
+			"runtime_location_id": runtimeLocationResourceAttribute(),
 			"id": schema.StringAttribute{
 				Computed:    true,
 				Description: "Composite identifier in the form \"<package_id>/<script_collection_id>\".",
@@ -113,6 +115,10 @@ func (r *scriptCollectionDeploymentResource) Create(ctx context.Context, req res
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, plan.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
 	timeout, diags := plan.Timeouts.Create(ctx, 10*time.Minute)
 	resp.Diagnostics.Append(diags...)
@@ -122,18 +128,20 @@ func (r *scriptCollectionDeploymentResource) Create(ctx context.Context, req res
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	if err := r.client.DeployScriptCollection(ctx, plan.ScriptCollectionID.ValueString(), plan.ScriptCollectionVersion.ValueString()); err != nil {
+	if err := client.DeployScriptCollection(ctx, plan.ScriptCollectionID.ValueString(), plan.ScriptCollectionVersion.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Failed to deploy SAP Integration Suite script collection", diagnosticDetail(err))
 		return
 	}
 
-	artifact, err := waitForRuntimeArtifact(ctx, r.client, plan.ScriptCollectionID.ValueString())
+	artifact, err := waitForRuntimeArtifact(ctx, client, plan.ScriptCollectionID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Deployment did not reach a ready state", diagnosticDetail(err))
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, scriptCollectionDeploymentToModel(plan.PackageID.ValueString(), artifact, plan.Timeouts))...)
+	m := scriptCollectionDeploymentToModel(plan.PackageID.ValueString(), artifact, plan.Timeouts)
+	m.RuntimeLocationID = plan.RuntimeLocationID
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }
 
 func (r *scriptCollectionDeploymentResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -142,8 +150,12 @@ func (r *scriptCollectionDeploymentResource) Read(ctx context.Context, req resou
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, state.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	artifact, err := r.client.GetRuntimeArtifact(ctx, state.ScriptCollectionID.ValueString())
+	artifact, err := client.GetRuntimeArtifact(ctx, state.ScriptCollectionID.ValueString())
 	if err != nil {
 		var apiErr *apierror.Error
 		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
@@ -160,13 +172,19 @@ func (r *scriptCollectionDeploymentResource) Read(ctx context.Context, req resou
 	// failed part-way. Writing it into script_collection_version (a
 	// Required, non-Computed attribute) is what makes that visible as
 	// drift on the next plan.
-	resp.Diagnostics.Append(resp.State.Set(ctx, scriptCollectionDeploymentToModel(state.PackageID.ValueString(), artifact, state.Timeouts))...)
+	m := scriptCollectionDeploymentToModel(state.PackageID.ValueString(), artifact, state.Timeouts)
+	m.RuntimeLocationID = state.RuntimeLocationID
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }
 
 func (r *scriptCollectionDeploymentResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan scriptCollectionDeploymentModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	client, ok := locatedClient(r.client, plan.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
 		return
 	}
 
@@ -178,24 +196,30 @@ func (r *scriptCollectionDeploymentResource) Update(ctx context.Context, req res
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	if err := r.client.DeployScriptCollection(ctx, plan.ScriptCollectionID.ValueString(), plan.ScriptCollectionVersion.ValueString()); err != nil {
+	if err := client.DeployScriptCollection(ctx, plan.ScriptCollectionID.ValueString(), plan.ScriptCollectionVersion.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Failed to redeploy SAP Integration Suite script collection", diagnosticDetail(err))
 		return
 	}
 
-	artifact, err := waitForRuntimeArtifact(ctx, r.client, plan.ScriptCollectionID.ValueString())
+	artifact, err := waitForRuntimeArtifact(ctx, client, plan.ScriptCollectionID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Deployment did not reach a ready state", diagnosticDetail(err))
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, scriptCollectionDeploymentToModel(plan.PackageID.ValueString(), artifact, plan.Timeouts))...)
+	m := scriptCollectionDeploymentToModel(plan.PackageID.ValueString(), artifact, plan.Timeouts)
+	m.RuntimeLocationID = plan.RuntimeLocationID
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }
 
 func (r *scriptCollectionDeploymentResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var state scriptCollectionDeploymentModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	client, ok := locatedClient(r.client, state.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
 		return
 	}
 
@@ -207,7 +231,7 @@ func (r *scriptCollectionDeploymentResource) Delete(ctx context.Context, req res
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	err := r.client.UndeployRuntimeArtifact(ctx, state.ScriptCollectionID.ValueString())
+	err := client.UndeployRuntimeArtifact(ctx, state.ScriptCollectionID.ValueString())
 	if err != nil {
 		var apiErr *apierror.Error
 		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
@@ -218,11 +242,13 @@ func (r *scriptCollectionDeploymentResource) Delete(ctx context.Context, req res
 }
 
 func (r *scriptCollectionDeploymentResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	packageID, scriptCollectionID, err := splitCompositeID(req.ID)
+	loc, parts, err := splitLocatedImportID(req.ID, 2)
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid import ID", err.Error())
 		return
 	}
+	packageID, scriptCollectionID := parts[0], parts[1]
+	setImportedRuntimeLocation(ctx, loc, resp.State.SetAttribute, &resp.Diagnostics)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRoot("package_id"), packageID)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRoot("script_collection_id"), scriptCollectionID)...)
 }

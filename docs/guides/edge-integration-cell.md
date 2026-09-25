@@ -42,10 +42,18 @@ Edge Integration Cell specifically.
 
 ## What this provider manages here today
 
-Nothing. Every object family investigated for this phase resolved to either "no public API" or
-"a public API exists, but it belongs to Kubernetes/Helm infrastructure or to monitoring, not to
-this provider" — see the sections below and the `edge_integration_cell.*` entries in
-`docs/feature-support.md` for the itemized conclusions.
+Two things, both through the cloud tenant's own APIs:
+
+- **Content and security material on a specific Edge Integration Cell**, selected with
+  `runtime_location_id` on the deployment and credential resources. This is experimental; see
+  [Targeting an Edge Integration Cell](#targeting-an-edge-integration-cell).
+- **Which runtimes an access policy has reached**, read with
+  `sapintegrationsuite_access_policy_runtime_assignments`.
+
+Everything else about Edge Integration Cell resolves to either "no public API" or "a public API
+exists, but it belongs to Kubernetes/Helm infrastructure or to monitoring, not to this provider".
+The sections below and the `edge_integration_cell.*` entries in `docs/feature-support.md` give
+the itemized conclusions.
 
 ## SAP-side bootstrap: registration and activation
 
@@ -147,18 +155,62 @@ which redirect an unauthenticated request straight to a login page — the same 
 this project has hit and documented for several other `api.sap.com` packages. `edge_integration_cell.runtime`
 in `docs/feature-support.md` records this three-part reasoning.
 
-## Deployment targeting: no confirmed API parameter
+## Targeting an Edge Integration Cell
 
-SAP's Operations UI shows a "Runtimes" multi-select field on some objects (documented explicitly
-for Number Ranges: "one or more runtime nodes to deploy the artifact to... including Cloud
-Integration and any active Edge Integration Cell nodes"), suggesting a design-time artifact could
-in principle be steered toward a specific Edge node during deployment. No corresponding parameter
-appears in any confirmed API this provider calls or has researched: not in the Number Ranges
-`Add`/`Update` examples, and not in any of the `Deploy` actions this provider already implements
-(`IntegrationDesigntimeArtifacts`, `MessageMappingDesigntimeArtifacts`,
-`ScriptCollectionDesigntimeArtifacts`, `ValueMappingDesigntimeArtifacts`). This provider always
-targets the implicit default runtime and does not guess at an undocumented query or body
-parameter. `edge_integration_cell.deployment_target` in `docs/feature-support.md` records this.
+Earlier research looked for a *parameter* on the deploy actions that selects an Edge Integration
+Cell, and found none. The answer turned out to be the URL instead. Since mid-2026, SAP Help's
+Integration Content, Security Content and Partner Directory pages document a second service root
+for the same APIs:
+
+```text
+https://<tenant host>/api/v1/<path>                                 cloud runtime
+https://<tenant host>/location/<runtime location id>/api/v1/<path>  an Edge Integration Cell
+```
+
+Every operation is the same; only the prefix changes. The provider exposes this as an optional
+`runtime_location_id` on the resources whose objects exist once per runtime:
+
+```terraform
+resource "sapintegrationsuite_user_credential" "erp_on_edge" {
+  id                  = "ERP_BASIC"
+  runtime_location_id = "plant-a"
+  user                = "integration-user"
+
+  password_wo         = var.erp_password
+  password_wo_version = "1"
+}
+
+resource "sapintegrationsuite_integration_flow_deployment" "orders_on_edge" {
+  package_id          = sapintegrationsuite_integration_package.orders.id
+  flow_id             = sapintegrationsuite_integration_flow.orders.flow_id
+  flow_version        = sapintegrationsuite_integration_flow.orders.version
+  runtime_location_id = "plant-a"
+}
+```
+
+The design-time content itself (`sapintegrationsuite_integration_flow` and the other content
+resources) lives in the cloud tenant and has no runtime location. Only where it runs, and the
+security material it uses there, is per runtime. To run the same flow in the cloud and on an
+Edge Integration Cell, declare two deployment resources, one with and one without
+`runtime_location_id`.
+
+**Finding the ID.** In Integration Suite, open *Monitor* > *Integrations and APIs* and choose
+the Edge Integration Cell in the *Runtime* selector. The browser URL then contains
+`{"edge":{"runtimeLocationId":"plant-a"}}`. The provider accepts letters, digits, `.`, `_` and
+`-`, which keeps the ID a single safe URL segment.
+
+**Changing it** replaces the resource: the object is created on the new runtime and removed
+from the old one. For deployments that means an undeploy on the old runtime.
+
+**Importing** takes the location as an optional first segment, for example
+`plant-a/ERP_BASIC` for a credential or `plant-a/ORDERS/order_flow` for a deployment. Without
+the prefix, the cloud runtime is assumed.
+
+**Why experimental.** SAP documents the prefix once for all operations, with no per-operation
+examples, and SAP's own CI/CD tooling still described the path as unpublished in May 2026. It
+has not yet been verified against a tenant with an Edge Integration Cell. Certificates, key
+pairs, keystore reads and Partner Directory resources do not take `runtime_location_id` yet.
+`edge_integration_cell.deployment_target` in `docs/feature-support.md` tracks the status.
 
 ## Access Policy replication: readable, not writable
 

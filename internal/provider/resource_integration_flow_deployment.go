@@ -27,13 +27,14 @@ type integrationFlowDeploymentResource struct {
 }
 
 type integrationFlowDeploymentModel struct {
-	ID               types.String   `tfsdk:"id"`
-	PackageID        types.String   `tfsdk:"package_id"`
-	FlowID           types.String   `tfsdk:"flow_id"`
-	FlowVersion      types.String   `tfsdk:"flow_version"`
-	Status           types.String   `tfsdk:"status"`
-	RedeployTriggers types.Map      `tfsdk:"redeploy_triggers"`
-	Timeouts         timeouts.Value `tfsdk:"timeouts"`
+	ID                types.String   `tfsdk:"id"`
+	PackageID         types.String   `tfsdk:"package_id"`
+	FlowID            types.String   `tfsdk:"flow_id"`
+	FlowVersion       types.String   `tfsdk:"flow_version"`
+	Status            types.String   `tfsdk:"status"`
+	RedeployTriggers  types.Map      `tfsdk:"redeploy_triggers"`
+	Timeouts          timeouts.Value `tfsdk:"timeouts"`
+	RuntimeLocationID types.String   `tfsdk:"runtime_location_id"`
 }
 
 func (r *integrationFlowDeploymentResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -47,6 +48,7 @@ func (r *integrationFlowDeploymentResource) Schema(_ context.Context, _ resource
 			"asynchronous: this resource polls SAP's runtime artifact status until the deployment " +
 			"reaches a terminal state (STARTED or ERROR) or the configured timeout elapses.",
 		Attributes: map[string]schema.Attribute{
+			"runtime_location_id": runtimeLocationResourceAttribute(),
 			"id": schema.StringAttribute{
 				Computed:    true,
 				Description: "Composite identifier in the form \"<package_id>/<flow_id>\".",
@@ -120,6 +122,10 @@ func (r *integrationFlowDeploymentResource) Create(ctx context.Context, req reso
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, plan.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
 	timeout, diags := plan.Timeouts.Create(ctx, 10*time.Minute)
 	resp.Diagnostics.Append(diags...)
@@ -129,18 +135,20 @@ func (r *integrationFlowDeploymentResource) Create(ctx context.Context, req reso
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	if err := r.client.DeployIntegrationFlow(ctx, plan.FlowID.ValueString(), plan.FlowVersion.ValueString()); err != nil {
+	if err := client.DeployIntegrationFlow(ctx, plan.FlowID.ValueString(), plan.FlowVersion.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Failed to deploy SAP Integration Suite integration flow", diagnosticDetail(err))
 		return
 	}
 
-	artifact, err := waitForRuntimeArtifact(ctx, r.client, plan.FlowID.ValueString())
+	artifact, err := waitForRuntimeArtifact(ctx, client, plan.FlowID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Deployment did not reach a ready state", diagnosticDetail(err))
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, deploymentToModel(plan.PackageID.ValueString(), artifact, plan.Timeouts, plan.RedeployTriggers))...)
+	m := deploymentToModel(plan.PackageID.ValueString(), artifact, plan.Timeouts, plan.RedeployTriggers)
+	m.RuntimeLocationID = plan.RuntimeLocationID
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }
 
 func (r *integrationFlowDeploymentResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -149,8 +157,12 @@ func (r *integrationFlowDeploymentResource) Read(ctx context.Context, req resour
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	client, ok := locatedClient(r.client, state.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
 
-	artifact, err := r.client.GetRuntimeArtifact(ctx, state.FlowID.ValueString())
+	artifact, err := client.GetRuntimeArtifact(ctx, state.FlowID.ValueString())
 	if err != nil {
 		var apiErr *apierror.Error
 		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
@@ -166,13 +178,19 @@ func (r *integrationFlowDeploymentResource) Read(ctx context.Context, req resour
 	// different version outside Terraform, or if a deployment failed
 	// part-way. Writing it into flow_version (a Required, non-Computed
 	// attribute) is what makes that visible as drift on the next plan.
-	resp.Diagnostics.Append(resp.State.Set(ctx, deploymentToModel(state.PackageID.ValueString(), artifact, state.Timeouts, state.RedeployTriggers))...)
+	m := deploymentToModel(state.PackageID.ValueString(), artifact, state.Timeouts, state.RedeployTriggers)
+	m.RuntimeLocationID = state.RuntimeLocationID
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }
 
 func (r *integrationFlowDeploymentResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan integrationFlowDeploymentModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	client, ok := locatedClient(r.client, plan.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
 		return
 	}
 
@@ -184,24 +202,30 @@ func (r *integrationFlowDeploymentResource) Update(ctx context.Context, req reso
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	if err := r.client.DeployIntegrationFlow(ctx, plan.FlowID.ValueString(), plan.FlowVersion.ValueString()); err != nil {
+	if err := client.DeployIntegrationFlow(ctx, plan.FlowID.ValueString(), plan.FlowVersion.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Failed to redeploy SAP Integration Suite integration flow", diagnosticDetail(err))
 		return
 	}
 
-	artifact, err := waitForRuntimeArtifact(ctx, r.client, plan.FlowID.ValueString())
+	artifact, err := waitForRuntimeArtifact(ctx, client, plan.FlowID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Deployment did not reach a ready state", diagnosticDetail(err))
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, deploymentToModel(plan.PackageID.ValueString(), artifact, plan.Timeouts, plan.RedeployTriggers))...)
+	m := deploymentToModel(plan.PackageID.ValueString(), artifact, plan.Timeouts, plan.RedeployTriggers)
+	m.RuntimeLocationID = plan.RuntimeLocationID
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }
 
 func (r *integrationFlowDeploymentResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var state integrationFlowDeploymentModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	client, ok := locatedClient(r.client, state.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
 		return
 	}
 
@@ -213,7 +237,7 @@ func (r *integrationFlowDeploymentResource) Delete(ctx context.Context, req reso
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	err := r.client.UndeployRuntimeArtifact(ctx, state.FlowID.ValueString())
+	err := client.UndeployRuntimeArtifact(ctx, state.FlowID.ValueString())
 	if err != nil {
 		var apiErr *apierror.Error
 		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
@@ -224,11 +248,13 @@ func (r *integrationFlowDeploymentResource) Delete(ctx context.Context, req reso
 }
 
 func (r *integrationFlowDeploymentResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	packageID, flowID, err := splitCompositeID(req.ID)
+	loc, parts, err := splitLocatedImportID(req.ID, 2)
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid import ID", err.Error())
 		return
 	}
+	packageID, flowID := parts[0], parts[1]
+	setImportedRuntimeLocation(ctx, loc, resp.State.SetAttribute, &resp.Diagnostics)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRoot("package_id"), packageID)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRoot("flow_id"), flowID)...)
 }

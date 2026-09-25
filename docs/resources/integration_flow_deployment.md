@@ -44,6 +44,7 @@ resource "sapintegrationsuite_integration_flow_deployment" "metering" {
 ### Optional
 
 - `redeploy_triggers` (Map of String) Arbitrary values that redeploy the flow in place whenever they change, for example the parameters of a sapintegrationsuite_integration_flow_configuration. Changed externalized parameters only take effect at runtime after a redeploy, and flow_version does not change when only parameters change.
+- `runtime_location_id` (String) Runtime location ID of the Edge Integration Cell to address, for example "myedge". Leave unset for the cloud runtime. SAP shows the ID in the Integration Suite monitoring URL after selecting the Edge Integration Cell as runtime ({"edge":{"runtimeLocationId":"myedge"}}). Requests then go to /location/<id>/api/v1 on the same tenant host. Changing it replaces the resource.
 - `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
 
 ### Read-Only
@@ -68,4 +69,7 @@ The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/c
 
 ```shell
 terraform import sapintegrationsuite_integration_flow_deployment.metering UTILITIES/metering
+
+# A deployment on an Edge Integration Cell: prefix the runtime location ID.
+terraform import sapintegrationsuite_integration_flow_deployment.metering_edge plant-a/UTILITIES/metering
 ```
