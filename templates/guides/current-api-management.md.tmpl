@@ -75,6 +75,10 @@ channel where a public API would show up:
 7. **The Business Accelerator Hub.** No API page for these objects is indexed. The hub itself
    renders in the browser and requires an SAP login for specification downloads, so this is
    the one channel that could only be checked indirectly.
+8. **A tenant's own `$metadata`.** The Cloud Integration OData service of a Cloud Foundry
+   tenant (136 entity sets) has no entity type for API artifacts, MCP servers, virtual hosts
+   or runtime profiles. Its `APIDefinitions` set holds the API definition links of service
+   endpoints, not API artifacts.
 
 The only page whose title suggests otherwise, *Accessing API Management APIs
 Programmatically*, is about the Classic API Portal's `apiportal-apiaccess` service plan.
