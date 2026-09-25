@@ -150,6 +150,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Certificate Store Reference (classic API Management) | ✅ | Resource + Data Source |
 | Key Value Map (classic API Management) | ⚠️ | Resource + Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
 | Policy (classic API Management) | ❌ | Planned — API details unconfirmed — see [feature-support.md](docs/feature-support.md#all-features) |
+| API Management Virtual Host (Classic) | ❌ | Planned — API details unconfirmed — see [feature-support.md](docs/feature-support.md#all-features) |
 
 ### Current API Management / API Artifacts
 
@@ -217,7 +218,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Trading Partner Management Partner Directory Generation | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Trading Partner Management Partner Profile | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 
-18 supported · 11 partial · 4 read-only · 1 experimental · 54 unsupported · 2 planned as a separate provider, out of 90 evaluated Integration Suite features.
+18 supported · 11 partial · 4 read-only · 1 experimental · 55 unsupported · 2 planned as a separate provider, out of 91 evaluated Integration Suite features.
 
 <!-- END GENERATED FEATURE SUPPORT -->
 

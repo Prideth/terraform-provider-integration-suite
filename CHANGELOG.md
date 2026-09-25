@@ -66,6 +66,9 @@ All notable changes to this project are documented in this file.
   message type and service interface, plus explicit design-time versioning.
   Value mapping entries move from "research required" to "public API
   incomplete": create and read are documented, per-entry delete is not.
+- Classic API Management: a catalog entry for virtual hosts (documented
+  request API, undocumented read schema), and the API Proxy entry now
+  records the upload and export calls SAP's Client SDK 3.0.6 makes.
 - `data.sapintegrationsuite_access_policy_runtime_assignments` lists the
   runtimes an access policy is replicated to (Cloud Integration runtime,
   Integration Cell, Edge Integration Cells) with SAP's transfer status,

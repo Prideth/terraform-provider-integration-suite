@@ -1304,6 +1304,40 @@ procedure, never a REST call. This provider does not implement `sapintegrationsu
 on the strength of a confirmed bundle *shape* alone — Create needs an independently confirmed
 request format, the same bar this provider applies everywhere else.
 
+### Re-audit September 2026: Client SDK 3.0.6 and virtual hosts
+
+**SAP API Management Client SDK.** `com.sap.apimgmt.client.sdk:apim-client-sdk` 3.0.6 (Maven
+Central, published 2026-09-18; What's New "Update Client SDK to Version 3.0.0", 2026-09-20) was
+disassembled with `javap` to read the endpoints and headers it sends. `StandardAPIProxyClient`:
+
+| SDK method | Request |
+|---|---|
+| `importAPIProxy(byte[])` | `POST /apiportal/api/1.0/Transport.svc/APIProxies?name=?virtualhost=default`, `Content-Type: application/octet-stream`, body = proxy ZIP |
+| `exportAPIProxy(name)` | `GET /apiportal/api/1.0/Transport.svc/APIProxies?name=<name>` |
+| `exportAPIProxies(names)` | `ContentArchive.svc`, JSON listing proxy names with `"includedependencies": true` |
+| `getAPIProxies()` | `GET Management.svc/APIProxies` (fields `name`, `title`, `description`, `version`, `state`, `status_code`, `service_code`, `isPublished`, `life_cycle`) |
+| `updateAPIProxy(payload)` | `PUT Management.svc/APIProxies(name='<name>')` with `name` and `policyTemplateNames` |
+| `createAPIProxy(payload)` | `POST /api/1.0/apis/` with `isFromCli: true`: an internal endpoint, not used |
+| default virtual host | `GET Management.svc/VirtualHosts?$filter=isDefault eq true&$select=id` |
+
+The odd import URL (`?name=?virtualhost=default`) is reproduced as the SDK sends it. A community
+write-up of the same endpoint uses `?virtualhost=<GUID>` and a base64 string body instead. SAP
+Help documents `Transport.svc` nowhere, so the upload format stays disputed and API Proxy stays
+`public_api_incomplete`.
+
+**Classic virtual hosts.** SAP Help (*Configuring a Default Domain for a Virtual Host*,
+*Configuring a Custom Domain for a Virtual Host*, *Configuring Mutual TLS …*) documents a
+request-style API: `POST /apiportal/operations/1.0/Configuration.svc/VirtualHostRequests` with
+`operation` `CREATE`, `UPDATE` or `DELETE`, requiring a service key with
+`APIManagement.SelfService.Administrator`. Request fields: `accountId` (subaccount subdomain),
+`virtualHostUrl`, `isDefaultVirtualHostRequest`, `isForCustomDomain`, `keyStoreName`,
+`keyStoreAlias`, `trustStore`, `isClientAuthEnabled`, `virtualHostId` (update/delete). The 201
+response returns an `apimgmtconfiguration.VirtualHostRequest` with `virtualHostId`,
+`allocationStatus`, `allocatedPort` and the TLS settings. Reading goes through
+`Management.svc/VirtualHosts`, whose properties are not documented; the SDK confirms only `id`
+and `isDefault`. Recorded as `api_management.classic.virtual_host`, `public_api_incomplete`,
+until `Management.svc/$metadata` is available.
+
 ### Not evaluated this phase
 
 Monetization, Rate Plans, and API Analytics were not researched: these are operational/reporting

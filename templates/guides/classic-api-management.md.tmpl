@@ -218,14 +218,21 @@ repository (`SAP/apibusinesshub-api-recipes`) shows the exact bundle structure (
 `Policy/` subfolders), and the `Management.svc/APIProxies` entity set's `GET` and `DELETE` are
 directly referenced in SAP's own documentation (`APIProxies('<name>')`).
 
-What is not confirmed: the exact wire mechanism for uploading that ZIP content through a
-Create/Update REST call — multipart form data, a base64-encoded JSON field, or something else.
-SAP's own official user guide describes only the UI-based import wizard ("Configure APIs >
-Create > Import API") for this operation, never a REST example. This provider does not guess at
-an unconfirmed binary-upload contract, so `sapintegrationsuite_api_proxy` does not exist in this
-phase. It also depends on `sapintegrationsuite_api_provider` already existing — SAP's own sample
-repository documents that importing a proxy fails if the API Provider it references is not
-already present on the target tenant by name.
+The upload is closer to settled than before, but not settled. SAP's API Management Client SDK
+3.0.6 (September 2026) shows how SAP's own tooling does it: the proxy ZIP goes as raw bytes
+(`application/octet-stream`) in a `POST` to `/apiportal/api/1.0/Transport.svc/APIProxies`, and
+`GET …/Transport.svc/APIProxies?name=<name>` exports it again. Other published descriptions of
+the same endpoint send a base64 string and a virtual host GUID instead. SAP Help does not
+document `Transport.svc` at all, only the UI import wizard and transport through SAP Cloud
+Transport Management. It also leaves open whether an import overwrites an existing proxy and
+whether it deploys it.
+
+A resource built on that would have to guess its update and deploy semantics, which is exactly
+the kind of guess this provider avoids for content that carries security policies. So
+`sapintegrationsuite_api_proxy` still does not exist. It would depend on
+`sapintegrationsuite_api_provider` in any case: SAP's sample repository documents that importing
+a proxy fails if the API Provider it references is not already present on the target tenant by
+name.
 
 If SAP's Create/Update wire format for this entity is ever confirmed, the design intent is a
 file-based resource in the same spirit as `sapintegrationsuite_integration_flow` — opaque ZIP
@@ -253,6 +260,23 @@ not an independently addressable OData entity with its own Create/Read/Update/De
 of the proxy's own opaque content, exactly like Cloud Integration's design-time artifacts, once
 API Proxy's own Create mechanism is confirmed. This provider does not attempt to reproduce SAP's
 entire policy schema catalog as nested Terraform blocks.
+
+### Virtual Hosts
+
+Classic virtual hosts, the default-domain aliases and custom domains under which proxies are
+reachable, have a documented API. It works with requests rather than entities: every change is a
+`POST` to `/apiportal/operations/1.0/Configuration.svc/VirtualHostRequests` with an `operation`
+of `CREATE`, `UPDATE` or `DELETE`, the subaccount subdomain as `accountId`, the alias or custom
+domain as `virtualHostUrl`, and for custom domains or mutual TLS the keystore, key alias and
+truststore. It needs a service key with the `APIManagement.SelfService.Administrator` role, which
+is a different role from the `APIPortal.Administrator` the other Classic resources use.
+
+What is missing is the read side. SAP only says that `Management.svc/VirtualHosts` returns the
+`virtualHostId`, and documents none of that entity's other fields. Without them the provider
+could create a virtual host but never notice when it changes or disappears, so it waits for the
+entity's schema (`Management.svc/$metadata` from an API Portal tenant would settle it). Keep in
+mind that SAP refuses to delete a virtual host while any proxy, deployed, draft or in an old
+revision, still references it, or while it is the default.
 
 ### Monetization, Rate Plans, and analytics
 

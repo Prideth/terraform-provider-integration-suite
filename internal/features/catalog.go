@@ -1181,10 +1181,16 @@ var Catalog = []Feature{
 				"documentation and worked examples reference \"Management.svc/APIProxies\" and " +
 				"\"APIProxies('<name>')\" directly), and the proxy content bundle's ZIP structure is " +
 				"confirmed field-for-field from SAP's own public sample repository " +
-				"(SAP/apibusinesshub-api-recipes) — but the exact wire mechanism for uploading that " +
-				"ZIP content through a Create/Update REST call (multipart form data, a base64 JSON " +
-				"field, or something else) is not confirmed from any reachable primary source. SAP's " +
-				"own official user guide describes only the UI-based import wizard for this operation.",
+				"(SAP/apibusinesshub-api-recipes).",
+			"Upload is still not settled (re-audited September 2026). SAP's API Management Client SDK " +
+				"3.0.6 imports a proxy with POST /apiportal/api/1.0/Transport.svc/APIProxies and the raw " +
+				"ZIP as application/octet-stream, and exports with GET " +
+				"Transport.svc/APIProxies?name=<name>. A community description of the same endpoint " +
+				"sends a base64 string and a virtualhost GUID instead. SAP Help documents Transport.svc " +
+				"nowhere, only UI import/export and transport through SAP Cloud Transport Management, " +
+				"and nothing documents whether an import overwrites an existing proxy or deploys it. " +
+				"The SDK's JSON create path (/api/1.0/apis/ with isFromCli) is an internal endpoint and " +
+				"not a candidate.",
 			"Depends on api_management.classic.api_provider already existing: SAP's own sample " +
 				"repository documents that importing a proxy fails if the API Provider it references " +
 				"does not already exist on the target tenant by name.",
@@ -1224,6 +1230,35 @@ var Catalog = []Feature{
 				"individual policies are not a separate resource candidate; they would be managed as " +
 				"part of api_management.classic.api_proxy's opaque content, once that entity's own " +
 				"Create mechanism is confirmed.",
+		},
+	},
+	{
+		Key:    "api_management.classic.virtual_host",
+		Domain: "api_management_classic",
+		Name:   "API Management Virtual Host (Classic)",
+		Description: "A virtual host of the Classic API Portal: the default-domain alias or custom " +
+			"domain (with one-way or mutual TLS) under which API proxies are exposed.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonPublicAPIIncomplete,
+		PublicAPI:     true,
+		APIProtocol:   "OData V2 (Configuration.svc/VirtualHostRequests, Management.svc/VirtualHosts)",
+		Planned:       true,
+		Limitations: []string{
+			"Create, update and delete are documented in SAP Help (Configuring a Default Domain / " +
+				"Custom Domain / Mutual TLS for a Virtual Host): POST " +
+				"/apiportal/operations/1.0/Configuration.svc/VirtualHostRequests with operation " +
+				"CREATE, UPDATE or DELETE and the fields accountId, virtualHostUrl (max 63 characters " +
+				"for an alias), isDefaultVirtualHostRequest, isForCustomDomain, keyStoreName, " +
+				"keyStoreAlias, trustStore, isClientAuthEnabled and virtualHostId. The response carries " +
+				"virtualHostId and allocationStatus.",
+			"Reading is the gap: SAP only says virtualHostId can be taken from " +
+				"Management.svc/VirtualHosts and documents none of that entity's properties (SAP's SDK " +
+				"confirms only id and isDefault). Without them the provider cannot detect drift, and " +
+				"whether allocationStatus can be anything other than COMPLETE is not documented. " +
+				"Management.svc/$metadata from an API Portal tenant would close this.",
+			"Needs a service key with the APIManagement.SelfService.Administrator role, separate from " +
+				"APIPortal.Administrator. Deletion is refused while proxies (deployed, draft or in a " +
+				"revision) reference the host or while it is the default.",
 		},
 	},
 	{
