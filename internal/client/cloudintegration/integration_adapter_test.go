@@ -29,18 +29,16 @@ func TestClient_CreateIntegrationAdapter(t *testing.T) {
 		}
 		gotBody = body
 		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(`{"d": {"Id": "custom-sftp-extension", "Name": "Custom SFTP Extension", "PackageId": "ADAPTERS", "Version": "1.0.0", "Type": "Analytics", "Application": "Slack"}}`))
+		_, _ = w.Write([]byte(`{"d": {"Id": "custom-sftp-extension", "Name": "Custom SFTP Extension", "PackageId": "ADAPTERS", "Version": "1.0.0", "Description": "SFTP with extras"}}`))
 	}))
 	defer server.Close()
 
 	client := New(http.DefaultClient, server.URL)
 
 	created, err := client.CreateIntegrationAdapter(context.Background(), IntegrationAdapter{
-		ID:          "custom-sftp-extension",
-		Name:        "Custom SFTP Extension",
-		PackageID:   "ADAPTERS",
-		Type:        "Analytics",
-		Application: "Slack",
+		ID:        "custom-sftp-extension",
+		Name:      "Custom SFTP Extension",
+		PackageID: "ADAPTERS",
 	}, syntheticESAContent)
 	if err != nil {
 		t.Fatalf("CreateIntegrationAdapter() error: %v", err)
@@ -59,8 +57,10 @@ func TestClient_CreateIntegrationAdapter(t *testing.T) {
 	if decoded["PackageId"] != "ADAPTERS" {
 		t.Errorf("POST body PackageId = %v, want ADAPTERS", decoded["PackageId"])
 	}
-	if decoded["Type"] != "Analytics" {
-		t.Errorf("POST body Type = %v, want Analytics", decoded["Type"])
+	for _, absent := range []string{"Type", "Application"} {
+		if _, ok := decoded[absent]; ok {
+			t.Errorf("POST body must not carry %s, which is not a property of IntegrationAdapterDesigntimeArtifact: %s", absent, gotBody)
+		}
 	}
 	content, ok := decoded["ArtifactContent"].(string)
 	if !ok || content == "" {
@@ -92,7 +92,7 @@ func TestClient_GetIntegrationAdapter(t *testing.T) {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"d": {"Id": "custom-sftp-extension", "Name": "Custom SFTP Extension", "PackageId": "ADAPTERS", "Version": "1.0.0", "Type": "Analytics", "Application": "Slack"}}`))
+		_, _ = w.Write([]byte(`{"d": {"Id": "custom-sftp-extension", "Name": "Custom SFTP Extension", "PackageId": "ADAPTERS", "Version": "1.0.0", "Description": "SFTP with extras"}}`))
 	}))
 	defer server.Close()
 
@@ -107,6 +107,9 @@ func TestClient_GetIntegrationAdapter(t *testing.T) {
 	}
 	if adapter.PackageID != "ADAPTERS" {
 		t.Errorf("PackageId = %q, want ADAPTERS", adapter.PackageID)
+	}
+	if adapter.Description != "SFTP with extras" {
+		t.Errorf("Description = %q, want SFTP with extras", adapter.Description)
 	}
 }
 

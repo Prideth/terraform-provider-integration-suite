@@ -16,41 +16,42 @@ const serviceEndpointsEntitySet = "ServiceEndpoints"
 // discovery resource — SAP generates it from deployed content, and there is
 // no create/update/delete operation to call.
 //
-// Name and Protocol are confirmed against SAP's own documentation, which
-// filters on exactly these two properties (`Name eq '...'`,
-// `Protocol eq '...'`). EntryPoints/ApiDefinitions are confirmed nested
-// navigation properties, expanded via `$expand=EntryPoints,ApiDefinitions`.
+// The fields follow the ServiceEndpoint entity type of the tenant $metadata:
+// Id (key), Name, Title, Version, Summary, Description, LastUpdated
+// (Edm.DateTime), Protocol, and the navigation properties EntryPoints and
+// ApiDefinitions, expanded via `$expand=EntryPoints,ApiDefinitions`.
 type ServiceEndpoint struct {
+	ID             string                               `json:"Id"`
 	Name           string                               `json:"Name"`
+	Title          string                               `json:"Title"`
+	Version        string                               `json:"Version"`
+	Summary        string                               `json:"Summary"`
+	Description    string                               `json:"Description"`
+	LastUpdated    string                               `json:"LastUpdated"`
 	Protocol       string                               `json:"Protocol"`
 	EntryPoints    v2.ExpandedCollection[EntryPoint]    `json:"EntryPoints"`
 	APIDefinitions v2.ExpandedCollection[APIDefinition] `json:"ApiDefinitions"`
 }
 
-// EntryPoint is one runtime URL exposed for a service endpoint. Name and
-// Url are documented as required; Type (DEV/TEST/PROD/SANDBOX) is
-// documented as optional. The Url property's JSON casing ("Url", not the
-// "URL" SAP's prose documentation uses when describing the property's
-// *type*) is confirmed from SAP's own open-source Piper library, which
-// parses a live ServiceEndpoints response at
-// https://github.com/SAP/jenkins-library/blob/master/cmd/integrationArtifactGetServiceEndpoint.go
-// — a stronger source than prose alone for exact wire-format casing.
+// EntryPoint is one runtime URL exposed for a service endpoint. The tenant
+// $metadata defines Name, Url (key), Type (DEV/TEST/PROD/SANDBOX per SAP's
+// documentation) and AdditionalInformation.
 type EntryPoint struct {
-	Name string `json:"Name"`
-	URL  string `json:"Url"`
-	Type string `json:"Type,omitempty"`
+	Name                  string `json:"Name"`
+	URL                   string `json:"Url"`
+	Type                  string `json:"Type,omitempty"`
+	AdditionalInformation string `json:"AdditionalInformation,omitempty"`
 }
 
 // APIDefinition is a link to one machine-readable API definition document
-// (OpenAPI, EDMX, WSDL, ...) for a service endpoint. URL and Type are both
-// documented as required. This project could not independently confirm the
-// "Url" JSON casing for this specific nested type the way it could for
-// EntryPoint (no example source touching ApiDefinitions was found), but
-// applies it by consistency with EntryPoint and SAP's Pascal-case OData
-// convention elsewhere in this same entity.
+// (OpenAPI, EDMX, WSDL, ...) for a service endpoint. The tenant $metadata
+// defines this entity type (Definition) with exactly Url (key) and Name.
+// SAP's API documentation describes a "Type" with values such as oas-json,
+// edmx or wsdl, but no such property exists; earlier releases read it and
+// always got an empty value.
 type APIDefinition struct {
 	URL  string `json:"Url"`
-	Type string `json:"Type"`
+	Name string `json:"Name"`
 }
 
 // ListServiceEndpoints lists every service endpoint SAP exposes for
@@ -114,8 +115,8 @@ func sortServiceEndpoints(endpoints []ServiceEndpoint) {
 
 		defs := endpoints[i].APIDefinitions.Results
 		sort.Slice(defs, func(a, b int) bool {
-			if defs[a].Type != defs[b].Type {
-				return defs[a].Type < defs[b].Type
+			if defs[a].Name != defs[b].Name {
+				return defs[a].Name < defs[b].Name
 			}
 			return defs[a].URL < defs[b].URL
 		})

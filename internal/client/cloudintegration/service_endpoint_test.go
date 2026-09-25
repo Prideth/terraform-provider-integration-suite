@@ -27,7 +27,7 @@ func TestClient_ListServiceEndpoints_ExpandsBothNestedCollections(t *testing.T) 
 				"Name": "Getting Started Flow",
 				"Protocol": "REST",
 				"EntryPoints": {"results": [{"Name": "default", "Url": "https://tenant.example/http/getting-started", "Type": "PROD"}]},
-				"ApiDefinitions": {"results": [{"Url": "https://tenant.example/api/definition.json", "Type": "oas-json"}]}
+				"ApiDefinitions": {"results": [{"Url": "https://tenant.example/api/definition.json", "Name": "oas-json"}]}
 			}
 		]}}`))
 	}))
@@ -53,7 +53,7 @@ func TestClient_ListServiceEndpoints_ExpandsBothNestedCollections(t *testing.T) 
 	if ep.EntryPoints.Results[0].Type != "PROD" {
 		t.Errorf("EntryPoints[0].Type = %q, want PROD", ep.EntryPoints.Results[0].Type)
 	}
-	if len(ep.APIDefinitions.Results) != 1 || ep.APIDefinitions.Results[0].Type != "oas-json" {
+	if len(ep.APIDefinitions.Results) != 1 || ep.APIDefinitions.Results[0].Name != "oas-json" {
 		t.Errorf("APIDefinitions = %+v", ep.APIDefinitions)
 	}
 }

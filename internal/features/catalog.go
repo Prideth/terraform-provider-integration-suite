@@ -240,10 +240,10 @@ var Catalog = []Feature{
 				"(sapintegrationsuite_service_endpoints, with optional name/protocol filters) is " +
 				"implemented, to avoid a lookup data source that silently returns the wrong result " +
 				"if more than one endpoint ever matches.",
-			"The EntryPoint/APIDefinition Url property's JSON casing is confirmed from SAP's own " +
-				"open-source Piper library parsing a live response; the ApiDefinitions entity's Url " +
-				"casing specifically is inferred by consistency rather than independently confirmed " +
-				"from an example touching that entity — see docs/sap-api-references.md.",
+			"All exposed fields are checked against a tenant $metadata document. API definition " +
+				"links carry a url and a name; the format \"type\" (oas-json, edmx, ...) that SAP's " +
+				"documentation mentions is not a property of the Definition entity, and earlier " +
+				"releases that exposed it always returned an empty value.",
 		},
 		Operations: Operations{Read: true},
 	},
@@ -267,18 +267,17 @@ var Catalog = []Feature{
 				"Requests, Cloud Foundry Environment\" documentation shows only Delete (confirming " +
 				"the entity is keyed by Id alone, not the composite (Id, Version) key every other " +
 				"design-time artifact type in this API uses) and the Deploy action — no Create or " +
-				"Read example was found. Create is implemented by strong analogy to every sibling " +
-				"artifact type's confirmed PackageId/ArtifactContent POST body shape, corroborated " +
-				"by a third-party technical source, not by an SAP-published example request for " +
-				"this specific entity. See docs/guides/integration-adapters.md.",
+				"Read example was found. The property names and the single Id key are confirmed by " +
+				"a tenant $metadata document, but no SAP example shows a Create request for this " +
+				"entity. See docs/guides/integration-adapters.md.",
 			"No in-place update: SAP documents that importing an ID that already exists on the " +
 				"tenant is rejected as an error, which is positive evidence against a working " +
 				"reimport-to-update flow, so every attribute is RequiresReplace rather than an " +
 				"unverified PUT/PATCH.",
-			"type and application are not validated against a fixed set of values: SAP's " +
-				"documentation confirms both exist as UI dropdowns with example values (Analytics, " +
-				"CRM, ERP, ... for type; Slack, ... for application) but does not confirm whether " +
-				"the underlying property is a closed enum or free-form text.",
+			"The type and application shown in SAP's import dialog cannot be set: the " +
+				"IntegrationAdapterDesigntimeArtifact entity has only Id, Version, PackageId, Name, " +
+				"ArtifactContent and Description (tenant $metadata). Earlier releases sent Type and " +
+				"Application anyway; both attributes were removed. description is exposed read-only.",
 			"Distinct from SAP Business Accelerator Hub prebundled adapters (a different import/" +
 				"auto-deploy lifecycle reached from inside the integration flow editor) and from " +
 				"Integration Suite capability activation — see docs/guides/integration-adapters.md " +

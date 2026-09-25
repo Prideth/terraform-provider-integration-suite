@@ -65,16 +65,22 @@ output "order_api_entry_point_urls" {
 Read-Only:
 
 - `api_definitions` (Attributes List) Links to machine-readable API definition documents for this endpoint (OpenAPI, EDMX, WSDL, and similar). This provider never downloads the document at url — only the link itself is returned. (see [below for nested schema](#nestedatt--endpoints--api_definitions))
+- `description` (String) Description, when SAP reports one.
 - `entry_points` (Attributes List) Runtime URLs exposed for this endpoint. SAP documents entry point Name/url as required and type as optional. (see [below for nested schema](#nestedatt--endpoints--entry_points))
+- `id` (String) SAP's identifier of the service endpoint.
+- `last_updated` (String) When SAP last updated the endpoint, as an RFC 3339 timestamp in UTC. If SAP returns a value that is not an OData V2 date literal, it is passed through unchanged.
 - `name` (String) The integration artifact's name this endpoint belongs to.
 - `protocol` (String) The endpoint's protocol, exactly as SAP returns it.
+- `summary` (String) Short summary, when SAP reports one.
+- `title` (String) Display title, when SAP reports one.
+- `version` (String) Version of the deployed artifact behind the endpoint, when SAP reports one.
 
 <a id="nestedatt--endpoints--api_definitions"></a>
 ### Nested Schema for `endpoints.api_definitions`
 
 Read-Only:
 
-- `type` (String) The API definition's format: one of "oas-yaml", "oas-json", "raml", "edmx", or "wsdl", as SAP currently documents them.
+- `name` (String) Name SAP gives the definition link. Earlier releases exposed a "type" here, which the API does not have and which was always empty.
 - `url` (String) The fully qualified URL to the API definition document.
 
 
@@ -83,6 +89,7 @@ Read-Only:
 
 Read-Only:
 
+- `additional_information` (String) Additional information SAP attaches to the entry point, when present.
 - `name` (String) The entry point's name.
 - `type` (String) The entry point's environment, when SAP reports one: "DEV", "TEST", "PROD", or "SANDBOX".
 - `url` (String) The fully qualified entry point URL or base path.

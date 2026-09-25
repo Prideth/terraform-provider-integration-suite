@@ -36,8 +36,7 @@ type integrationAdapterModel struct {
 	ID          types.String `tfsdk:"id"`
 	PackageID   types.String `tfsdk:"package_id"`
 	Name        types.String `tfsdk:"name"`
-	Type        types.String `tfsdk:"type"`
-	Application types.String `tfsdk:"application"`
+	Description types.String `tfsdk:"description"`
 	Content     types.String `tfsdk:"content"`
 	ContentHash types.String `tfsdk:"content_hash"`
 	Version     types.String `tfsdk:"version"`
@@ -103,28 +102,6 @@ func (r *integrationAdapterResource) Schema(_ context.Context, _ resource.Schema
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"type": schema.StringAttribute{
-				Optional: true,
-				Description: "The adapter's line-of-business classification, as selected from a " +
-					"list in SAP's UI (documented examples: Analytics, CRM, ERP, Finance, HCM, " +
-					"Marketing). This provider does not validate it against a fixed set of values: " +
-					"SAP's documentation does not confirm whether the underlying OData property is " +
-					"a closed enum or a free-form string, and this provider does not add a " +
-					"validator without that evidence. Changing it replaces the resource, the same " +
-					"conservative treatment as every other metadata field here.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-			},
-			"application": schema.StringAttribute{
-				Optional: true,
-				Description: "The application the adapter provides connectivity for, as selected " +
-					"from a list in SAP's UI (SAP's own example: \"Slack\"). Same validation and " +
-					"replace-on-change treatment as \"type\", for the same reason.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-			},
 			"content": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
@@ -156,6 +133,11 @@ func (r *integrationAdapterResource) Schema(_ context.Context, _ resource.Schema
 				Description: "The version SAP reports for the adapter, which SAP's UI documents " +
 					"as extracted from the *.esa file's own metadata rather than assigned by the " +
 					"API on each write.",
+			},
+			"description": schema.StringAttribute{
+				Computed: true,
+				Description: "The adapter description SAP stores, taken from the *.esa file on import. " +
+					"Read-only: the Integration Content API has no property this provider could set it through.",
 			},
 		},
 	}
@@ -194,11 +176,9 @@ func (r *integrationAdapterResource) Create(ctx context.Context, req resource.Cr
 	}
 
 	adapter, err := r.client.CreateIntegrationAdapter(ctx, cloudintegration.IntegrationAdapter{
-		ID:          plan.ID.ValueString(),
-		Name:        plan.Name.ValueString(),
-		PackageID:   plan.PackageID.ValueString(),
-		Type:        plan.Type.ValueString(),
-		Application: plan.Application.ValueString(),
+		ID:        plan.ID.ValueString(),
+		Name:      plan.Name.ValueString(),
+		PackageID: plan.PackageID.ValueString(),
 	}, content)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to create SAP Integration Suite integration adapter", diagnosticDetail(err))
@@ -285,8 +265,7 @@ func integrationAdapterToModel(packageID string, adapter *cloudintegration.Integ
 		ID:          types.StringValue(adapter.ID),
 		PackageID:   types.StringValue(packageID),
 		Name:        types.StringValue(adapter.Name),
-		Type:        stringOrNull(adapter.Type),
-		Application: stringOrNull(adapter.Application),
+		Description: stringOrNull(adapter.Description),
 		Content:     previous.Content,
 		ContentHash: previous.ContentHash,
 		Version:     stringOrNull(adapter.Version),

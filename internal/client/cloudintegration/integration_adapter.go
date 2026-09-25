@@ -12,60 +12,24 @@ import (
 const integrationAdapterDesigntimeArtifactsEntitySet = "IntegrationAdapterDesigntimeArtifacts"
 
 // IntegrationAdapter is the wire representation of an
-// IntegrationAdapterDesigntimeArtifacts entity: a custom Integration
-// Adapter built with the SAP Adapter SDK and imported into a design-time
-// package as a *.esa artifact. This is a Cloud Foundry-only artifact type
-// per SAP's own documentation ("This information is relevant only when you
-// use SAP Cloud Integration in the Cloud Foundry environment", repeated on
-// every page describing it).
+// IntegrationAdapterDesigntimeArtifacts entity: a custom adapter built with
+// the SAP Adapter SDK and imported into a design-time package as a *.esa
+// archive (Cloud Foundry only).
 //
-// Confidence per field, since SAP's public documentation for this entity
-// is far sparser than for the sibling design-time artifact types in this
-// same API (Integration Flow, Value Mapping, Message Mapping, Script
-// Collection all have a dedicated, complete "Example Requests" page
-// showing every operation; the equivalent adapter page shows only Deploy
-// and Delete):
-//   - ID: confirmed — SAP's own "Integration Adapter Example Requests, Cloud
-//     Foundry Environment" page addresses an entity by
-//     IntegrationAdapterDesigntimeArtifacts(Id='...') alone, not the
-//     composite (Id, Version) key every other design-time artifact entity
-//     in this API uses. This provider treats Id as the entity's sole key.
-//   - PackageId: corroborated, not primary-confirmed for this entity
-//     specifically — SAP's UI documentation confirms every custom adapter
-//     belongs to an integration package at design time, and every sibling
-//     design-time artifact type's confirmed Create payload includes
-//     PackageId, but no adapter-specific Create example was found to
-//     confirm the property name directly for this entity.
-//   - Name, Version: SAP's UI documentation states plainly that these are
-//     "auto filled" from the imported *.esa file, confirming they exist as
-//     metadata, but not confirming their exact OData property names or
-//     whether the API accepts (or ignores) a caller-supplied value on
-//     Create.
-//   - Type, Application: confirmed as UI concepts (a line-of-business
-//     classification and a target-application classification,
-//     respectively, both selected from a list at import time), not
-//     confirmed as literal OData property names, and not confirmed to be
-//     either free-form or a closed API-level enum — see the Type/Application
-//     doc comment on the resource schema for why this provider does not
-//     validate either as an enum.
-//
-// ArtifactContent (the base64-encoded *.esa content) is corroborated as
-// the same field name every sibling design-time artifact type in this API
-// uses for its content payload, not independently confirmed by an
-// adapter-specific example request.
+// The tenant $metadata defines exactly Id (the only key), Version, PackageId,
+// Name, ArtifactContent (Edm.Binary) and Description. Earlier releases also
+// sent Type and Application, UI classifications that are not properties of
+// this entity; they were removed. SAP fills Name, Version and Description
+// from the *.esa file itself.
 type IntegrationAdapter struct {
 	ID          string `json:"Id"`
 	Name        string `json:"Name,omitempty"`
 	PackageID   string `json:"PackageId,omitempty"`
 	Version     string `json:"Version,omitempty"`
-	Type        string `json:"Type,omitempty"`
-	Application string `json:"Application,omitempty"`
+	Description string `json:"Description,omitempty"`
 
-	// Content is the base64-encoded *.esa content. This client transports
-	// it opaquely — it is never unpacked, executed, or inspected beyond
-	// what the caller already validated (size bound, content hash) before
-	// handing it to this client. It is only populated on Create requests;
-	// Read does not return it.
+	// Content is the base64-encoded *.esa content, transported opaquely and
+	// only set on Create; Read does not return it.
 	Content string `json:"ArtifactContent,omitempty"`
 }
 
@@ -104,12 +68,10 @@ func (c *Client) GetIntegrationAdapter(ctx context.Context, id string) (*Integra
 // RequiresReplace design.
 func (c *Client) CreateIntegrationAdapter(ctx context.Context, adapter IntegrationAdapter, content []byte) (*IntegrationAdapter, error) {
 	payload, err := json.Marshal(IntegrationAdapter{
-		ID:          adapter.ID,
-		Name:        adapter.Name,
-		PackageID:   adapter.PackageID,
-		Type:        adapter.Type,
-		Application: adapter.Application,
-		Content:     base64.StdEncoding.EncodeToString(content),
+		ID:        adapter.ID,
+		Name:      adapter.Name,
+		PackageID: adapter.PackageID,
+		Content:   base64.StdEncoding.EncodeToString(content),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("cloudintegration: encoding integration adapter: %w", err)

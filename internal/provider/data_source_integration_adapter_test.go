@@ -21,8 +21,8 @@ func TestIntegrationAdapterDataSource_SchemaRequiredComputed(t *testing.T) {
 	}{
 		{"id", true, false},
 		{"name", false, true},
-		{"type", false, true},
-		{"application", false, true},
+		{"package_id", false, true},
+		{"description", false, true},
 		{"version", false, true},
 	}
 
@@ -40,7 +40,9 @@ func TestIntegrationAdapterDataSource_SchemaRequiredComputed(t *testing.T) {
 		}
 	}
 
-	if _, hasPackageID := resp.Schema.Attributes["package_id"]; hasPackageID {
-		t.Error("package_id must not exist on the data source: GET-by-id returning it reliably was not confirmed")
+	for _, removed := range []string{"type", "application"} {
+		if _, ok := resp.Schema.Attributes[removed]; ok {
+			t.Errorf("%s must not exist: it is not a property of IntegrationAdapterDesigntimeArtifact", removed)
+		}
 	}
 }

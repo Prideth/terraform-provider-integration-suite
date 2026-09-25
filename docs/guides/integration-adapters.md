@@ -77,12 +77,10 @@ corroborated by strong analogy to the sibling artifact types in this exact same 
 secondary technical source, or genuinely unconfirmed:
 
 - **Create**: implemented as `POST IntegrationAdapterDesigntimeArtifacts` with a JSON body of
-  `PackageId`, `Id`, `Name`, `Type`, `Application`, and base64-encoded `ArtifactContent` — the
-  same shape every sibling design-time artifact type in this API confirms for its own Create,
-  and corroborated (not primary-confirmed) by a third-party technical source describing this
-  exact request for this exact entity. SAP's own UI documentation confirms `Id` uniqueness is
-  tenant-wide and that importing a duplicate `Id` is rejected as an error — useful corroborating
-  evidence that Create genuinely is a `POST`-to-create operation, not something else.
+  `Id`, `PackageId`, `Name` and base64-encoded `ArtifactContent`. A tenant `$metadata` document
+  confirms these as properties of `IntegrationAdapterDesigntimeArtifact`, next to `Version` and
+  `Description`, with `Id` as the only key. SAP's own UI documentation confirms `Id` uniqueness
+  is tenant-wide and that importing a duplicate `Id` is rejected as an error.
 - **Read**: `GET IntegrationAdapterDesigntimeArtifacts(Id='...')` — the ordinary OData
   GET-by-key convention every entity set in this API follows, not independently confirmed by an
   adapter-specific example.
@@ -92,12 +90,12 @@ secondary technical source, or genuinely unconfirmed:
   `RequiresReplace` as a result — content changes, and even purely cosmetic metadata changes
   (SAP's UI separately mentions an "Edit via View metadata" action, but no public API contract
   for it was found), all replace the resource.
-- **`type` / `application`**: SAP's UI documentation confirms these exist as classification
-  dropdowns (example `type` values: Analytics, CRM, ERP, Finance, HCM, Marketing; example
-  `application` value: Slack) but never states whether the underlying property is a closed enum
-  or free-form text. This provider does not validate either attribute against a fixed value set
-  — adding a validator without that evidence risks rejecting a perfectly valid value SAP itself
-  would accept.
+- **Type and application are not settable**: SAP's import dialog shows a line-of-business type
+  (Analytics, CRM, ERP and so on) and a target application (for example Slack), but the
+  Integration Content API has no properties for them. Earlier releases offered `type` and
+  `application` attributes and sent them on create. SAP's API does not define those properties,
+  so the attributes were removed. What the API does return is a `description`, which SAP takes
+  from the *.esa file; the resource and data source expose it read-only.
 - **Deployment runtime status / undeploy**: `sapintegrationsuite_integration_adapter_deployment`
   reuses the same shared `IntegrationRuntimeArtifacts` polling and undeploy every other
   `*_deployment` resource in this provider uses, by analogy. SAP's own documentation states the

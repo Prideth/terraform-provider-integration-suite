@@ -97,7 +97,10 @@ in one place upgrades it everywhere.
    Create/Read/Update/Delete/ImportState, using `RequiresReplace()` for any
    field SAP does not support updating in place.
 5. Add unit tests (`httptest`-based) for the client method(s) and a basic
-   schema/import sanity test for the resource.
+   schema/import sanity test for the resource. For an OData entity, also
+   register every wire struct, key and function import in the package's
+   `metadata_contract_test.go` (see "Checking wire contracts against
+   `$metadata`" below).
 6. Add an example under `examples/resources/<name>/` or
    `examples/data-sources/<name>/`, then run `make docs`.
 7. If the change is acceptance-testable, add an acceptance test gated on
@@ -143,6 +146,68 @@ in one place upgrades it everywhere.
       — they fail if a registered resource/data source has no catalog
       entry, or if a catalog entry claims a resource/data source type that
       does not exist.
+
+## Checking wire contracts against `$metadata`
+
+Several past mistakes in this provider had the same cause: a property name
+was inferred from SAP's UI labels or prose documentation and never checked
+against the service itself. The access policy reference fields, the
+integration adapter's `Type`/`Application` and the service endpoint API
+definition `Type` all looked plausible and did not exist.
+
+The cheapest guard is the OData service's own `$metadata` document. Every
+OData client package has a `metadata_contract_test.go` that uses
+`internal/testutil/edmx` to check, by reflection, that each wire struct's
+JSON fields are properties of the entity type behind its entity set
+(including properties inherited through `BaseType`), that key names and EDM
+types match what the client sends, and that function imports have the
+parameters the client passes.
+
+The document is tenant data and is never committed. To run the checks,
+download it once from a tenant you are allowed to use:
+
+```shell
+curl -H "Authorization: Bearer <token>" \
+  "https://<tenant-api-host>/api/v1/\$metadata" \
+  -o .specs/cloudintegration-metadata.xml
+```
+
+Add `.specs/` to `.git/info/exclude`, then run `go test ./internal/client/...`.
+The helper also honors `SAP_INTEGRATION_SUITE_METADATA_FILE`. Without a
+document the contract tests skip, which is why CI stays green without tenant
+access. A skipped contract test is not evidence, so mention in the PR
+whether you ran them.
+
+`$metadata` settles property names, keys, types and navigation. It does not
+settle enum values (they are plain `Edm.String`) or whether SAP actually
+accepts a create or update on an entity set. Those still need SAP's
+documentation, SAP's own published tooling, or a live request.
+
+## Documentation standards
+
+Documentation is part of a change, not a follow-up. Write it for an engineer
+who knows Terraform but not necessarily SAP Integration Suite:
+
+- Explain what SAP object a resource represents, where it sits in the
+  product, and which public API backs it, with a reference in
+  `docs/sap-api-references.md`.
+- Describe the lifecycle: what Create, Update and Delete do on SAP's side,
+  what `terraform plan` shows after drift, how import works, and which
+  attributes force replacement and why.
+- Say plainly whether a limitation is SAP's (the API does not offer the
+  operation), the provider's (SAP offers it, this provider has not
+  implemented it), or a deliberate boundary (the object belongs to another
+  provider or is runtime data).
+- Be explicit about secrets: which values SAP can return, which cannot be
+  read back, and how `*_wo`/`*_wo_version` attributes rotate them.
+- Use realistic, synthetic examples that match the schema exactly.
+- Prefer clear prose over mechanical lists, and avoid filler.
+
+Generated pages come from schema descriptions, `templates/`, `examples/`
+and `internal/features/catalog.go`. Change those sources and regenerate with
+`make docs`. Never hand-edit a generated file under `docs/resources/`,
+`docs/data-sources/`, `docs/guides/`, `docs/feature-support.md` or
+README.md's generated feature table.
 
 ## Commit and PR expectations
 

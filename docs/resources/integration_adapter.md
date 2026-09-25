@@ -26,9 +26,7 @@ resource "sapintegrationsuite_integration_adapter" "sftp_extension" {
   # package, and rejects importing a duplicate id as an error - there is no
   # confirmed way to update an existing adapter's content or metadata in
   # place, so every attribute here forces replacement.
-  name        = "Custom SFTP Extension"
-  type        = "Analytics"
-  application = "Slack"
+  name = "Custom SFTP Extension"
 
   content      = "${path.module}/adapters/custom-sftp-extension.esa"
   content_hash = filesha256("${path.module}/adapters/custom-sftp-extension.esa")
@@ -46,13 +44,12 @@ resource "sapintegrationsuite_integration_adapter" "sftp_extension" {
 
 ### Optional
 
-- `application` (String) The application the adapter provides connectivity for, as selected from a list in SAP's UI (SAP's own example: "Slack"). Same validation and replace-on-change treatment as "type", for the same reason.
 - `content` (String) Path to the local *.esa content file, for example "${path.module}/adapters/custom-sftp-extension.esa". Required to manage the adapter's content; left as-is on import until a matching configuration is applied, since SAP does not return a local file path for an existing design-time artifact. No public API for replacing an existing adapter's content in place was confirmed (see "id" above), so changing this replaces the resource.
 - `content_hash` (String) SHA-256 hash of the content file, for example filesha256("${path.module}/adapters/custom-sftp-extension.esa"). Terraform replaces the adapter when this hash changes, for the same reason as "content".
-- `type` (String) The adapter's line-of-business classification, as selected from a list in SAP's UI (documented examples: Analytics, CRM, ERP, Finance, HCM, Marketing). This provider does not validate it against a fixed set of values: SAP's documentation does not confirm whether the underlying OData property is a closed enum or a free-form string, and this provider does not add a validator without that evidence. Changing it replaces the resource, the same conservative treatment as every other metadata field here.
 
 ### Read-Only
 
+- `description` (String) The adapter description SAP stores, taken from the *.esa file on import. Read-only: the Integration Content API has no property this provider could set it through.
 - `version` (String) The version SAP reports for the adapter, which SAP's UI documents as extracted from the *.esa file's own metadata rather than assigned by the API on each write.
 
 ## Import

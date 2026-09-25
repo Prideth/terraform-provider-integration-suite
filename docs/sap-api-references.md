@@ -230,12 +230,11 @@ API. This document is that trace.
     confirmed directly, not assumed.
   - No `Version` query parameter, unlike every sibling deploy action (which all take both `Id`
     and `Version`). Consistent with the Id-only key finding above.
-- **Not confirmed by an adapter-specific example — Create**: implemented as `POST
-  IntegrationAdapterDesigntimeArtifacts` with a JSON body of `PackageId`, `Id`, `Name`, `Type`,
-  `Application`, and base64 `ArtifactContent`, matching every sibling design-time artifact
-  type's confirmed Create shape in this exact API and corroborated by a third-party technical
-  walkthrough describing this exact request for this exact entity — but not by an SAP-published
-  example request the way Create is confirmed for every sibling type.
+- **Create — properties confirmed by `$metadata`, request not shown by SAP**: implemented as
+  `POST IntegrationAdapterDesigntimeArtifacts` with `Id`, `PackageId`, `Name` and base64
+  `ArtifactContent`. A tenant `$metadata` document (September 2026) defines the entity type
+  with exactly `Id` (sole key), `Version`, `PackageId`, `Name`, `ArtifactContent`
+  (`Edm.Binary`) and `Description`. There is still no SAP-published Create example.
 - **Confirmed (UI documentation) — identity and duplicate handling**: "The integration adapter
   ID needs to be unique across the tenant" (not merely the package) and "If there's already an
   integration adapter with the same ID, the system throws an error." The latter is treated as
@@ -247,12 +246,10 @@ API. This document is that trace.
   was found anywhere for this entity. Combined with the confirmed duplicate-ID-is-an-error
   behavior, this provider implements no update path at all: every attribute on
   `sapintegrationsuite_integration_adapter` is `RequiresReplace`.
-- **`Type`/`Application` — confirmed as UI concepts, not confirmed as an enum or free text**:
-  SAP's UI documentation states `Type` "is used to categorize the adapters based on line of
-  business" (documented examples: Analytics, CRM, ERP, Finance, HCM, Marketing) and
-  `Application` "refers to the software/application for which the adapter provides ...
-  connectivity" (documented example: Slack), but never states whether either is a closed API
-  enum. No validator is applied to either attribute.
+- **`Type`/`Application` — UI concepts without API properties (corrected September 2026)**:
+  SAP's UI documentation describes a line-of-business type and a target application for
+  adapters, and earlier releases assumed matching OData properties. The tenant `$metadata` has
+  neither, so the provider no longer sends them and no longer offers `type`/`application`.
 - **Not confirmed — deployment runtime status / undeploy**: `sapintegrationsuite_integration_adapter_deployment`
   reuses the same shared `IntegrationRuntimeArtifacts` polling/undeploy (`GetRuntimeArtifact`/
   `UndeployRuntimeArtifact`, already used by every other `*_deployment` resource in this
@@ -382,9 +379,14 @@ API. This document is that trace.
   - `EntryPoints` (expand via `$expand=EntryPoints`): an array of `EntryPoint`, with `Name`
     (required, String), `URL` (required — see casing note below), and `Type` (optional,
     enumerated String: `DEV`, `TEST`, `PROD`, `SANDBOX`).
-  - `ApiDefinitions` (expand via `$expand=ApiDefinitions`): an array of `APIDefinition`, with
-    `URL` (required) and `Type` (required, enumerated String: `oas-yaml`, `oas-json`, `raml`,
-    `edmx`, `wsdl`).
+  - `ApiDefinitions` (expand via `$expand=ApiDefinitions`): the documentation describes an
+    array of `APIDefinition` with `URL` and `Type` (`oas-yaml`, `oas-json`, `raml`, `edmx`,
+    `wsdl`). **Corrected September 2026:** the tenant `$metadata` defines the target type
+    `Definition` with only `Url` (key) and `Name`; there is no `Type` property. The provider
+    reads `Name` and exposes it as `api_definitions[].name`.
+  - The same `$metadata` gives `ServiceEndpoint` the key `Id` and the additional properties
+    `Title`, `Version`, `Summary`, `Description` and `LastUpdated`, and `EntryPoint` the
+    additional property `AdditionalInformation`. All of them are exposed by the data source.
   - Protocol values, per the same page's adapter table: SOAP adapter → `SOAP`, IDoc adapter →
     `SOAP`, OData V2 adapter → `ODATAV2`, AS2 → `AS2`, AS4 → `AS4`, HTTPS → `REST`. This provider
     exposes exactly this value; it does not reverse-map it back to an adapter type, since the
@@ -401,12 +403,8 @@ API. This document is that trace.
   shared type distinct from the top-level paged-collection envelope, since SAP does not document
   paging for an expanded nested navigation property the way it does for a top-level collection
   request).
-- **`ApiDefinitions[].Url` casing — inferred, not independently confirmed**: no example source
-  touching the `ApiDefinitions` expansion specifically (as opposed to `EntryPoints`) was found.
-  This provider applies `Url` by consistency with the confirmed `EntryPoints` casing and SAP's
-  Pascal-case OData convention elsewhere on this same entity, and records this as an open
-  verification item in `internal/features/catalog.go`'s Limitations for
-  `cloud_integration.service_endpoints`.
+- **`ApiDefinitions[].Url` casing — confirmed by `$metadata`**: the `Definition` entity type
+  names the property `Url`.
 - **Combined `$expand=EntryPoints,ApiDefinitions`**: SAP's example requests demonstrate each
   expansion separately, never combined in one request. This provider combines them in a single
   request using OData V2's standard comma-separated `$expand` syntax (the same `Query.Expand
@@ -418,10 +416,10 @@ API. This document is that trace.
   page via the shared `GetAllPages` helper (the same server-driven `__next`-link paging every
   other collection-returning client method in this provider uses), rather than assuming a single
   page.
-- **No confirmed technical ID**: unlike `AccessPolicies` (numeric `Id`) or `IntegrationPackages`
-  (user-assigned `Id`), no SAP source found documents a stable identity field for a
-  `ServiceEndpoints` entry beyond `Name`/`Protocol` together, and even that combination's
-  uniqueness was not confirmed for every possible deployment configuration (see
+- **Technical ID — corrected September 2026**: the tenant `$metadata` keys `ServiceEndpoint`
+  by `Id`, which the data source now exposes as `endpoints[].id`. The earlier statement that no
+  technical ID exists was wrong. Whether that ID is stable across redeployments is still not
+  documented, which is why the reasoning about a singular data source below still applies (see
   `docs/resource-design.md` for why this rules out a singular `data.sapintegrationsuite_service_endpoint`
   lookup).
 - **Deterministic ordering**: SAP does not document a guaranteed response order for the

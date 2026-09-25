@@ -672,19 +672,20 @@ the other file-based resources.
   `sapintegrationsuite_script_collection`'s `PackageId` handling, since this project could not
   confirm GET reliably returns it.
 - **Create**: `POST IntegrationAdapterDesigntimeArtifacts` with
-  `PackageId`/`Id`/`Name`/`Type`/`Application`/`ArtifactContent` (base64) — corroborated by
-  analogy to every sibling design-time artifact type's confirmed Create shape and a third-party
-  technical source, not by an SAP-published example for this specific entity.
+  `Id`/`PackageId`/`Name`/`ArtifactContent` (base64). A tenant `$metadata` document confirms
+  these property names (plus `Version` and `Description`, both filled by SAP from the *.esa
+  file). There is still no SAP-published Create example for this entity.
 - **Update — deliberately absent**: SAP documents that importing a duplicate `Id` is rejected as
   an error, which is positive evidence against a working reimport-to-update flow. No
   PUT/PATCH/reimport example was found for this entity anywhere. Every attribute —
-  `id`, `package_id`, `name`, `type`, `application`, `content`, `content_hash` — is
+  `id`, `package_id`, `name`, `content`, `content_hash` — is
   `RequiresReplace`. This is a stricter model than every sibling design-time artifact type
   (which all have at least a confirmed content-replacing `PUT`), chosen deliberately given the
   much thinner evidence base and the concrete negative signal from the duplicate-ID error.
-- **`type`/`application` — no validator**: confirmed as UI concepts with documented example
-  values, not confirmed as a closed enum versus free text at the API level. Adding a validator
-  without that evidence risks rejecting values SAP itself would accept.
+- **`type`/`application` — removed**: the import dialog's type and application are UI
+  classifications without an API property; the tenant `$metadata` has neither on
+  `IntegrationAdapterDesigntimeArtifact`. Earlier releases sent them anyway. `description`
+  (read-only, taken from the *.esa) replaces them in the schema.
 - **Delete**: `DELETE IntegrationAdapterDesigntimeArtifacts(Id='{id}')` — confirmed directly
   from SAP's own example request, the strongest evidence tier this entity has for any operation
   besides Deploy.

@@ -1,0 +1,314 @@
+// Package edmx checks the provider's OData wire structs against a real
+// OData V2 $metadata document. The document is tenant data and is not part of
+// the repository: tests that use it skip themselves when it is not present.
+package edmx
+
+import (
+	"encoding/xml"
+	"fmt"
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"testing"
+)
+
+// EnvMetadataFile overrides where the $metadata document is read from.
+const EnvMetadataFile = "SAP_INTEGRATION_SUITE_METADATA_FILE"
+
+const defaultRelativePath = ".specs/cloudintegration-metadata.xml"
+
+// Property is a structural or navigation property of an entity type.
+type Property struct {
+	Name       string
+	Type       string
+	Navigation bool
+}
+
+// EntityType is one entity type with its key and properties.
+type EntityType struct {
+	Name       string
+	BaseType   string
+	Key        []string
+	Properties map[string]Property
+}
+
+// FunctionImport is one OData V2 function import (service operation).
+type FunctionImport struct {
+	Name       string
+	HTTPMethod string
+	Parameters map[string]string
+}
+
+// Model is the parsed subset of a $metadata document the contract tests need.
+type Model struct {
+	Path            string
+	EntityTypes     map[string]*EntityType
+	EntitySets      map[string]string
+	FunctionImports map[string]*FunctionImport
+}
+
+type xmlEdmx struct {
+	Schemas []xmlSchema `xml:"DataServices>Schema"`
+}
+
+type xmlSchema struct {
+	EntityTypes []struct {
+		Name     string `xml:"Name,attr"`
+		BaseType string `xml:"BaseType,attr"`
+		Key      []struct {
+			Name string `xml:"Name,attr"`
+		} `xml:"Key>PropertyRef"`
+		Properties []struct {
+			Name string `xml:"Name,attr"`
+			Type string `xml:"Type,attr"`
+		} `xml:"Property"`
+		Navigation []struct {
+			Name string `xml:"Name,attr"`
+		} `xml:"NavigationProperty"`
+	} `xml:"EntityType"`
+	Containers []struct {
+		EntitySets []struct {
+			Name       string `xml:"Name,attr"`
+			EntityType string `xml:"EntityType,attr"`
+		} `xml:"EntitySet"`
+		FunctionImports []struct {
+			Name       string `xml:"Name,attr"`
+			HTTPMethod string `xml:"http://schemas.microsoft.com/ado/2007/08/dataservices/metadata HttpMethod,attr"`
+			Parameters []struct {
+				Name string `xml:"Name,attr"`
+				Type string `xml:"Type,attr"`
+			} `xml:"Parameter"`
+		} `xml:"FunctionImport"`
+	} `xml:"EntityContainer"`
+}
+
+// Parse reads a $metadata document.
+func Parse(data []byte) (*Model, error) {
+	var doc xmlEdmx
+	if err := xml.Unmarshal(data, &doc); err != nil { //nolint:gosec // G709: test-only helper decoding a developer-supplied $metadata file into a fixed struct
+		return nil, fmt.Errorf("edmx: %w", err)
+	}
+
+	m := &Model{
+		EntityTypes:     map[string]*EntityType{},
+		EntitySets:      map[string]string{},
+		FunctionImports: map[string]*FunctionImport{},
+	}
+	for _, s := range doc.Schemas {
+		for _, et := range s.EntityTypes {
+			t := &EntityType{Name: et.Name, BaseType: unqualified(et.BaseType), Properties: map[string]Property{}}
+			for _, k := range et.Key {
+				t.Key = append(t.Key, k.Name)
+			}
+			for _, p := range et.Properties {
+				t.Properties[p.Name] = Property{Name: p.Name, Type: p.Type}
+			}
+			for _, n := range et.Navigation {
+				t.Properties[n.Name] = Property{Name: n.Name, Navigation: true}
+			}
+			m.EntityTypes[et.Name] = t
+		}
+		for _, c := range s.Containers {
+			for _, es := range c.EntitySets {
+				m.EntitySets[es.Name] = unqualified(es.EntityType)
+			}
+			for _, fi := range c.FunctionImports {
+				f := &FunctionImport{Name: fi.Name, HTTPMethod: fi.HTTPMethod, Parameters: map[string]string{}}
+				for _, p := range fi.Parameters {
+					f.Parameters[p.Name] = p.Type
+				}
+				m.FunctionImports[fi.Name] = f
+			}
+		}
+	}
+	for _, et := range m.EntityTypes {
+		if err := m.resolveBase(et, map[string]bool{}); err != nil {
+			return nil, err
+		}
+	}
+	return m, nil
+}
+
+func unqualified(name string) string {
+	if i := strings.LastIndex(name, "."); i >= 0 {
+		return name[i+1:]
+	}
+	return name
+}
+
+// Load returns the $metadata model, or skips the test when no document is
+// available. It looks at $SAP_INTEGRATION_SUITE_METADATA_FILE first, then for
+// .specs/cloudintegration-metadata.xml in the working directory and its parents.
+func Load(t *testing.T) *Model {
+	t.Helper()
+
+	path := os.Getenv(EnvMetadataFile)
+	if path == "" {
+		path = findUpwards(defaultRelativePath)
+	}
+	if path == "" {
+		t.Skipf("no $metadata document found; set %s or place it at %s", EnvMetadataFile, defaultRelativePath)
+	}
+
+	data, err := os.ReadFile(path) //nolint:gosec // G304: path comes from the developer's own environment
+	if err != nil {
+		t.Fatalf("reading %s: %v", path, err)
+	}
+	m, err := Parse(data)
+	if err != nil {
+		t.Fatalf("parsing %s: %v", path, err)
+	}
+	m.Path = path
+	return m
+}
+
+func findUpwards(rel string) string {
+	dir, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	for {
+		candidate := filepath.Join(dir, rel)
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
+}
+
+// EntityTypeOf returns the entity type behind an entity set, failing the test
+// if the set does not exist.
+func (m *Model) EntityTypeOf(t *testing.T, entitySet string) *EntityType {
+	t.Helper()
+	name, ok := m.EntitySets[entitySet]
+	if !ok {
+		t.Errorf("entity set %q does not exist in %s", entitySet, m.Path)
+		return nil
+	}
+	et, ok := m.EntityTypes[name]
+	if !ok {
+		t.Errorf("entity type %q of entity set %q is not defined", name, entitySet)
+		return nil
+	}
+	return et
+}
+
+// AssertStruct checks that every JSON field of v, including fields of embedded
+// structs, is a property or navigation property of the entity set's type.
+func (m *Model) AssertStruct(t *testing.T, entitySet string, v any) {
+	t.Helper()
+	et := m.EntityTypeOf(t, entitySet)
+	if et == nil {
+		return
+	}
+	for _, field := range JSONFields(reflect.TypeOf(v)) {
+		if _, ok := et.Properties[field]; !ok {
+			t.Errorf("%T: JSON field %q is not a property of %s (entity set %s)", v, field, et.Name, entitySet)
+		}
+	}
+}
+
+// AssertKey checks the entity set's key properties and their EDM types, given
+// as consecutive name/type pairs, for example "Id", "Edm.Int64".
+func (m *Model) AssertKey(t *testing.T, entitySet string, nameTypePairs ...string) {
+	t.Helper()
+	et := m.EntityTypeOf(t, entitySet)
+	if et == nil {
+		return
+	}
+	var want []string
+	for i := 0; i+1 < len(nameTypePairs); i += 2 {
+		want = append(want, nameTypePairs[i])
+		if got := et.Properties[nameTypePairs[i]].Type; got != nameTypePairs[i+1] {
+			t.Errorf("%s key %s has type %q, want %q", et.Name, nameTypePairs[i], got, nameTypePairs[i+1])
+		}
+	}
+	if strings.Join(et.Key, ",") != strings.Join(want, ",") {
+		t.Errorf("%s key = %v, want %v", et.Name, et.Key, want)
+	}
+}
+
+// AssertFunctionImport checks that a function import exists with exactly the
+// given parameter names.
+func (m *Model) AssertFunctionImport(t *testing.T, name, httpMethod string, params ...string) {
+	t.Helper()
+	fi, ok := m.FunctionImports[name]
+	if !ok {
+		t.Errorf("function import %q does not exist in %s", name, m.Path)
+		return
+	}
+	if httpMethod != "" && !strings.EqualFold(fi.HTTPMethod, httpMethod) {
+		t.Errorf("function import %s uses %s, want %s", name, fi.HTTPMethod, httpMethod)
+	}
+	if len(fi.Parameters) != len(params) {
+		t.Errorf("function import %s has parameters %v, want %v", name, fi.Parameters, params)
+	}
+	for _, p := range params {
+		if _, ok := fi.Parameters[p]; !ok {
+			t.Errorf("function import %s has no parameter %q (has %v)", name, p, fi.Parameters)
+		}
+	}
+}
+
+// JSONFields lists the JSON names of a struct type's exported fields, flattening
+// embedded structs the way encoding/json does and skipping "-" tags.
+func JSONFields(typ reflect.Type) []string {
+	for typ.Kind() == reflect.Pointer {
+		typ = typ.Elem()
+	}
+	var names []string
+	for i := 0; i < typ.NumField(); i++ {
+		f := typ.Field(i)
+		tag := f.Tag.Get("json")
+		name := strings.Split(tag, ",")[0]
+		if name == "-" {
+			continue
+		}
+		if f.Anonymous && name == "" {
+			names = append(names, JSONFields(f.Type)...)
+			continue
+		}
+		if !f.IsExported() {
+			continue
+		}
+		if name == "" {
+			name = f.Name
+		}
+		names = append(names, name)
+	}
+	return names
+}
+
+// resolveBase copies inherited key and properties from the BaseType chain
+// into et, so lookups on a derived type see everything the service accepts.
+func (m *Model) resolveBase(et *EntityType, seen map[string]bool) error {
+	if et.BaseType == "" {
+		return nil
+	}
+	if seen[et.Name] {
+		return fmt.Errorf("edmx: BaseType cycle at %s", et.Name)
+	}
+	seen[et.Name] = true
+	base, ok := m.EntityTypes[et.BaseType]
+	if !ok {
+		return fmt.Errorf("edmx: %s has unknown BaseType %s", et.Name, et.BaseType)
+	}
+	if err := m.resolveBase(base, seen); err != nil {
+		return err
+	}
+	if len(et.Key) == 0 {
+		et.Key = append([]string(nil), base.Key...)
+	}
+	for name, p := range base.Properties {
+		if _, own := et.Properties[name]; !own {
+			et.Properties[name] = p
+		}
+	}
+	et.BaseType = ""
+	return nil
+}

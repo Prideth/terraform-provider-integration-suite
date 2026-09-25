@@ -19,6 +19,25 @@ All notable changes to this project are documented in this file.
 - Updating an access policy's description now sends a `PUT` with `RoleName`
   and `Description`, matching SAP's tooling, instead of a `PATCH` with only
   the description.
+- **Breaking:** `sapintegrationsuite_integration_adapter` and its data source
+  no longer have `type` and `application`. A tenant `$metadata` document
+  shows that `IntegrationAdapterDesigntimeArtifact` has no such properties;
+  sending them on create was a guess based on the UI's import dialog. Both
+  now expose the read-only `description` SAP takes from the *.esa file, and
+  the data source also returns `package_id`.
+- **Breaking:** `data.sapintegrationsuite_service_endpoints` returns
+  `api_definitions[].name` instead of `api_definitions[].type`. The API
+  definition entity has `Url` and `Name`, not `Type`, so `type` was always
+  empty. Endpoints now also carry `id`, `title`, `version`, `summary`,
+  `description` and `last_updated`, and entry points carry
+  `additional_information`.
+
+### Added
+
+- Contract tests that check every OData wire struct, key and function
+  import against a tenant `$metadata` document when one is available
+  locally. See "Checking wire contracts against `$metadata`" in
+  CONTRIBUTING.md.
 
 ### Changed
 

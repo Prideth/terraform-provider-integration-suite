@@ -11,9 +11,7 @@ resource "sapintegrationsuite_integration_adapter" "sftp_extension" {
   # package, and rejects importing a duplicate id as an error - there is no
   # confirmed way to update an existing adapter's content or metadata in
   # place, so every attribute here forces replacement.
-  name        = "Custom SFTP Extension"
-  type        = "Analytics"
-  application = "Slack"
+  name = "Custom SFTP Extension"
 
   content      = "${path.module}/adapters/custom-sftp-extension.esa"
   content_hash = filesha256("${path.module}/adapters/custom-sftp-extension.esa")

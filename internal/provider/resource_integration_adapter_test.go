@@ -30,8 +30,7 @@ func TestIntegrationAdapterResource_SchemaRequiredComputed(t *testing.T) {
 		{"id", true, false},
 		{"package_id", true, false},
 		{"name", true, false},
-		{"type", false, false},
-		{"application", false, false},
+		{"description", false, true},
 		{"content", false, true},
 		{"content_hash", false, true},
 		{"version", false, true},
@@ -61,7 +60,7 @@ func TestIntegrationAdapterResource_SchemaRequiredComputed(t *testing.T) {
 func TestIntegrationAdapterResource_EveryMutableFieldForcesReplace(t *testing.T) {
 	s := integrationAdapterSchema(t).Schema
 
-	fields := []string{"id", "package_id", "name", "type", "application", "content", "content_hash"}
+	fields := []string{"id", "package_id", "name", "content", "content_hash"}
 	for _, name := range fields {
 		attr, ok := s.Attributes[name].(schema.StringAttribute)
 		if !ok {

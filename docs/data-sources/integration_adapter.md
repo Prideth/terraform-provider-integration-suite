@@ -3,12 +3,12 @@
 page_title: "sapintegrationsuite_integration_adapter Data Source - sapintegrationsuite"
 subcategory: ""
 description: |-
-  Reads an existing custom Integration Adapter's metadata by its tenant-wide ID. Useful for brownfield discovery before importing a sapintegrationsuite_integration_adapter resource, or for referencing an adapter this provider does not itself manage from a sapintegrationsuite_integration_adapter_deployment resource. Deliberately does not include package_id: this project could not confirm that a plain GET by Id returns the owning package as a queryable property, so it is not exposed here rather than guessed at. See docs/guides/integration-adapters.md.
+  Reads an existing custom Integration Adapter's metadata by its tenant-wide ID. Useful for brownfield discovery before importing a sapintegrationsuite_integration_adapter resource, or for referencing an adapter this provider does not itself manage from a sapintegrationsuite_integration_adapter_deployment resource. The result includes package_id, which is what an import of the resource needs. See docs/guides/integration-adapters.md.
 ---
 
 # sapintegrationsuite_integration_adapter (Data Source)
 
-Reads an existing custom Integration Adapter's metadata by its tenant-wide ID. Useful for brownfield discovery before importing a sapintegrationsuite_integration_adapter resource, or for referencing an adapter this provider does not itself manage from a sapintegrationsuite_integration_adapter_deployment resource. Deliberately does not include package_id: this project could not confirm that a plain GET by Id returns the owning package as a queryable property, so it is not exposed here rather than guessed at. See docs/guides/integration-adapters.md.
+Reads an existing custom Integration Adapter's metadata by its tenant-wide ID. Useful for brownfield discovery before importing a sapintegrationsuite_integration_adapter resource, or for referencing an adapter this provider does not itself manage from a sapintegrationsuite_integration_adapter_deployment resource. The result includes package_id, which is what an import of the resource needs. See docs/guides/integration-adapters.md.
 
 ## Example Usage
 
@@ -27,7 +27,7 @@ data "sapintegrationsuite_integration_adapter" "sftp_extension" {
 
 ### Read-Only
 
-- `application` (String) The application the adapter provides connectivity for, exactly as SAP returns it.
+- `description` (String) The description SAP took from the *.esa file on import.
 - `name` (String) The adapter's display name.
-- `type` (String) The adapter's line-of-business classification, exactly as SAP returns it.
+- `package_id` (String) ID of the integration package the adapter belongs to.
 - `version` (String) The version SAP reports for the adapter.

@@ -2,12 +2,14 @@ package provider
 
 import (
 	"context"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/cloudintegration"
+	v2 "github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/odata/v2"
 )
 
 // NewServiceEndpointsDataSource returns a fresh datasource.DataSource
@@ -27,21 +29,28 @@ type serviceEndpointsDataSourceModel struct {
 }
 
 type serviceEndpointListEntry struct {
+	ID             types.String         `tfsdk:"id"`
 	Name           types.String         `tfsdk:"name"`
+	Title          types.String         `tfsdk:"title"`
+	Version        types.String         `tfsdk:"version"`
+	Summary        types.String         `tfsdk:"summary"`
+	Description    types.String         `tfsdk:"description"`
+	LastUpdated    types.String         `tfsdk:"last_updated"`
 	Protocol       types.String         `tfsdk:"protocol"`
 	EntryPoints    []entryPointEntry    `tfsdk:"entry_points"`
 	APIDefinitions []apiDefinitionEntry `tfsdk:"api_definitions"`
 }
 
 type entryPointEntry struct {
-	Name types.String `tfsdk:"name"`
-	URL  types.String `tfsdk:"url"`
-	Type types.String `tfsdk:"type"`
+	Name                  types.String `tfsdk:"name"`
+	URL                   types.String `tfsdk:"url"`
+	Type                  types.String `tfsdk:"type"`
+	AdditionalInformation types.String `tfsdk:"additional_information"`
 }
 
 type apiDefinitionEntry struct {
 	URL  types.String `tfsdk:"url"`
-	Type types.String `tfsdk:"type"`
+	Name types.String `tfsdk:"name"`
 }
 
 func (d *serviceEndpointsDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -82,9 +91,34 @@ func (d *serviceEndpointsDataSource) Schema(_ context.Context, _ datasource.Sche
 				Description: "Every service endpoint matching the optional name/protocol filters.",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
+						"id": schema.StringAttribute{
+							Computed:    true,
+							Description: "SAP's identifier of the service endpoint.",
+						},
 						"name": schema.StringAttribute{
 							Computed:    true,
 							Description: "The integration artifact's name this endpoint belongs to.",
+						},
+						"title": schema.StringAttribute{
+							Computed:    true,
+							Description: "Display title, when SAP reports one.",
+						},
+						"version": schema.StringAttribute{
+							Computed:    true,
+							Description: "Version of the deployed artifact behind the endpoint, when SAP reports one.",
+						},
+						"summary": schema.StringAttribute{
+							Computed:    true,
+							Description: "Short summary, when SAP reports one.",
+						},
+						"description": schema.StringAttribute{
+							Computed:    true,
+							Description: "Description, when SAP reports one.",
+						},
+						"last_updated": schema.StringAttribute{
+							Computed: true,
+							Description: "When SAP last updated the endpoint, as an RFC 3339 timestamp in UTC. If SAP " +
+								"returns a value that is not an OData V2 date literal, it is passed through unchanged.",
 						},
 						"protocol": schema.StringAttribute{
 							Computed:    true,
@@ -110,6 +144,10 @@ func (d *serviceEndpointsDataSource) Schema(_ context.Context, _ datasource.Sche
 											"reports one: \"DEV\", \"TEST\", \"PROD\", or " +
 											"\"SANDBOX\".",
 									},
+									"additional_information": schema.StringAttribute{
+										Computed:    true,
+										Description: "Additional information SAP attaches to the entry point, when present.",
+									},
 								},
 							},
 						},
@@ -125,11 +163,10 @@ func (d *serviceEndpointsDataSource) Schema(_ context.Context, _ datasource.Sche
 										Computed:    true,
 										Description: "The fully qualified URL to the API definition document.",
 									},
-									"type": schema.StringAttribute{
+									"name": schema.StringAttribute{
 										Computed: true,
-										Description: "The API definition's format: one of " +
-											"\"oas-yaml\", \"oas-json\", \"raml\", \"edmx\", or " +
-											"\"wsdl\", as SAP currently documents them.",
+										Description: "Name SAP gives the definition link. Earlier releases exposed a " +
+											"\"type\" here, which the API does not have and which was always empty.",
 									},
 								},
 							},
@@ -172,7 +209,13 @@ func (d *serviceEndpointsDataSource) Read(ctx context.Context, req datasource.Re
 	values := make([]serviceEndpointListEntry, 0, len(endpoints))
 	for _, e := range endpoints {
 		values = append(values, serviceEndpointListEntry{
+			ID:             stringOrNull(e.ID),
 			Name:           types.StringValue(e.Name),
+			Title:          stringOrNull(e.Title),
+			Version:        stringOrNull(e.Version),
+			Summary:        stringOrNull(e.Summary),
+			Description:    stringOrNull(e.Description),
+			LastUpdated:    odataDateToRFC3339(e.LastUpdated),
 			Protocol:       types.StringValue(e.Protocol),
 			EntryPoints:    entryPointsToModel(e.EntryPoints.Results),
 			APIDefinitions: apiDefinitionsToModel(e.APIDefinitions.Results),
@@ -190,9 +233,10 @@ func entryPointsToModel(entries []cloudintegration.EntryPoint) []entryPointEntry
 	values := make([]entryPointEntry, 0, len(entries))
 	for _, ep := range entries {
 		values = append(values, entryPointEntry{
-			Name: types.StringValue(ep.Name),
-			URL:  types.StringValue(ep.URL),
-			Type: stringOrNull(ep.Type),
+			Name:                  types.StringValue(ep.Name),
+			URL:                   types.StringValue(ep.URL),
+			Type:                  stringOrNull(ep.Type),
+			AdditionalInformation: stringOrNull(ep.AdditionalInformation),
 		})
 	}
 	return values
@@ -203,8 +247,21 @@ func apiDefinitionsToModel(defs []cloudintegration.APIDefinition) []apiDefinitio
 	for _, def := range defs {
 		values = append(values, apiDefinitionEntry{
 			URL:  types.StringValue(def.URL),
-			Type: types.StringValue(def.Type),
+			Name: stringOrNull(def.Name),
 		})
 	}
 	return values
+}
+
+// odataDateToRFC3339 converts an OData V2 "/Date(<millis>)/" literal to
+// RFC 3339. Anything else is passed through unchanged rather than dropped.
+func odataDateToRFC3339(s string) types.String {
+	if s == "" {
+		return types.StringNull()
+	}
+	t, err := v2.ParseDateLiteral(s)
+	if err != nil {
+		return types.StringValue(s)
+	}
+	return types.StringValue(t.Format(time.RFC3339))
 }

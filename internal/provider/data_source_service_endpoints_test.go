@@ -59,19 +59,31 @@ func TestServiceEndpointsDataSource_SchemaOptionalComputed(t *testing.T) {
 	}
 }
 
-// TestServiceEndpointsDataSource_NoSyntheticID pins down that this data
-// source never invents a per-endpoint identity SAP does not itself expose:
-// SAP's ServiceEndpoints resource has no confirmed technical ID, only Name
-// and Protocol, so the nested endpoint object has no "id" attribute at all.
-func TestServiceEndpointsDataSource_NoSyntheticID(t *testing.T) {
+// The ServiceEndpoint entity type is keyed by Id, so each endpoint exposes
+// SAP's own ID as a computed attribute. api_definitions carries name, not the
+// never-existing type property earlier releases read.
+func TestServiceEndpointsDataSource_NestedAttributesFollowMetadata(t *testing.T) {
 	s := serviceEndpointsSchema(t)
 
 	endpoints, ok := s.Attributes["endpoints"].(dsschema.ListNestedAttribute)
 	if !ok {
 		t.Fatalf("endpoints is not a ListNestedAttribute")
 	}
-	if _, hasID := endpoints.NestedObject.Attributes["id"]; hasID {
-		t.Error("endpoints[].id must not exist: SAP exposes no confirmed technical ID for a service endpoint")
+	for _, name := range []string{"id", "name", "title", "version", "summary", "description", "last_updated", "protocol"} {
+		if _, ok := endpoints.NestedObject.Attributes[name]; !ok {
+			t.Errorf("endpoints[].%s is missing", name)
+		}
+	}
+
+	defs, ok := endpoints.NestedObject.Attributes["api_definitions"].(dsschema.ListNestedAttribute)
+	if !ok {
+		t.Fatalf("api_definitions is not a ListNestedAttribute")
+	}
+	if _, ok := defs.NestedObject.Attributes["name"]; !ok {
+		t.Error("api_definitions[].name is missing")
+	}
+	if _, ok := defs.NestedObject.Attributes["type"]; ok {
+		t.Error("api_definitions[].type must not exist: the Definition entity has no Type property")
 	}
 }
 
@@ -111,12 +123,15 @@ func TestServiceEndpointsDataSource_Read(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"d": {"results": [
 			{
+				"Id": "ep-customer",
 				"Name": "Customer API",
+				"Title": "Customer API",
+				"LastUpdated": "/Date(1767225600000)/",
 				"Protocol": "ODATAV2",
-				"EntryPoints": {"results": [{"Name": "default", "Url": "https://tenant.example/http/customer", "Type": "PROD"}]},
+				"EntryPoints": {"results": [{"Name": "default", "Url": "https://tenant.example/http/customer", "Type": "PROD", "AdditionalInformation": "internal only"}]},
 				"ApiDefinitions": {"results": [
-					{"Url": "https://tenant.example/api/customer.edmx", "Type": "edmx"},
-					{"Url": "https://tenant.example/api/customer.json", "Type": "oas-json"}
+					{"Url": "https://tenant.example/api/customer.edmx", "Name": "edmx"},
+					{"Url": "https://tenant.example/api/customer.json", "Name": "oas-json"}
 				]}
 			},
 			{
@@ -156,6 +171,21 @@ func TestServiceEndpointsDataSource_Read(t *testing.T) {
 	}
 	if len(customer.APIDefinitions) != 2 {
 		t.Fatalf("len(endpoints[0].api_definitions) = %d, want 2", len(customer.APIDefinitions))
+	}
+	if customer.ID.ValueString() != "ep-customer" || customer.Title.ValueString() != "Customer API" {
+		t.Errorf("endpoints[0] id/title = %q/%q", customer.ID.ValueString(), customer.Title.ValueString())
+	}
+	if customer.LastUpdated.ValueString() != "2026-01-01T00:00:00Z" {
+		t.Errorf("endpoints[0].last_updated = %q, want RFC 3339 2026-01-01T00:00:00Z", customer.LastUpdated.ValueString())
+	}
+	if customer.EntryPoints[0].AdditionalInformation.ValueString() != "internal only" {
+		t.Errorf("entry_points[0].additional_information = %q", customer.EntryPoints[0].AdditionalInformation.ValueString())
+	}
+	if customer.APIDefinitions[0].Name.ValueString() != "edmx" {
+		t.Errorf("api_definitions[0].name = %q, want edmx", customer.APIDefinitions[0].Name.ValueString())
+	}
+	if !state.Endpoints[1].LastUpdated.IsNull() {
+		t.Errorf("endpoints[1].last_updated = %v, want null when SAP omits it", state.Endpoints[1].LastUpdated)
 	}
 
 	legacy := state.Endpoints[1]

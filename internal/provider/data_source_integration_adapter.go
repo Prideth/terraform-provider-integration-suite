@@ -23,8 +23,8 @@ type integrationAdapterDataSource struct {
 type integrationAdapterDataSourceModel struct {
 	ID          types.String `tfsdk:"id"`
 	Name        types.String `tfsdk:"name"`
-	Type        types.String `tfsdk:"type"`
-	Application types.String `tfsdk:"application"`
+	PackageID   types.String `tfsdk:"package_id"`
+	Description types.String `tfsdk:"description"`
 	Version     types.String `tfsdk:"version"`
 }
 
@@ -38,10 +38,9 @@ func (d *integrationAdapterDataSource) Schema(_ context.Context, _ datasource.Sc
 			"ID. Useful for brownfield discovery before importing a " +
 			"sapintegrationsuite_integration_adapter resource, or for referencing an adapter this " +
 			"provider does not itself manage from a " +
-			"sapintegrationsuite_integration_adapter_deployment resource. Deliberately does not " +
-			"include package_id: this project could not confirm that a plain GET by Id returns the " +
-			"owning package as a queryable property, so it is not exposed here rather than guessed " +
-			"at. See docs/guides/integration-adapters.md.",
+			"sapintegrationsuite_integration_adapter_deployment resource. The result includes " +
+			"package_id, which is what an import of the resource needs. See " +
+			"docs/guides/integration-adapters.md.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:    true,
@@ -51,13 +50,13 @@ func (d *integrationAdapterDataSource) Schema(_ context.Context, _ datasource.Sc
 				Computed:    true,
 				Description: "The adapter's display name.",
 			},
-			"type": schema.StringAttribute{
+			"package_id": schema.StringAttribute{
 				Computed:    true,
-				Description: "The adapter's line-of-business classification, exactly as SAP returns it.",
+				Description: "ID of the integration package the adapter belongs to.",
 			},
-			"application": schema.StringAttribute{
+			"description": schema.StringAttribute{
 				Computed:    true,
-				Description: "The application the adapter provides connectivity for, exactly as SAP returns it.",
+				Description: "The description SAP took from the *.esa file on import.",
 			},
 			"version": schema.StringAttribute{
 				Computed:    true,
@@ -98,8 +97,8 @@ func (d *integrationAdapterDataSource) Read(ctx context.Context, req datasource.
 	resp.Diagnostics.Append(resp.State.Set(ctx, integrationAdapterDataSourceModel{
 		ID:          types.StringValue(adapter.ID),
 		Name:        types.StringValue(adapter.Name),
-		Type:        stringOrNull(adapter.Type),
-		Application: stringOrNull(adapter.Application),
+		PackageID:   stringOrNull(adapter.PackageID),
+		Description: stringOrNull(adapter.Description),
 		Version:     stringOrNull(adapter.Version),
 	})...)
 }
