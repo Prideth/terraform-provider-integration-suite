@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/apierror"
@@ -33,6 +35,10 @@ type oauth2ClientCredentialModel struct {
 	TokenServiceURL       types.String `tfsdk:"token_service_url"`
 	ClientID              types.String `tfsdk:"client_id"`
 	Scope                 types.String `tfsdk:"scope"`
+	ClientAuthentication  types.String `tfsdk:"client_authentication"`
+	ScopeContentType      types.String `tfsdk:"scope_content_type"`
+	Resource              types.String `tfsdk:"resource"`
+	Audience              types.String `tfsdk:"audience"`
 	ClientSecretWO        types.String `tfsdk:"client_secret_wo"`
 	ClientSecretWOVersion types.String `tfsdk:"client_secret_wo_version"`
 }
@@ -46,11 +52,11 @@ func (r *oauth2ClientCredentialResource) Schema(_ context.Context, _ resource.Sc
 		Description: "Manages a Security Content \"OAuth2 Client Credentials\" artifact: the client " +
 			"ID, client secret, and token service URL an integration flow adapter uses to obtain an " +
 			"OAuth2 access token for outbound requests (RFC 6749 client credentials grant). Backed by " +
-			"the public Security Content OData V2 API (OAuth2ClientCredentials). This provider only " +
-			"exposes the fields SAP's Help Portal documents unambiguously (name, description, token " +
-			"service URL, client ID, client secret, scope); grant-type placement, client " +
-			"authentication mode (body vs. header), resource, audience, and custom parameters are not " +
-			"yet implemented — see docs/guides/security-content.md. The client secret is a write-only " +
+			"the public Security Content OData V2 API (OAuth2ClientCredentials). This provider manages " +
+			"the artifact's scalar fields (name, description, token " +
+			"service URL, client ID, client secret, scope, client authentication, content type, " +
+			"resource, audience); custom parameters are not managed and the grant-type placement has no " +
+			"API property — see docs/guides/security-content.md. The client secret is a write-only " +
 			"attribute: Terraform never stores it in plan or state, and SAP documents that it must be " +
 			"re-entered on every edit, so this provider resends it on every apply that touches the " +
 			"resource. Requires Terraform CLI 1.11 or later for write-only attribute support.",
@@ -80,6 +86,10 @@ func (r *oauth2ClientCredentialResource) Schema(_ context.Context, _ resource.Sc
 				Optional:    true,
 				Description: "OAuth2 scope to request, if the token service requires one.",
 			},
+			"client_authentication": oauth2PassThroughAttribute("How the client ID and secret are sent to the token service, as SAP stores it in ClientAuthentication. The UI offers \"Send as Body Parameter\" (default) and \"Send as Request Header\"; the API constants for these are not documented."),
+			"scope_content_type":    oauth2PassThroughAttribute("Content type of the token request, as SAP stores it in ScopeContentType (the UI's \"Content Type\" field)."),
+			"resource":              oauth2PassThroughAttribute("Resource identifier sent to the token service, for services that require one."),
+			"audience":              oauth2PassThroughAttribute("Audience identifier sent to the token service, for services that require one."),
 			"client_secret_wo": schema.StringAttribute{
 				Required:  true,
 				Sensitive: true,
@@ -131,11 +141,15 @@ func (r *oauth2ClientCredentialResource) Create(ctx context.Context, req resourc
 	}
 
 	created, err := r.client.CreateOAuth2ClientCredential(ctx, securitycontent.OAuth2ClientCredential{
-		Name:            plan.ID.ValueString(),
-		Description:     plan.Description.ValueString(),
-		TokenServiceURL: plan.TokenServiceURL.ValueString(),
-		ClientID:        plan.ClientID.ValueString(),
-		Scope:           plan.Scope.ValueString(),
+		Name:                 plan.ID.ValueString(),
+		Description:          plan.Description.ValueString(),
+		TokenServiceURL:      plan.TokenServiceURL.ValueString(),
+		ClientID:             plan.ClientID.ValueString(),
+		Scope:                plan.Scope.ValueString(),
+		ClientAuthentication: plan.ClientAuthentication.ValueString(),
+		ScopeContentType:     plan.ScopeContentType.ValueString(),
+		Resource:             plan.Resource.ValueString(),
+		Audience:             plan.Audience.ValueString(),
 	}, clientSecret.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to create SAP Integration Suite OAuth2 client credential", diagnosticDetail(err))
@@ -180,11 +194,15 @@ func (r *oauth2ClientCredentialResource) Update(ctx context.Context, req resourc
 	}
 
 	err := r.client.UpdateOAuth2ClientCredential(ctx, securitycontent.OAuth2ClientCredential{
-		Name:            plan.ID.ValueString(),
-		Description:     plan.Description.ValueString(),
-		TokenServiceURL: plan.TokenServiceURL.ValueString(),
-		ClientID:        plan.ClientID.ValueString(),
-		Scope:           plan.Scope.ValueString(),
+		Name:                 plan.ID.ValueString(),
+		Description:          plan.Description.ValueString(),
+		TokenServiceURL:      plan.TokenServiceURL.ValueString(),
+		ClientID:             plan.ClientID.ValueString(),
+		Scope:                plan.Scope.ValueString(),
+		ClientAuthentication: plan.ClientAuthentication.ValueString(),
+		ScopeContentType:     plan.ScopeContentType.ValueString(),
+		Resource:             plan.Resource.ValueString(),
+		Audience:             plan.Audience.ValueString(),
 	}, clientSecret.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to update SAP Integration Suite OAuth2 client credential", diagnosticDetail(err))
@@ -232,7 +250,31 @@ func oauth2ClientCredentialToModel(cred *securitycontent.OAuth2ClientCredential,
 		TokenServiceURL:       types.StringValue(cred.TokenServiceURL),
 		ClientID:              types.StringValue(cred.ClientID),
 		Scope:                 stringOrNull(cred.Scope),
+		ClientAuthentication:  stringOrNull(cred.ClientAuthentication),
+		ScopeContentType:      stringOrNull(cred.ScopeContentType),
+		Resource:              stringOrNull(cred.Resource),
+		Audience:              stringOrNull(cred.Audience),
 		ClientSecretWO:        types.StringNull(),
 		ClientSecretWOVersion: clientSecretWOVersion,
+	}
+}
+
+// oauth2PassThroughAttribute builds an Optional+Computed attribute for a
+// token-request setting SAP may fill with its own default. The prior state is
+// kept when the configuration omits the attribute, so every PUT (which
+// replaces the whole entity) resends the value SAP currently holds instead of
+// silently clearing one set in the UI.
+func oauth2PassThroughAttribute(description string) schema.StringAttribute {
+	return schema.StringAttribute{
+		Optional: true,
+		Computed: true,
+		Description: description + " Passed through unchanged. Omitting the attribute keeps " +
+			"whatever value SAP currently holds; it cannot be cleared from Terraform.",
+		PlanModifiers: []planmodifier.String{
+			stringplanmodifier.UseStateForUnknown(),
+		},
+		Validators: []validator.String{
+			stringvalidator.LengthAtLeast(1),
+		},
 	}
 }

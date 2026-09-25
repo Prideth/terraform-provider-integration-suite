@@ -15,21 +15,21 @@ const oauth2ClientCredentialsEntitySet = "OAuth2ClientCredentials" // #nosec G10
 // struct has no ClientSecret field, for the same reason UserCredential has
 // no Password field — see that type's doc comment.
 //
-// This client only models the fields SAP's Help Portal documents in prose
-// with a fixed, unambiguous meaning: Name (alias), Description,
-// TokenServiceUrl, ClientId, and Scope. SAP's UI additionally exposes Grant
-// Type, Client Authentication (body vs. header), Resource, Audience, and up
-// to 20 custom Key/Value/"Send as Part of" parameters, but this project
-// could not confirm those fields' exact OData property names or JSON shape
-// against $metadata or a documented example payload, so they are
-// deliberately left unimplemented rather than guessed — see
-// docs/guides/security-content.md.
+// Property names follow the OAuth2ClientCredential entity type of the tenant
+// $metadata. ClientAuthentication, ScopeContentType, Resource and Audience are
+// plain Edm.String values whose accepted constants SAP does not document; they
+// are passed through unchanged. The CustomParameters navigation property is
+// not modeled because its write semantics are undocumented.
 type OAuth2ClientCredential struct {
-	Name            string `json:"Name"`
-	Description     string `json:"Description,omitempty"`
-	TokenServiceURL string `json:"TokenServiceUrl"`
-	ClientID        string `json:"ClientId"`
-	Scope           string `json:"Scope,omitempty"`
+	Name                 string `json:"Name"`
+	Description          string `json:"Description,omitempty"`
+	TokenServiceURL      string `json:"TokenServiceUrl"`
+	ClientID             string `json:"ClientId"`
+	Scope                string `json:"Scope,omitempty"`
+	ClientAuthentication string `json:"ClientAuthentication,omitempty"`
+	ScopeContentType     string `json:"ScopeContentType,omitempty"`
+	Resource             string `json:"Resource,omitempty"`
+	Audience             string `json:"Audience,omitempty"`
 }
 
 // oauth2ClientCredentialWriteRequest is the request body shape for creating
@@ -38,12 +38,16 @@ type OAuth2ClientCredential struct {
 // there is no code path that could accidentally decode a client secret out
 // of an API response into it.
 type oauth2ClientCredentialWriteRequest struct {
-	Name            string `json:"Name"`
-	Description     string `json:"Description,omitempty"`
-	TokenServiceURL string `json:"TokenServiceUrl"`
-	ClientID        string `json:"ClientId"`
-	ClientSecret    string `json:"ClientSecret"`
-	Scope           string `json:"Scope,omitempty"`
+	Name                 string `json:"Name"`
+	Description          string `json:"Description,omitempty"`
+	TokenServiceURL      string `json:"TokenServiceUrl"`
+	ClientID             string `json:"ClientId"`
+	ClientSecret         string `json:"ClientSecret"`
+	Scope                string `json:"Scope,omitempty"`
+	ClientAuthentication string `json:"ClientAuthentication,omitempty"`
+	ScopeContentType     string `json:"ScopeContentType,omitempty"`
+	Resource             string `json:"Resource,omitempty"`
+	Audience             string `json:"Audience,omitempty"`
 }
 
 func oauth2ClientCredentialPath(name string) string {
@@ -73,12 +77,16 @@ func (c *Client) GetOAuth2ClientCredential(ctx context.Context, name string) (*O
 // it even if SAP's response body happened to include one.
 func (c *Client) CreateOAuth2ClientCredential(ctx context.Context, cred OAuth2ClientCredential, clientSecret string) (*OAuth2ClientCredential, error) {
 	payload, err := json.Marshal(oauth2ClientCredentialWriteRequest{ //nolint:gosec // G117: this deliberately marshals the client secret into the request body sent to SAP's Create API -- that is the whole purpose of this call, not a leak; see the write-only handling in resource_oauth2_client_credential.go for why it never reaches Terraform state or a log line
-		Name:            cred.Name,
-		Description:     cred.Description,
-		TokenServiceURL: cred.TokenServiceURL,
-		ClientID:        cred.ClientID,
-		ClientSecret:    clientSecret,
-		Scope:           cred.Scope,
+		Name:                 cred.Name,
+		Description:          cred.Description,
+		TokenServiceURL:      cred.TokenServiceURL,
+		ClientID:             cred.ClientID,
+		ClientSecret:         clientSecret,
+		Scope:                cred.Scope,
+		ClientAuthentication: cred.ClientAuthentication,
+		ScopeContentType:     cred.ScopeContentType,
+		Resource:             cred.Resource,
+		Audience:             cred.Audience,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("securitycontent: encoding oauth2 client credential: %w", err)
@@ -106,12 +114,16 @@ func (c *Client) CreateOAuth2ClientCredential(ctx context.Context, cred OAuth2Cl
 // UpdateUserCredential's doc comment for why the caller re-reads instead.
 func (c *Client) UpdateOAuth2ClientCredential(ctx context.Context, cred OAuth2ClientCredential, clientSecret string) error {
 	payload, err := json.Marshal(oauth2ClientCredentialWriteRequest{ //nolint:gosec // G117: deliberately marshals the client secret into the redeploy request body, the same documented Create-time requirement — see CreateOAuth2ClientCredential above
-		Name:            cred.Name,
-		Description:     cred.Description,
-		TokenServiceURL: cred.TokenServiceURL,
-		ClientID:        cred.ClientID,
-		ClientSecret:    clientSecret,
-		Scope:           cred.Scope,
+		Name:                 cred.Name,
+		Description:          cred.Description,
+		TokenServiceURL:      cred.TokenServiceURL,
+		ClientID:             cred.ClientID,
+		ClientSecret:         clientSecret,
+		Scope:                cred.Scope,
+		ClientAuthentication: cred.ClientAuthentication,
+		ScopeContentType:     cred.ScopeContentType,
+		Resource:             cred.Resource,
+		Audience:             cred.Audience,
 	})
 	if err != nil {
 		return fmt.Errorf("securitycontent: encoding oauth2 client credential: %w", err)

@@ -3,12 +3,12 @@
 page_title: "sapintegrationsuite_keystore_entries Data Source - sapintegrationsuite"
 subcategory: ""
 description: |-
-  Lists every entry in the tenant keystore — both tenant-administrator-owned and SAP-owned entries; SAP's API exposes no field distinguishing the two, so this data source cannot filter by ownership. Useful for brownfield discovery before importing individual sapintegrationsuite_certificate or sapintegrationsuite_key_pair resources. Backed by the public Security Content OData V2 API (KeystoreEntries); entries are sorted by alias, since SAP does not document a guaranteed response order.
+  Lists every entry of the tenant keystore, both tenant-owned and SAP-owned; owner tells them apart. Useful for brownfield discovery before importing sapintegrationsuite_certificate or sapintegrationsuite_key_pair resources, and for finding certificates that are about to expire. Entries are sorted by alias, since SAP does not document a response order.
 ---
 
 # sapintegrationsuite_keystore_entries (Data Source)
 
-Lists every entry in the tenant keystore — both tenant-administrator-owned and SAP-owned entries; SAP's API exposes no field distinguishing the two, so this data source cannot filter by ownership. Useful for brownfield discovery before importing individual sapintegrationsuite_certificate or sapintegrationsuite_key_pair resources. Backed by the public Security Content OData V2 API (KeystoreEntries); entries are sorted by alias, since SAP does not document a guaranteed response order.
+Lists every entry of the tenant keystore, both tenant-owned and SAP-owned; owner tells them apart. Useful for brownfield discovery before importing sapintegrationsuite_certificate or sapintegrationsuite_key_pair resources, and for finding certificates that are about to expire. Entries are sorted by alias, since SAP does not document a response order.
 
 ## Example Usage
 
@@ -40,8 +40,25 @@ output "entries_expiring_soon" {
 Read-Only:
 
 - `alias` (String) The keystore entry's alias.
-- `hex_alias` (String) The lowercase hex encoding of alias's UTF-8 bytes — SAP's actual OData key for this entity.
-- `key_size` (Number) The entry's key size in bits.
-- `key_type` (String) The entry's key type, exactly as SAP returns it (for example "RSA", "DSA", "EC").
-- `valid_not_after` (String) The upper boundary of the certificate's validity period, exactly as SAP returns it.
-- `valid_not_before` (String) The lower boundary of the certificate's validity period, exactly as SAP returns it.
+- `certificate_version` (Number) X.509 version of the certificate.
+- `created_by` (String) User who created the entry.
+- `created_time` (String) When the entry was created, RFC 3339 in UTC.
+- `elliptic_curve` (String) Curve name for EC keys, or null.
+- `entry_type` (String) Kind of entry as SAP reports it in Type, for example a certificate or a key pair.
+- `fingerprint_sha1` (String) SHA-1 fingerprint of the certificate as SAP reports it.
+- `fingerprint_sha256` (String) SHA-256 fingerprint of the certificate as SAP reports it.
+- `fingerprint_sha512` (String) SHA-512 fingerprint of the certificate as SAP reports it.
+- `hex_alias` (String) Lowercase hex encoding of the alias's UTF-8 bytes, which SAP uses as the OData key. Informational; you never need to supply it.
+- `issuer_dn` (String) Issuer distinguished name of the certificate.
+- `key_size` (Number) Key size in bits.
+- `key_type` (String) Key type, for example "RSA", "DSA" or "EC".
+- `last_modified_by` (String) User who last changed the entry.
+- `last_modified_time` (String) When the entry was last changed, RFC 3339 in UTC.
+- `owner` (String) Who owns the entry as SAP reports it. SAP-owned entries are managed by SAP and should not be changed by tenant automation.
+- `serial_number` (String) Serial number of the certificate.
+- `signature_algorithm` (String) Signature algorithm of the certificate.
+- `status` (String) Status SAP reports for the entry.
+- `subject_dn` (String) Subject distinguished name of the certificate.
+- `valid_not_after` (String) End of the certificate's validity period, RFC 3339 in UTC.
+- `valid_not_before` (String) Start of the certificate's validity period, RFC 3339 in UTC.
+- `validity` (String) Validity state SAP derives from the validity period.

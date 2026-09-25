@@ -27,7 +27,11 @@ data "sapintegrationsuite_oauth2_client_credential" "backend" {
 
 ### Read-Only
 
+- `audience` (String) Audience identifier sent to the token service, if any.
+- `client_authentication` (String) How the client ID and secret are sent to the token service, as SAP stores it.
 - `client_id` (String) The OAuth2 client ID registered with the token service.
 - `description` (String) The credential artifact's free-text description.
+- `resource` (String) Resource identifier sent to the token service, if any.
 - `scope` (String) OAuth2 scope requested, if the token service requires one.
+- `scope_content_type` (String) Content type of the token request, as SAP stores it.
 - `token_service_url` (String) URL of the OAuth2 authorization server that issues the access token.

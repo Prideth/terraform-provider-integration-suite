@@ -29,43 +29,17 @@ func (d *keystoreEntriesDataSource) Metadata(_ context.Context, req datasource.M
 
 func (d *keystoreEntriesDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Lists every entry in the tenant keystore — both tenant-administrator-owned " +
-			"and SAP-owned entries; SAP's API exposes no field distinguishing the two, so this data " +
-			"source cannot filter by ownership. Useful for brownfield discovery before importing " +
-			"individual sapintegrationsuite_certificate or sapintegrationsuite_key_pair resources. " +
-			"Backed by the public Security Content OData V2 API (KeystoreEntries); entries are " +
-			"sorted by alias, since SAP does not document a guaranteed response order.",
+		Description: "Lists every entry of the tenant keystore, both tenant-owned and SAP-owned; " +
+			"owner tells them apart. Useful for brownfield discovery before importing " +
+			"sapintegrationsuite_certificate or sapintegrationsuite_key_pair resources, and for " +
+			"finding certificates that are about to expire. Entries are sorted by alias, since SAP " +
+			"does not document a response order.",
 		Attributes: map[string]schema.Attribute{
 			"entries": schema.ListNestedAttribute{
 				Computed:    true,
 				Description: "Every entry in the tenant keystore, sorted by alias.",
 				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"alias": schema.StringAttribute{
-							Computed:    true,
-							Description: "The keystore entry's alias.",
-						},
-						"hex_alias": schema.StringAttribute{
-							Computed:    true,
-							Description: "The lowercase hex encoding of alias's UTF-8 bytes — SAP's actual OData key for this entity.",
-						},
-						"key_type": schema.StringAttribute{
-							Computed:    true,
-							Description: "The entry's key type, exactly as SAP returns it (for example \"RSA\", \"DSA\", \"EC\").",
-						},
-						"key_size": schema.Int64Attribute{
-							Computed:    true,
-							Description: "The entry's key size in bits.",
-						},
-						"valid_not_before": schema.StringAttribute{
-							Computed:    true,
-							Description: "The lower boundary of the certificate's validity period, exactly as SAP returns it.",
-						},
-						"valid_not_after": schema.StringAttribute{
-							Computed:    true,
-							Description: "The upper boundary of the certificate's validity period, exactly as SAP returns it.",
-						},
-					},
+					Attributes: keystoreEntryAttributes(false),
 				},
 			},
 		},

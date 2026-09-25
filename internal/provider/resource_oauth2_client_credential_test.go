@@ -6,6 +6,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -32,6 +33,10 @@ func TestOAuth2ClientCredentialResource_SchemaRequiredComputed(t *testing.T) {
 		{"token_service_url", true, false},
 		{"client_id", true, false},
 		{"scope", false, false},
+		{"client_authentication", false, true},
+		{"scope_content_type", false, true},
+		{"resource", false, true},
+		{"audience", false, true},
 		{"client_secret_wo", true, false},
 		{"client_secret_wo_version", true, false},
 	}
@@ -111,5 +116,28 @@ func TestOAuth2ClientCredentialResource_ImportState(t *testing.T) {
 	resp.Diagnostics.Append(resp.State.GetAttribute(context.Background(), pathRootID(), &id)...)
 	if id.ValueString() != "BACKEND_OAUTH" {
 		t.Errorf("id = %q, want BACKEND_OAUTH", id.ValueString())
+	}
+}
+
+func TestOAuth2ClientCredentialResource_TokenRequestSettingsKeepPriorState(t *testing.T) {
+	s := oauth2ClientCredentialSchema(t).Schema
+
+	for _, name := range []string{"client_authentication", "scope_content_type", "resource", "audience"} {
+		attr, ok := s.Attributes[name].(schema.StringAttribute)
+		if !ok {
+			t.Fatalf("attribute %q missing or not a StringAttribute", name)
+		}
+		if !attr.Optional || !attr.Computed {
+			t.Errorf("%s must be Optional+Computed so SAP defaults and UI values are tracked", name)
+		}
+		keepsState := false
+		for _, m := range attr.PlanModifiers {
+			if m.Description(context.Background()) == stringplanmodifier.UseStateForUnknown().Description(context.Background()) {
+				keepsState = true
+			}
+		}
+		if !keepsState {
+			t.Errorf("%s must use UseStateForUnknown so an omitted value is resent, not cleared, on PUT", name)
+		}
 	}
 }

@@ -21,11 +21,15 @@ type oauth2ClientCredentialDataSource struct {
 }
 
 type oauth2ClientCredentialDataSourceModel struct {
-	ID              types.String `tfsdk:"id"`
-	Description     types.String `tfsdk:"description"`
-	TokenServiceURL types.String `tfsdk:"token_service_url"`
-	ClientID        types.String `tfsdk:"client_id"`
-	Scope           types.String `tfsdk:"scope"`
+	ID                   types.String `tfsdk:"id"`
+	Description          types.String `tfsdk:"description"`
+	TokenServiceURL      types.String `tfsdk:"token_service_url"`
+	ClientID             types.String `tfsdk:"client_id"`
+	Scope                types.String `tfsdk:"scope"`
+	ClientAuthentication types.String `tfsdk:"client_authentication"`
+	ScopeContentType     types.String `tfsdk:"scope_content_type"`
+	Resource             types.String `tfsdk:"resource"`
+	Audience             types.String `tfsdk:"audience"`
 }
 
 func (d *oauth2ClientCredentialDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -58,6 +62,22 @@ func (d *oauth2ClientCredentialDataSource) Schema(_ context.Context, _ datasourc
 			"scope": schema.StringAttribute{
 				Computed:    true,
 				Description: "OAuth2 scope requested, if the token service requires one.",
+			},
+			"client_authentication": schema.StringAttribute{
+				Computed:    true,
+				Description: "How the client ID and secret are sent to the token service, as SAP stores it.",
+			},
+			"scope_content_type": schema.StringAttribute{
+				Computed:    true,
+				Description: "Content type of the token request, as SAP stores it.",
+			},
+			"resource": schema.StringAttribute{
+				Computed:    true,
+				Description: "Resource identifier sent to the token service, if any.",
+			},
+			"audience": schema.StringAttribute{
+				Computed:    true,
+				Description: "Audience identifier sent to the token service, if any.",
 			},
 		},
 	}
@@ -92,10 +112,14 @@ func (d *oauth2ClientCredentialDataSource) Read(ctx context.Context, req datasou
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, oauth2ClientCredentialDataSourceModel{
-		ID:              types.StringValue(cred.Name),
-		Description:     stringOrNull(cred.Description),
-		TokenServiceURL: types.StringValue(cred.TokenServiceURL),
-		ClientID:        types.StringValue(cred.ClientID),
-		Scope:           stringOrNull(cred.Scope),
+		ID:                   types.StringValue(cred.Name),
+		Description:          stringOrNull(cred.Description),
+		TokenServiceURL:      types.StringValue(cred.TokenServiceURL),
+		ClientID:             types.StringValue(cred.ClientID),
+		Scope:                stringOrNull(cred.Scope),
+		ClientAuthentication: stringOrNull(cred.ClientAuthentication),
+		ScopeContentType:     stringOrNull(cred.ScopeContentType),
+		Resource:             stringOrNull(cred.Resource),
+		Audience:             stringOrNull(cred.Audience),
 	})...)
 }

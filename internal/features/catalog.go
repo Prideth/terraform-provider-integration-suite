@@ -611,19 +611,24 @@ var Catalog = []Feature{
 			"The client secret is never returned by SAP's read API; client_secret_wo/" +
 				"client_secret_wo_version are write-only attributes (Terraform CLI 1.11+ required) and " +
 				"drift on the secret value itself cannot be detected.",
-			"Only name, description, token_service_url, client_id, client_secret, and scope are " +
-				"exposed: SAP's UI additionally documents Grant Type placement, Client Authentication " +
-				"mode (body vs. header), Resource, Audience, and up to 20 custom parameters, but this " +
-				"project could not confirm their OData property names against $metadata or a documented " +
-				"example payload, so they are deliberately unimplemented rather than guessed.",
+			"client_authentication, scope_content_type, resource and audience map to the " +
+				"ClientAuthentication, ScopeContentType, Resource and Audience properties confirmed by " +
+				"a tenant $metadata. Their accepted constants are undocumented, so they are passed " +
+				"through; they are Optional+Computed so every PUT resends values set in the UI.",
+			"Custom parameters are not managed: $metadata shows them as a CustomParameters " +
+				"navigation (Key, Value, SendAsPartOf, all three forming the key), but not whether they " +
+				"are written by deep insert or separately. The UI's grant-type placement (URL or body) " +
+				"has no API property at all. Because a PUT replaces the entity, custom parameters set " +
+				"in the UI may not survive an update through Terraform; this has not been verified.",
 			"Update is implemented as a full PUT redeploy and resends client_secret_wo on every apply " +
 				"that touches this resource, matching SAP's documented requirement to re-enter the " +
 				"client secret on every edit.",
 			"OAuth2 Authorization Code and OAuth2 SAML Bearer Assertion are separate SAP artifact types " +
 				"this provider does not implement: Authorization Code requires interactive human " +
 				"authorization (see security.oauth2_authorization_code note in " +
-				"docs/guides/security-content.md), and SAML Bearer Assertion's public API contract was " +
-				"not confirmed.",
+				"docs/guides/security-content.md). OAuth2 SAML Bearer Assertion and the 2026 OAuth2 " +
+				"Password Credentials artifact have no entity set in the tenant $metadata of /api/v1, " +
+				"so there is no public API to manage them.",
 		},
 		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},
 	},
@@ -642,18 +647,15 @@ var Catalog = []Feature{
 		PublicAPI:   true,
 		APIProtocol: "OData V2",
 		Limitations: []string{
-			"Confirmed fields (verbatim from SAP's own \"Get All Keystore Entries\"/\"Get Keystore " +
-				"Entry by Alias\" documented example): Hexalias, Alias, KeyType, KeySize, " +
-				"ValidNotBefore, ValidNotAfter. SAP's own example response is truncated (\"....\"), " +
-				"and prose elsewhere mentions Subject DN/Issuer DN/last-modified information existing " +
-				"without giving their exact JSON property names, so those are not exposed as raw SAP " +
-				"fields — sapintegrationsuite_certificate derives subject/issuer/serial/fingerprint " +
-				"locally instead, by parsing the certificate bytes with Go's crypto/x509.",
-			"No API field distinguishes SAP-owned from tenant-administrator-owned entries. This " +
-				"provider does not guess at ownership; sapintegrationsuite_certificate and " +
-				"sapintegrationsuite_key_pair rely on and surface SAP's own server-side protection " +
-				"when an Update/Delete is attempted against a protected entry, rather than trying to " +
-				"detect it in advance — see docs/guides/security-content.md.",
+			"Fields follow the tenant $metadata: besides alias, key type and size and validity, " +
+				"the data sources expose entry type, owner, status, subject and issuer DN, serial " +
+				"number, signature algorithm, elliptic curve, certificate version, SHA-1/256/512 " +
+				"fingerprints and creation/modification details. Dates are converted from OData V2 " +
+				"literals to RFC 3339.",
+			"owner shows who owns an entry, but its values are not documented. The certificate and " +
+				"key pair resources therefore still rely on SAP's own server-side protection when an " +
+				"Update or Delete targets an SAP-owned entry, rather than trying to detect it in " +
+				"advance — see docs/guides/security-content.md.",
 			"No resource: this entity represents fundamentally different object types (plain " +
 				"certificates, generated key pairs) with different lifecycles, so a single mutable " +
 				"sapintegrationsuite_keystore_entry resource was deliberately not created — see " +
@@ -733,8 +735,9 @@ var Catalog = []Feature{
 				"Key Pair/SSH Key Pair\" UI documentation uses the identical Key Pair attribute set " +
 				"(alias, key type, key size, signature algorithm, subject DN fields, validity) for " +
 				"both — \"Create > Key Pair\" and \"Create > SSH Key\" are the same underlying " +
-				"mechanism with a different label. No separate SSHKeyGenerationRequests field " +
-				"contract (mandatory/optional fields, example body) was found documented anywhere.",
+				"mechanism with a different label. The tenant $metadata does define " +
+				"SSHKeyGenerationRequests (with SSHFile and Password) and SSHKeyResources, but SAP " +
+				"documents no request for either, so no separate resource is built on them.",
 			"An RSA or DSA sapintegrationsuite_key_pair's public key can be exported in OpenSSH " +
 				"format via public_key_openssh, backed by SAP's confirmed " +
 				"KeystoreEntries('<hexalias>')/Sshkey/$value — this covers the SSH use case without a " +
@@ -747,20 +750,19 @@ var Catalog = []Feature{
 		Name:          "Certificate Chain",
 		Description:   "A certificate chain associated with a key pair.",
 		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonResearchRequired,
+		SupportReason: ReasonPublicAPIIncomplete,
 		PublicAPI:     true,
 		APIProtocol:   "OData V2",
 		Planned:       true,
 		Limitations: []string{
-			"Reverified for this feature family: SAP's Security Content API overview describes " +
-				"certificate chain import/export as part of the Key Pair resource's own capabilities " +
-				"(\"create a certificate signing request, or import and export the related certificate " +
-				"chain\"), not an independently documented CertificateChainResources contract — no " +
-				"example request, field table, or worked response was found for it anywhere in SAP's " +
-				"published documentation, unlike Certificate and Key Pair. Not implemented this phase; " +
-				"if a concrete contract is confirmed, this would likely be scoped by key-pair alias " +
-				"(for example sapintegrationsuite_key_pair_certificate_chain) rather than a standalone " +
-				"global resource, matching that ownership relationship.",
+			"The tenant $metadata defines CertificateChainResources, a media entity keyed by the " +
+				"key pair's Hexalias with a KeystoreEntry navigation, and a read-only ChainCertificates " +
+				"set (Hexalias, Index and certificate details). SAP Help describes chain import and " +
+				"export only as a capability of the Key Pair resource and documents neither the media " +
+				"type nor the request that uploads a chain, so nothing is implemented yet.",
+			"Once the upload contract is confirmed, the intended shape is a resource scoped to one " +
+				"key pair alias (for example sapintegrationsuite_key_pair_certificate_chain), not a " +
+				"standalone global resource.",
 		},
 	},
 	{
@@ -793,22 +795,19 @@ var Catalog = []Feature{
 		Description: "A \"Secure Parameter\" security material artifact: an opaque confidential value " +
 			"(for example for a custom adapter) deployed without an associated username.",
 		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonResearchRequired,
-		PublicAPI:     false,
-		Planned:       false,
+		SupportReason: ReasonPublicAPIIncomplete,
+		PublicAPI:     true,
+		APIProtocol:   "OData V2",
+		Planned:       true,
 		Limitations: []string{
-			"Reverified for this feature family: SAP's own Security Content API overview lists " +
-				"\"Secure Parameter\" as a resource conceptually covered by the same OData API as " +
-				"User Credentials/OAuth2 Client Credentials, but the curated \"Security Content " +
-				"Example Requests\" index (the same authoritative per-entity page this project used " +
-				"to confirm every other Security Content operation) lists zero example requests for " +
-				"it, and its own \"Deploying a Secure Parameter Artifact\" page describes only the " +
-				"Eclipse/Node-Explorer deployment wizard, not a REST contract. Combined with prior " +
-				"third-party evidence of an OData error resolving a SecureParameters entity set, this " +
-				"remains unconfirmed rather than either \"no public API\" (the overview page does " +
-				"list it) or \"public API\" (nothing about it is actually callable-confirmed). If a " +
-				"public contract is confirmed, this would be a strong write-only-attribute candidate " +
-				"(value_wo/value_wo_version), the same shape as security.user_credential's password.",
+			"The tenant $metadata defines a SecureParameters entity set keyed by Name, with " +
+				"Description, SecureParam (the secret), DeployedBy, DeployedOn and Status. SAP Help does " +
+				"not list it among the Security Content API resources and publishes no example request, " +
+				"and $metadata does not say which operations the set accepts. Implementing it means " +
+				"sending a secret to an endpoint whose create and update behavior is unverified, so it " +
+				"waits for a read and write check against a tenant.",
+			"Once confirmed, the intended shape is a resource with value_wo/value_wo_version, the " +
+				"same write-only pattern as security.user_credential's password.",
 		},
 	},
 	{
@@ -827,9 +826,70 @@ var Catalog = []Feature{
 				"Security Content API overview's resource table), Known Hosts does not appear in " +
 				"that table at all. SAP's \"Deploying an SSH Known Hosts Artifact\" documentation " +
 				"describes only the Manage Security Material UI (Create > Known Hosts (SSH), " +
-				"Browse/Add/Deploy), with no REST endpoint mentioned anywhere. No public OData " +
-				"entity set or REST endpoint was found for it in any documentation this project could " +
-				"reach.",
+				"Browse/Add/Deploy), with no REST endpoint mentioned anywhere. The tenant $metadata of " +
+				"/api/v1 (September 2026) has no known-hosts entity either.",
+		},
+	},
+	{
+		Key:    "security.oauth2_password_credential",
+		Domain: "security",
+		Name:   "OAuth2 Password Credentials",
+		Description: "An OAuth2 resource owner password credentials artifact (new in 2026): user " +
+			"name, password and optional client authentication for the OAuth2 password grant.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonNoPublicAPI,
+		PublicAPI:     false,
+		Limitations: []string{
+			"Documented only as a Security Material UI procedure (Create > OAuth2 Password " +
+				"Credentials). The tenant $metadata of /api/v1 has no entity set for it, and " +
+				"OAuth2ClientCredential has no user or password property it could be stored in.",
+		},
+	},
+	{
+		Key:    "security.oauth2_saml_bearer",
+		Domain: "security",
+		Name:   "OAuth2 SAML Bearer Assertion",
+		Description: "An OAuth2 SAML bearer assertion artifact for principal propagation to " +
+			"OAuth-protected receivers.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonNoPublicAPI,
+		PublicAPI:     false,
+		Limitations: []string{
+			"Documented only as a Security Material UI procedure. The tenant $metadata of /api/v1 " +
+				"has no SAML bearer entity set.",
+		},
+	},
+	{
+		Key:    "security.where_used",
+		Domain: "security",
+		Name:   "Security Material Where-Used",
+		Description: "The list of integration artifacts that reference a security material " +
+			"artifact.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonNoPublicAPI,
+		PublicAPI:     false,
+		Limitations: []string{
+			"Shown in the Security Material UI only; the tenant $metadata of /api/v1 has no " +
+				"where-used entity or function import. If one appears it would be a read-only data " +
+				"source, never mutable state.",
+		},
+	},
+	{
+		Key:    "security.pgp_keyring",
+		Domain: "security",
+		Name:   "PGP Keyrings",
+		Description: "The tenant's PGP public and secret keyrings used by the PGP encryptor and " +
+			"decryptor steps.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonPublicAPIIncomplete,
+		PublicAPI:     true,
+		APIProtocol:   "OData V2",
+		Limitations: []string{
+			"The tenant $metadata defines PgpKeyrings, PgpPublicKeyrings, PgpSecretKeyrings, " +
+				"PgpKeyEntries, PgpSubKeys, PgpUserIds and keyring upload resources, but SAP Help " +
+				"documents no request for any of them. Keyrings are whole-file objects, and the secret " +
+				"keyring holds private keys, so a Terraform design would need a confirmed upload format " +
+				"and write-only handling of the secret keyring before anything is implemented.",
 		},
 	},
 

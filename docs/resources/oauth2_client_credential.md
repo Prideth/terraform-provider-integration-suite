@@ -3,12 +3,12 @@
 page_title: "sapintegrationsuite_oauth2_client_credential Resource - sapintegrationsuite"
 subcategory: ""
 description: |-
-  Manages a Security Content "OAuth2 Client Credentials" artifact: the client ID, client secret, and token service URL an integration flow adapter uses to obtain an OAuth2 access token for outbound requests (RFC 6749 client credentials grant). Backed by the public Security Content OData V2 API (OAuth2ClientCredentials). This provider only exposes the fields SAP's Help Portal documents unambiguously (name, description, token service URL, client ID, client secret, scope); grant-type placement, client authentication mode (body vs. header), resource, audience, and custom parameters are not yet implemented — see docs/guides/security-content.md. The client secret is a write-only attribute: Terraform never stores it in plan or state, and SAP documents that it must be re-entered on every edit, so this provider resends it on every apply that touches the resource. Requires Terraform CLI 1.11 or later for write-only attribute support.
+  Manages a Security Content "OAuth2 Client Credentials" artifact: the client ID, client secret, and token service URL an integration flow adapter uses to obtain an OAuth2 access token for outbound requests (RFC 6749 client credentials grant). Backed by the public Security Content OData V2 API (OAuth2ClientCredentials). This provider manages the artifact's scalar fields (name, description, token service URL, client ID, client secret, scope, client authentication, content type, resource, audience); custom parameters are not managed and the grant-type placement has no API property — see docs/guides/security-content.md. The client secret is a write-only attribute: Terraform never stores it in plan or state, and SAP documents that it must be re-entered on every edit, so this provider resends it on every apply that touches the resource. Requires Terraform CLI 1.11 or later for write-only attribute support.
 ---
 
 # sapintegrationsuite_oauth2_client_credential (Resource)
 
-Manages a Security Content "OAuth2 Client Credentials" artifact: the client ID, client secret, and token service URL an integration flow adapter uses to obtain an OAuth2 access token for outbound requests (RFC 6749 client credentials grant). Backed by the public Security Content OData V2 API (OAuth2ClientCredentials). This provider only exposes the fields SAP's Help Portal documents unambiguously (name, description, token service URL, client ID, client secret, scope); grant-type placement, client authentication mode (body vs. header), resource, audience, and custom parameters are not yet implemented — see docs/guides/security-content.md. The client secret is a write-only attribute: Terraform never stores it in plan or state, and SAP documents that it must be re-entered on every edit, so this provider resends it on every apply that touches the resource. Requires Terraform CLI 1.11 or later for write-only attribute support.
+Manages a Security Content "OAuth2 Client Credentials" artifact: the client ID, client secret, and token service URL an integration flow adapter uses to obtain an OAuth2 access token for outbound requests (RFC 6749 client credentials grant). Backed by the public Security Content OData V2 API (OAuth2ClientCredentials). This provider manages the artifact's scalar fields (name, description, token service URL, client ID, client secret, scope, client authentication, content type, resource, audience); custom parameters are not managed and the grant-type placement has no API property — see docs/guides/security-content.md. The client secret is a write-only attribute: Terraform never stores it in plan or state, and SAP documents that it must be re-entered on every edit, so this provider resends it on every apply that touches the resource. Requires Terraform CLI 1.11 or later for write-only attribute support.
 
 ## Example Usage
 
@@ -48,8 +48,12 @@ resource "sapintegrationsuite_oauth2_client_credential" "backend" {
 
 ### Optional
 
+- `audience` (String) Audience identifier sent to the token service, for services that require one. Passed through unchanged. Omitting the attribute keeps whatever value SAP currently holds; it cannot be cleared from Terraform.
+- `client_authentication` (String) How the client ID and secret are sent to the token service, as SAP stores it in ClientAuthentication. The UI offers "Send as Body Parameter" (default) and "Send as Request Header"; the API constants for these are not documented. Passed through unchanged. Omitting the attribute keeps whatever value SAP currently holds; it cannot be cleared from Terraform.
 - `description` (String) A free-text description of the credential artifact.
+- `resource` (String) Resource identifier sent to the token service, for services that require one. Passed through unchanged. Omitting the attribute keeps whatever value SAP currently holds; it cannot be cleared from Terraform.
 - `scope` (String) OAuth2 scope to request, if the token service requires one.
+- `scope_content_type` (String) Content type of the token request, as SAP stores it in ScopeContentType (the UI's "Content Type" field). Passed through unchanged. Omitting the attribute keeps whatever value SAP currently holds; it cannot be cleared from Terraform.
 
 ## Import
 

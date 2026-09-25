@@ -34,6 +34,18 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- `sapintegrationsuite_oauth2_client_credential` and its data source gain
+  `client_authentication`, `scope_content_type`, `resource` and `audience`,
+  the property names confirmed by a tenant `$metadata`. They are optional
+  and computed, so every update resends the value SAP holds. Previously an
+  update, which is a full `PUT`, could reset settings made in the UI.
+- The keystore entry data sources return `entry_type`, `owner`, `status`,
+  `subject_dn`, `issuer_dn`, `serial_number`, `signature_algorithm`,
+  `elliptic_curve`, `certificate_version`, `validity`,
+  `fingerprint_sha1/256/512`, `created_by`, `created_time`,
+  `last_modified_by` and `last_modified_time`.
+- The feature catalog lists OAuth2 Password Credentials, OAuth2 SAML Bearer,
+  security material where-used and PGP keyrings with their current status.
 - `data.sapintegrationsuite_access_policy_runtime_assignments` lists the
   runtimes an access policy is replicated to (Cloud Integration runtime,
   Integration Cell, Edge Integration Cells) with SAP's transfer status,
@@ -63,6 +75,10 @@ All notable changes to this project are documented in this file.
   current API Management object without a public API. The other Current API
   Management and Integration Cell entries now cite the September 2026
   re-audit, which confirmed that none of them has a public API yet.
+- **Behavior change:** the keystore entry data sources return
+  `valid_not_before` and `valid_not_after` as RFC 3339 timestamps instead of
+  SAP's raw `/Date(...)/` literals. OData V2 date literals with a zone
+  offset are now parsed correctly.
 
 ### Documentation
 
@@ -77,8 +93,9 @@ All notable changes to this project are documented in this file.
 
 - **Breaking:** `reconciliation_status` on the access policy resource and
   data source. The `AccessPolicies` entity has no such property; runtime
-  replication lives in the undocumented `AccessPolicyRuntimeAssignments`
-  navigation property. Existing state is unaffected.
+  replication lives in the `AccessPolicyRuntimeAssignments` navigation
+  property, which the new runtime assignments data source reads. Existing
+  state is unaffected.
 
 ## 0.1.0 - 2026-09-24
 

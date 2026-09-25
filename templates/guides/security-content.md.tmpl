@@ -80,6 +80,48 @@ replacement. Only `id` (the artifact's name/alias) and, for user credentials, `k
 system-specific sub-type the credential is) force replacement, since SAP does not document
 changing either of those via Edit.
 
+## OAuth2 token request settings
+
+Many token services need more than a client ID and secret. SAP's OAuth2 Client Credentials
+artifact covers that with four settings, which the tenant `$metadata` names
+`ClientAuthentication`, `ScopeContentType`, `Resource` and `Audience`. The resource exposes
+them as `client_authentication`, `scope_content_type`, `resource` and `audience`:
+
+```terraform
+resource "sapintegrationsuite_oauth2_client_credential" "graph" {
+  id                = "MS_GRAPH_OAUTH"
+  token_service_url = "https://login.example.invalid/tenant-id/oauth2/v2.0/token"
+  client_id         = "00000000-0000-0000-0000-000000000000"
+  scope             = "https://graph.example.invalid/.default"
+  resource          = "https://graph.example.invalid"
+
+  client_secret_wo         = var.graph_client_secret
+  client_secret_wo_version = "1"
+}
+```
+
+Two details shape how they behave:
+
+- SAP does not document the constants the API expects. The UI offers *Send as Body
+  Parameter* (the default) and *Send as Request Header* for client authentication, but the
+  stored values may differ from those labels. The provider passes whatever you write through
+  unchanged. The easiest way to learn the right value is to set it once in the UI and read it
+  back with the data source.
+- An update is a `PUT`, and in OData V2 a `PUT` replaces the whole entity. If the provider only
+  sent the attributes in your configuration, every rotation would wipe settings someone made
+  in the UI. The four attributes are therefore *optional and computed*: when you leave one out,
+  Terraform keeps the value SAP currently holds and sends it back on every update. The flip
+  side is that you cannot clear a value from Terraform by deleting the attribute. Clear it in
+  the UI instead.
+
+Two parts of the UI dialog are not covered. The grant-type placement (URL or body) has no
+property in the API at all. The **custom parameters** table (up to 20 key/value pairs sent in
+the body, header or URL) is modeled in `$metadata` as a `CustomParameters` navigation property,
+but SAP does not document how it is written. Because updates replace the entity, custom
+parameters maintained in the UI may not survive a rotation through Terraform. Until that is
+verified, do not combine custom parameters with Terraform-managed rotation for the same
+credential.
+
 ## Drift detection is limited for secrets
 
 Terraform can never detect that a password or client secret changed outside Terraform: SAP's
@@ -115,8 +157,23 @@ pairs, distinct from the credentials above. This provider manages it through thr
 
 - [`data.sapintegrationsuite_keystore_entry`](../data-sources/keystore_entry.md) /
   [`data.sapintegrationsuite_keystore_entries`](../data-sources/keystore_entries.md) — read-only
-  discovery of any keystore entry (certificate, SAP-generated key pair, or other RSA/DSA/EC-keyed
-  entry) by alias, or every entry in the tenant keystore.
+  discovery of any keystore entry by alias, or of every entry in the tenant keystore. Besides
+  alias, key type, size and validity, they return what SAP stores about the certificate: subject
+  and issuer DN, serial number, signature algorithm, SHA-1/256/512 fingerprints, owner, status,
+  and who created and last changed the entry. Validity and timestamps are converted to RFC 3339,
+  which makes expiry checks straightforward:
+
+  ```terraform
+  data "sapintegrationsuite_keystore_entries" "all" {}
+
+  locals {
+    expiring_within_30_days = [
+      for e in data.sapintegrationsuite_keystore_entries.all.entries : e.alias
+      if e.valid_not_after != null &&
+      timecmp(e.valid_not_after, timeadd(plantimestamp(), "720h")) < 0
+    ]
+  }
+  ```
 - [`sapintegrationsuite_certificate`](../resources/certificate.md) — manages a standalone X.509
   certificate (for example a partner's or CA's public certificate you trust).
 - [`sapintegrationsuite_key_pair`](../resources/key_pair.md) — generates an SAP-managed key pair;
@@ -198,12 +255,13 @@ defines it (`key_type`, `key_size`, the subject DN fields, validity dates, and s
 `RequiresReplace`. Changing any of them generates an entirely new key pair under the same alias
 lifecycle (replace), never an in-place mutation of existing key material.
 
-**Read is only partially confirmed.** SAP's `KeystoreEntries` GET confirms `key_type`,
-`key_size`, `valid_not_before`, and `valid_not_after` back; `signature_algorithm`,
-`key_algorithm_parameter`, and every subject DN field are not confirmed returned by any
-documented GET. This provider refreshes what it can confirm on every plan and trusts the rest
-from the last successful write — which is why this resource's support status is `partial`, not a
-statement that anything about it is unsafe to use.
+**Read covers only part of the configuration.** `KeystoreEntries` returns `key_type`,
+`key_size` and the validity period, and according to the tenant `$metadata` also the signature
+algorithm and the subject DN as one combined string. It does not return the individual subject
+fields (common name, organization and so on) or `key_algorithm_parameter` that the resource is
+configured with. The provider refreshes what it can read on every plan and trusts the rest from
+the last successful write, which is why this resource's support status is `partial`. It is not
+a statement that anything about it is unsafe to use.
 
 **There is no separate "SSH Key" resource.** SAP's own Security Content API overview lists no
 independent SSH Key entity, and the tenant keystore UI's own "Creating a Key Pair/SSH Key Pair"
@@ -226,15 +284,14 @@ Delete uses the same single-alias mass-deletion mechanism as `sapintegrationsuit
 ### SAP-owned keystore entries
 
 A tenant keystore typically contains entries the tenant administrator owns and entries SAP owns
-(for example SAP's own root certificates). **No API field distinguishes the two** — this project
-searched thoroughly and found none, only prose confirming the distinction exists. This provider
-does not guess at ownership with a heuristic (matching alias name patterns, for example); instead
-`sapintegrationsuite_certificate` and `sapintegrationsuite_key_pair` simply attempt the operation
-you asked for, and SAP's own server-side protection rejects an Update or Delete against a
-protected entry with an ordinary API error, which this provider surfaces to you exactly as it
-does any other SAP error. If you import an SAP-owned alias into either resource, the first
-Update or Delete you attempt against it will fail with SAP's own rejection — this provider cannot
-warn you sooner, since there is nothing in the API to warn from.
+(for example SAP's own root certificates). The keystore data sources show this in the `owner`
+attribute, which comes from the entry's `Owner` property in the API. SAP does not document the
+values `owner` can take, so the resources do not use it to refuse operations in advance.
+`sapintegrationsuite_certificate` and `sapintegrationsuite_key_pair` attempt the operation you
+asked for, and SAP's server-side protection rejects an Update or Delete against a protected
+entry with an ordinary API error, which the provider passes on to you. Before importing an alias
+into either resource, check its `owner` with the data source. That is the practical way to avoid
+adopting an SAP-owned entry by mistake.
 
 ### Whole-keystore management stays out of scope
 
@@ -252,51 +309,46 @@ UI.
 
 ## Deliberately not implemented
 
-SAP documents several more Security Content artifact types this provider does not manage. Each
-is recorded in `internal/features/catalog.go` with a specific reason, summarized here:
+SAP documents more Security Content artifact types than this provider manages. The reasons
+differ, and the difference matters when you plan around them. Each item is recorded in
+`internal/features/catalog.go`.
 
-- **Certificate Chain** (`security.certificate_chain`) — reverified for this feature family: SAP
-  documents certificate chain import/export as a *capability of* the Key Pair resource ("create a
-  certificate signing request, or import and export the related certificate chain"), not an
-  independently exampled entity — no `CertificateChainResources` example request or field
-  contract was found documented anywhere. If a concrete contract is confirmed later, this would
-  likely be scoped by key-pair alias (`sapintegrationsuite_key_pair_certificate_chain`), not a
-  standalone global resource.
-- **Certificate-User Mapping** (`security.certificate_user_mapping`) — reverified for this
-  feature family and **corrected**: SAP's own documentation for certificate-to-user mapping
-  ("Managing Certificate-to-User Mappings", "Client Certificate Authentication and
-  Certificate-to-User Mapping (Inbound)") exists only for the **Neo** environment. No Cloud
-  Foundry equivalent was found. Since this provider targets Cloud Foundry, this feature is marked
-  `unsupported` / `no_public_api` — not merely unimplemented, but out of reach for this
-  provider's target environment as things stand today.
-- **Secure Parameter** (`security.secure_parameter`) — reverified for this feature family: SAP's
-  own Security Content API overview conceptually lists "Secure Parameter" as a resource, but the
-  curated, authoritative example-requests index for this API — the same page that correctly
-  enumerates every other confirmed operation — lists zero worked examples for it, and its own
-  deployment documentation describes only the Eclipse/Node-Explorer design-time wizard, not a
-  REST contract. Combined with prior third-party evidence of an OData error resolving a
-  `SecureParameters` entity set, this stays unconfirmed. If a public contract is ever confirmed,
-  this would be a strong write-only-attribute candidate (`value_wo`/`value_wo_version`), the same
-  shape as the credential resources' passwords above.
-- **Known Hosts (SSH)** (`security.known_hosts`) — reverified and **strengthened**: unlike Secure
-  Parameter, Known Hosts does not appear in SAP's Security Content API overview's resource table
-  at all. Its own deployment documentation describes only the Manage Security Material UI, with
-  no REST endpoint mentioned anywhere. Corrected from "research required" to "no public API
-  found."
-- **OAuth2 Authorization Code** — requires an interactive human authorization step by its nature
-  (SAP's UI has a dedicated *Authorize* action with a status of *Unauthorized* until a person
-  completes it), which does not fit Terraform's non-interactive plan/apply model. This is
-  considered out of scope on safety grounds, not a research gap.
-- **OAuth2 SAML Bearer Assertion** — investigated only briefly; this project could not confirm a
-  public, safe-to-automate lifecycle for it and did not want to generalize from OAuth2 Client
-  Credentials without evidence.
-- **PGP keyrings** (public and secret) — a PGP *secret* keyring is private key material; this
-  project deliberately did not pursue implementing it without a much higher bar of confirmed API
-  safety than the artifact types above, consistent with this provider's general stance that
-  security takes priority over completeness.
+**SAP's API exists, but its contract is incomplete.** For these, a tenant's `$metadata` shows
+the entities, but SAP documents neither the requests nor which operations are allowed, and
+each one involves secret or key material where a wrong guess is costly:
 
-If you need any of these today, the SAP Integration Suite UI remains the correct tool; this
-provider will not guess at an unconfirmed API contract for a security-sensitive artifact.
+- **Secure Parameter** (`security.secure_parameter`). The `SecureParameters` entity set holds
+  a name, description, the secret itself (`SecureParam`) and deployment status. SAP Help does not
+  list it among the Security Content API resources and gives no example. It becomes a resource
+  with `value_wo`/`value_wo_version` once create and update have been verified against a tenant.
+- **Certificate Chain** (`security.certificate_chain`). `CertificateChainResources` is a media
+  entity per key pair alias, and `ChainCertificates` lists the chain's certificates. The media
+  type and request for uploading a chain are undocumented. The intended shape is a resource
+  scoped to one key pair.
+- **PGP keyrings** (`security.pgp_keyring`). Public and secret keyrings, keys, subkeys and user
+  IDs all have entity sets, with no documented requests. A secret keyring is private key
+  material, so this needs a confirmed upload format and write-only handling first.
+- **OAuth2 custom parameters**. See [OAuth2 token request settings](#oauth2-token-request-settings).
+
+**SAP offers no API.** The tenant `$metadata` of `/api/v1` has no entity for these; they
+exist only in the Security Material UI:
+
+- **OAuth2 Password Credentials** (`security.oauth2_password_credential`), new in 2026.
+- **OAuth2 SAML Bearer Assertion** (`security.oauth2_saml_bearer`).
+- **Known Hosts (SSH)** (`security.known_hosts`).
+- **Where-used** for security material (`security.where_used`). If an API appears, this would
+  become a read-only data source, never managed state.
+- **Certificate-to-User Mapping** (`security.certificate_user_mapping`), which only exists in
+  the Neo environment.
+
+**The API exists, but the object does not fit Terraform.** An **OAuth2 Authorization Code**
+artifact has a full entity in the API, including refresh token handling. Using it requires a
+person to complete an authorization in the browser, and the refresh token is a secret SAP obtains
+and keeps. Terraform's non-interactive plan/apply model has no place for that step, so this
+stays out of scope on purpose.
+
+For any of these, use the SAP Integration Suite UI. The provider does not guess at an
+unconfirmed contract for security-sensitive artifacts.
 
 ## Security notes
 

@@ -141,3 +141,46 @@ func TestClient_GetUpdateDeleteOAuth2ClientCredential(t *testing.T) {
 		t.Fatalf("DeleteOAuth2ClientCredential() error: %v", err)
 	}
 }
+
+// A PUT replaces the whole entity, so the token-request settings must be
+// resent on every update or SAP would reset values maintained in the UI.
+func TestClient_UpdateOAuth2ClientCredential_ResendsTokenRequestSettings(t *testing.T) {
+	var body map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut {
+			t.Errorf("method = %s, want PUT", r.Method)
+		}
+		raw, _ := io.ReadAll(r.Body)
+		if err := json.Unmarshal(raw, &body); err != nil {
+			t.Fatalf("decoding PUT body: %v", err)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	err := New(http.DefaultClient, server.URL).UpdateOAuth2ClientCredential(context.Background(), OAuth2ClientCredential{
+		Name:                 "tf-acc-oauth",
+		TokenServiceURL:      "https://auth.example.invalid/oauth/token",
+		ClientID:             "client",
+		ClientAuthentication: "header-constant",
+		ScopeContentType:     "application/json",
+		Audience:             "https://api.example.invalid",
+	}, "synthetic-secret")
+	if err != nil {
+		t.Fatalf("UpdateOAuth2ClientCredential() error: %v", err)
+	}
+
+	want := map[string]string{
+		"ClientAuthentication": "header-constant",
+		"ScopeContentType":     "application/json",
+		"Audience":             "https://api.example.invalid",
+	}
+	for k, v := range want {
+		if body[k] != v {
+			t.Errorf("PUT body %s = %v, want %q", k, body[k], v)
+		}
+	}
+	if _, ok := body["Resource"]; ok {
+		t.Errorf("an empty Resource must be omitted, got %v", body["Resource"])
+	}
+}

@@ -795,6 +795,37 @@ policies.
   pattern that resolved the Number Ranges research: an entity absent from this index has no
   documented example anywhere, even if it is mentioned conceptually elsewhere).
 
+### Tenant `$metadata` findings (September 2026)
+
+A tenant `$metadata` document (`/api/v1`, namespace `com.sap.hci.api`) settles several
+questions that the documentation left open. It confirms names, keys and types. It does not say
+which operations an entity set accepts, because the document carries no `sap:creatable` or
+`sap:updatable` annotations.
+
+| Entity type (set) | Key | Relevant properties | Effect on the provider |
+|---|---|---|---|
+| `OAuth2ClientCredential` (`OAuth2ClientCredentials`) | `Name` | `TokenServiceUrl`, `ClientId`, `ClientSecret`, `ClientAuthentication`, `Scope`, `ScopeContentType`, `Resource`, `Audience`, `SecurityArtifactDescriptor`; navigation `CustomParameters` | Four new pass-through attributes; custom parameters documented as a gap |
+| `CustomParameter` (`CustomParameters`) | `Key`, `Value`, `SendAsPartOf` | same | Write path undocumented |
+| `UserCredential` (`UserCredentials`) | `Name` | `Kind`, `Description`, `User`, `Password`, `CompanyId`, `SecurityArtifactDescriptor` | Matches the implementation |
+| `KeystoreEntry` (`KeystoreEntries`) | `Hexalias` (inherited) | via `BaseType` chain: `Alias`, `KeyType`, `KeySize`, `ValidNotBefore`/`ValidNotAfter` (`Edm.DateTimeOffset`), `SerialNumber`, `SignatureAlgorithm`, `EllipticCurve`, `Validity`, `SubjectDN`, `IssuerDN`, `Version`, `FingerprintSha1/256/512`; own: `Type`, `Owner`, `Status`, `CreatedBy`/`CreatedTime`, `LastModifiedBy`/`LastModifiedTime` | Keystore data sources expose all of them |
+| `SecureParameter` (`SecureParameters`) | `Name` | `Description`, `SecureParam`, `DeployedBy`, `DeployedOn`, `Status` | Exists; operations unverified |
+| `CertificateChainResource` (`CertificateChainResources`), `ChainCertificate` (`ChainCertificates`) | `Hexalias` / `Hexalias`, `Index` | media entity / certificate details | Upload format undocumented |
+| `OAuth2AuthorizationCode` (`OAuth2AuthorizationCodes`) | `Name` | provider, auth/token URL, client, refresh token fields, `RuntimeId`, `IsEdge`; function imports `OAuth2AuthorizationCodeFullAuthUrl`, `OAuthTokenFromCode`, `OAuth2AuthorizationCodeRefreshTokenUpdate` | Out of scope (interactive authorization) |
+| PGP: `PgpKeyrings`, `PgpPublicKeyrings`, `PgpSecretKeyrings`, `PgpKeyEntries`, `PgpSubKeys`, `PgpUserIds`, keyring resources | various | keyring metadata, key details | No documented requests |
+
+Absent from the document entirely: OAuth2 SAML Bearer Assertion, OAuth2 Password Credentials,
+Known Hosts and where-used information. For those, the conclusion "no public API" now rests on
+the service's own model, not only on the absence of documentation.
+
+Two consequences for existing code:
+
+- `Edm.DateTimeOffset` values arrive in JSON as `/Date(<millis>+0000)/`.
+  `internal/client/odata/v2.ParseDateLiteral` now accepts the offset, and the keystore data
+  sources return RFC 3339 instead of the raw literal.
+- The OAuth2 update is a `PUT`, which replaces the entity. Earlier releases sent only the six
+  fields they knew about, so an update could reset settings made in the UI. The four new
+  attributes are optional and computed and are always resent.
+
 ### Hex alias encoding — confirmed explicitly, not just by example
 
 SAP's Security Content overview page states the rule directly, not merely by example: **"Hex
@@ -811,6 +842,8 @@ punctuation, semicolon, slash, and backslash cases — see
 `internal/client/odata/v2/hexkey_test.go`.
 
 ### Keystore Entries — confirmed read operations, confirmed field gap
+
+*Superseded in part (September 2026): the "field gap" below is closed. The tenant `$metadata` names every property; see "Tenant `$metadata` findings" above.*
 
 - `GET /api/v1/KeystoreEntries` (all entries) and `GET /api/v1/KeystoreEntries('{Hexalias}')`
   (single entry by alias) are both confirmed with an identical documented example response:
@@ -903,6 +936,8 @@ punctuation, semicolon, slash, and backslash cases — see
 
 ### SSH Key — reverified and corrected: no separate resource exists
 
+*Updated September 2026: the tenant `$metadata` does contain `SSHKeyGenerationRequests` (with `SSHFile` and `Password`) and `SSHKeyResources`, so SSH key generation has its own entities after all. Neither is documented with a request. The approach below (an RSA or DSA key pair plus the OpenSSH export) remains the supported path.*
+
 SAP's Security Content API overview's own Resources table lists **no independent "SSH Key"
 entry** — only Certificate, Key Pair, Keystore Entry, Keystore, Keystore History, User
 Credentials, Secure Parameter, OAuth2 Client Credentials, Certificate-to-User-Mapping (Neo), and
@@ -923,6 +958,8 @@ export endpoint's own documented restriction (RSA/DSA) for `public_key_openssh` 
 
 ### Certificate Chain — reverified: folded into Key Pair, no independent contract found
 
+*Updated September 2026: `CertificateChainResources` and `ChainCertificates` exist in the tenant `$metadata`; the upload format is still undocumented. See "Tenant `$metadata` findings" above.*
+
 The overview page's Key Pair resource description states the API can be used to **"create a
 certificate signing request, or import and export the related certificate chain"** — Certificate
 Chain is documented as a *capability of* Key Pair, not an independently exampled resource. No
@@ -933,6 +970,8 @@ and the likely eventual naming (`sapintegrationsuite_key_pair_certificate_chain`
 contract is later confirmed.
 
 ### Secure Parameter and Known Hosts — reverified, both remain without a confirmed contract
+
+*Updated September 2026: `SecureParameters` exists in the tenant `$metadata` (operations unverified); Known Hosts does not. See "Tenant `$metadata` findings" above.*
 
 - **Secure Parameter**: the overview page's Resources table does list "Secure Parameter"
   conceptually, alongside User Credentials/OAuth2 Client Credentials (which do have confirmed
