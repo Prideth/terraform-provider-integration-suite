@@ -3,11 +3,14 @@ package provider
 import (
 	"context"
 	"errors"
+	"strconv"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/apierror"
@@ -25,10 +28,9 @@ type accessPolicyResource struct {
 }
 
 type accessPolicyModel struct {
-	ID                   types.String `tfsdk:"id"`
-	RoleName             types.String `tfsdk:"role_name"`
-	Description          types.String `tfsdk:"description"`
-	ReconciliationStatus types.String `tfsdk:"reconciliation_status"`
+	ID          types.String `tfsdk:"id"`
+	RoleName    types.String `tfsdk:"role_name"`
+	Description types.String `tfsdk:"description"`
 }
 
 func (r *accessPolicyResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -37,34 +39,39 @@ func (r *accessPolicyResource) Metadata(_ context.Context, req resource.Metadata
 
 func (r *accessPolicyResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manages an SAP Integration Suite access policy, which restricts which roles " +
-			"can operate on a set of Cloud Integration artifacts. Backed by the public Security " +
-			"Content OData V2 API (AccessPolicies). Attach artifact references with the separate " +
-			"sapintegrationsuite_access_policy_reference resource.",
+		Description: "An SAP Integration Suite access policy: a named guard, tied to a BTP role, that " +
+			"restricts who can work with the artifacts its references match. The policy itself only " +
+			"carries the role name and a description; the matching rules live in separate " +
+			"sapintegrationsuite_access_policy_reference resources. Backed by the AccessPolicies " +
+			"entity of the Security Content OData V2 API.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				Computed:    true,
-				Description: "SAP-assigned technical ID of the access policy.",
+				Computed: true,
+				Description: "Numeric ID SAP assigns to the policy. It differs between tenants, so use " +
+					"role_name when you need a portable identifier.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"role_name": schema.StringAttribute{
-				Required:    true,
-				Description: "The role this access policy applies to. Immutable: SAP does not document renaming a policy's role.",
+				Required: true,
+				Description: "Role name the policy is associated with. Users only get access to the " +
+					"protected artifacts when a BTP custom role carries exactly this string in its " +
+					"Values attribute. Unique per tenant. Changing it replaces the policy, because " +
+					"SAP does not document renaming a policy in place.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
 				},
 			},
 			"description": schema.StringAttribute{
 				Optional:    true,
-				Description: "A free-text description of the access policy.",
-			},
-			"reconciliation_status": schema.StringAttribute{
-				Computed: true,
-				Description: "Replication/reconciliation status of the policy against any " +
-					"associated runtime (Integration Cell / Edge Integration Cell), where SAP " +
-					"reports one.",
+				Description: "Free-text description shown next to the policy in the Access Policies screen.",
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
 			},
 		},
 	}
@@ -132,7 +139,10 @@ func (r *accessPolicyResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
-	err := r.client.UpdateAccessPolicy(ctx, plan.ID.ValueString(), plan.Description.ValueString())
+	err := r.client.UpdateAccessPolicy(ctx, plan.ID.ValueString(), cloudintegration.AccessPolicy{
+		RoleName:    plan.RoleName.ValueString(),
+		Description: plan.Description.ValueString(),
+	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to update SAP Integration Suite access policy", diagnosticDetail(err))
 		return
@@ -165,14 +175,19 @@ func (r *accessPolicyResource) Delete(ctx context.Context, req resource.DeleteRe
 }
 
 func (r *accessPolicyResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	if _, err := strconv.ParseInt(req.ID, 10, 64); err != nil {
+		resp.Diagnostics.AddError("Invalid import ID",
+			"Expected the numeric access policy ID SAP assigned (for example \"1901\"), got "+strconv.Quote(req.ID)+". "+
+				"Look it up with the sapintegrationsuite_access_policy data source by role_name.")
+		return
+	}
 	resource.ImportStatePassthroughID(ctx, pathRootID(), req, resp)
 }
 
 func accessPolicyToModel(policy *cloudintegration.AccessPolicy) accessPolicyModel {
 	return accessPolicyModel{
-		ID:                   types.StringValue(policy.ID),
-		RoleName:             types.StringValue(policy.RoleName),
-		Description:          stringOrNull(policy.Description),
-		ReconciliationStatus: stringOrNull(policy.ReconciliationStatus),
+		ID:          types.StringValue(policy.ID),
+		RoleName:    types.StringValue(policy.RoleName),
+		Description: stringOrNull(policy.Description),
 	}
 }

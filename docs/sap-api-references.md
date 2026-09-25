@@ -3,15 +3,21 @@
 Every implemented resource must trace back to an officially documented, SAP-supported public
 API. This document is that trace.
 
-> **Research note**: `help.sap.com`, `api.sap.com`, and `community.sap.com` were not directly
-> reachable from the sandboxed environment this provider was initially developed in (blocked
-> by network egress policy). Findings below were cross-checked through SAP's own
-> `SAP-docs/btp-integration-suite` GitHub repository (the official Markdown source for the
-> SAP Help Portal Integration Suite documentation) and SAP Business Accelerator Hub search
-> results. Before relying on any exact field/entity name in production, verify it against the
-> tenant's live `$metadata` document and the current SAP Business Accelerator Hub page —
-> standard OData practice, and doubly important here given the access restriction noted
-> above.
+> **Research note**: the first research phases ran in a sandbox that could not reach
+> `help.sap.com`, `api.sap.com` or `community.sap.com` at all. The 2026 re-audit can reach
+> them, but two limits remain, and they shape how evidence is gathered:
+>
+> - The SAP Help Portal renders its pages in JavaScript, so the re-audit reads the official
+>   Markdown source of those pages in SAP's `SAP-docs/btp-integration-suite` GitHub
+>   repository. It is the same text, not a secondary summary.
+> - The SAP Business Accelerator Hub also renders in JavaScript, and its specification
+>   downloads (EDMX, OpenAPI JSON) redirect to an SAP ID login. Where a specification could not
+>   be downloaded, sections below say so. They then rely on SAP's own published tooling for
+>   the same API, which shows the requests SAP itself sends.
+>
+> Sections re-audited in 2026 are marked as such. Everything else still reflects the earlier
+> research and should be verified against a tenant's `$metadata` document before you rely on
+> an exact property name.
 
 ## `sapintegrationsuite_integration_package`
 
@@ -593,75 +599,112 @@ endpoints.
 
 ## `sapintegrationsuite_access_policy` / `..._reference`
 
-- **SAP product area**: Integration Suite / Security
-- **Official API**: Security Content API (documented by SAP as covering "keystore entries,
-  user credentials, certificate-to-user mappings", and — per SAP's own access-policy
-  documentation — access policies themselves, described as retrievable "by an OData V2 API"
-  with both read and write operations)
-- **Entity set**: `AccessPolicies`, with nested artifact references
-- **Protocol**: OData V2
-- **Operations**: GET, POST, PATCH, DELETE
-- **Supported artifact reference types**: confirmed against SAP KBA 3447540 ("Integration
-  Package" artifact type is explicitly *not* available when maintaining an access policy) and
-  a community post enumerating the supported set, which matches this provider's
-  `SupportedArtifactTypes` list exactly: `IntegrationFlow`, `ODataAPI`, `RestAPI`, `SoapAPI`,
-  `ScriptCollection`, `ValueMapping`, `MessageMapping`, `MessageQueue`, `GlobalDataStore`,
-  `GlobalVariable`. The human-readable UI labels are confirmed (e.g. "REST API"); the exact
-  casing/spelling of the wire-format enum values (`RestAPI` vs. `REST_API` vs. something else)
-  is this provider's best inference from OData naming conventions elsewhere in the same API
-  and still needs verification against a live tenant's `$metadata` or an actual create
-  response.
-- **Role association caveat**: SAP's own documentation on managing access policies states that
-  "to give dedicated users access to the artifacts protected by the access policy, you define
-  a role and associate it with the access policy using SAP Business Technology Platform
-  cockpit, and only users that are assigned to that role can access the artifacts". Read
-  literally, this describes a BTP **role** (for example a custom role built from a role
-  template in the subaccount's Security > Roles area), not the BTP **role collection** itself
-  — a role collection bundling that role is what actually gets assigned to users. This
-  provider does not manage the BTP-side role or role collection (see
-  `docs/provider-scope.md`); it treats `role_name` as an opaque string the practitioner
-  supplies and never interprets, resolves, or cross-checks against BTP. It is still not
-  confirmed against OData `$metadata` whether `AccessPolicies.RoleName` is simply a label
-  matched against that BTP-side role's name, or carries additional Integration
-  Suite-specific semantics. Until confirmed, `role_name` stays `RequiresReplace()` (immutable)
-  and this provider avoids relying on renaming it having any particular effect.
-- **`operator` semantics — confirmed**: SAP's documentation states plainly that choosing the
-  "equals" operator requires the exact artifact name/ID as the value, while "matches" requires
-  "a valid Java Regular Expression" that must be "supported by the Java Pattern class" — i.e.
-  `java.util.regex.Pattern`, not a wildcard or glob syntax. This resolves a prior open
-  question in this document; see `docs/resource-design.md` for the resulting example-value
-  guidance. The exact wire-format casing of the `Operator` property's values
-  (`EQUALS`/`MATCHES`, as currently coded, versus `equals`/`matches` or another casing) remains
-  unconfirmed — SAP's prose and UI labels do not by themselves establish the OData enum's wire
-  casing, and this project could not reach `$metadata` or a live tenant to confirm it in this
-  research pass.
-- **`attribute` values — confirmed set, unconfirmed casing**: SAP's documentation confirms
-  exactly two attribute choices, "Name" and "ID" (referencing an artifact by name or by its
-  technical ID). The exact wire-format casing (`Id` vs. `ID`, as currently coded) is likewise
-  unconfirmed against `$metadata` or a live tenant.
-- **Runtime replication and reconciliation — confirmed as a real Integration Suite feature,
-  unconfirmed as part of the public API surface**: SAP's "Manage Access Policies" application
-  documentation (including the Edge Integration Cell-specific variant of that page) describes
-  replicating an access policy to one or more runtimes — the Cloud Integration runtime,
-  Integration Cell, and Edge Integration Cell are all named as replication targets — and
-  checking each target's reconciliation status, one of `Fail`, `Success`, or `Pending`, via an
-  icon in the UI's "Runtimes" column. This confirms the underlying concept is real and not
-  this provider's invention. It does **not** confirm that this behavior (viewing or triggering
-  replication, reading per-runtime reconciliation status) is exposed through the public
-  `AccessPolicies` OData API this provider uses, as distinct from being an application-UI-only
-  capability layered on top of it; every attempt to reach a primary source describing the
-  `AccessPolicies` entity's actual OData properties for this research pass was blocked
-  (`help.sap.com`, `api.sap.com`, and `community.sap.com` are all unreachable from this
-  project's environment) or returned no result naming a `ReconciliationStatus`-shaped
-  property. Given that, this provider keeps `reconciliation_status` as an existing,
-  best-effort `Computed` field (harmless if SAP's API never populates it) but does not add any
-  Integration Cell- or Edge Integration Cell-specific resource, and does not implement polling
-  to a terminal reconciliation state — see `docs/resource-design.md`. This remains the single
-  largest confirmed gap between what the SAP application can do and what this provider's
-  public API access can verify.
-- **Required roles**: Integration Suite "Manage Security" / access-policy administration
-  scopes; SAP's documentation additionally names the `PI_Administrator` role collection as
-  required to create and edit access policies through the application UI.
+*Re-audited September 2026. The earlier version of this section guessed the reference wire
+format; those guesses turned out to be wrong and have been replaced by the evidence below.*
+
+- **SAP product area**: Integration Suite / Security (Monitor > Manage Security > Access
+  Policies)
+- **Official API**: Security Content API on the SAP Business Accelerator Hub
+  (<https://api.sap.com/api/SecurityContent/resource>), resource group *Access Policies*. SAP
+  Help's *Managing Access Policies* page points there and states that access policies can be
+  read and written "by an OData V2 application programming interface".
+- **Base path**: `/api/v1` on the tenant's Cloud Integration API host
+- **Protocol**: OData V2, JSON (`$format=json` or `Accept: application/json`)
+
+### Where the wire contract comes from
+
+The Business Accelerator Hub page is a JavaScript application, and its specification
+downloads (EDMX and OpenAPI JSON) redirect to an SAP ID login. The specification could not be
+downloaded without an SAP account for this audit. The contract below therefore comes from the
+next source in this project's evidence order: SAP's own automation for exactly this API,
+published as <https://github.com/SAP/cicd-actions-for-sap-integration-suite> (Apache-2.0,
+access-policy actions first released 2026-04-23). The `download-access-policy`,
+`upload-access-policy`, `update-access-policy` and `delete-access-policy` actions call the API
+directly with `curl`, so their requests and the example files in their READMEs show the real
+property names, key format and payloads.
+
+| Operation | Request (from SAP's tooling) | Provider usage |
+|---|---|---|
+| List / find by role | `GET /AccessPolicies?$filter=RoleName eq '<name>'` | data source lookup by `role_name` |
+| Create policy | `POST /AccessPolicies` with `{"RoleName", "Description"}`, answers `201` with `d.Id` | Create |
+| Update policy | `PUT /AccessPolicies(<Id>L)` with `{"RoleName", "Description"}`, answers `200`/`204` | Update |
+| Delete policy | `DELETE /AccessPolicies(<Id>L)`, deletes the policy "incl. all Artifact References" | Delete |
+| List references | `GET /AccessPolicies(<Id>L)/ArtifactReferences` | Read, data source |
+| Create reference | `POST /ArtifactReferences` with `{"Name", "Description", "Type", "ConditionAttribute", "ConditionValue", "ConditionType", "AccessPolicy": {"Id": "<Id>"}}`, answers `201` | Create |
+| Delete reference | `DELETE /ArtifactReferences(<Id>L)` | Delete |
+
+What this establishes:
+
+- Both entity sets are keyed by `Edm.Int64` (the `L` literal suffix). OData V2 JSON serializes
+  the value as a string, for example `"Id": "1901"`. The earlier client quoted keys as strings
+  (`AccessPolicies('1901')`), which is wrong for an Int64 key.
+- The policy's persisted properties are `RoleName` and `Description`. The README's example
+  `AccessPolicy.json` holds exactly those two after `Id` and navigation properties are
+  stripped. There is **no** `ReconciliationStatus` property, so the provider's former
+  `reconciliation_status` attribute was removed.
+- A policy has two navigation properties: `ArtifactReferences` and
+  `AccessPolicyRuntimeAssignments`.
+- Reference properties are `Name`, `Description`, `Type`, `ConditionAttribute`,
+  `ConditionType` and `ConditionValue`. The earlier client sent `ArtifactType`, `Attribute`,
+  `Operator` and `Value`, none of which exist.
+- Confirmed enum values from the README example: `Type = INTEGRATION_FLOW`,
+  `ConditionAttribute = Name`, `ConditionType = exactString`.
+- SAP's tooling never updates a reference in place. Its sync deletes all references and
+  recreates them.
+
+The single-entity `GET /AccessPolicies(<Id>L)` used by the resource's Read is not shown in
+SAP's tooling. It is standard OData V2 addressing for an entity set that supports `PUT` and
+`DELETE` by the same key, and it is the only call in this resource that rests on protocol
+convention rather than a published example.
+
+### SAP Help findings (current documentation)
+
+Read from the official Markdown source of the Help Portal pages in
+`SAP-docs/btp-integration-suite` (`docs/ISuite_Integrations_APIs/access-policies-e0009f3.md`,
+`defining-access-policies-b0d7950.md`, `managing-access-policies-318d107.md`,
+`access-policies-examples-f1dc1a7.md`, `creating-custom-roles-for-access-policies-7db3c87.md`,
+and `docs/ISuite_Edge_Integration_Cell/manage-access-policies-for-edge-integration-cell-d6503a5.md`):
+
+- **Artifact types offered by the UI**: Integration Package, Integration Flow, API, OData API,
+  REST API, SOAP API, Script Collection, Value Mapping, Message Mapping, Message Queue, Global
+  Data Store, Global Variable, Data Type, Message Type. **Correction**: an earlier version of
+  this document relied on KBA 3447540 to conclude that Integration Package is not a valid
+  type. Current Help lists it as a selectable type and has a dedicated *Package-Level Access
+  Policy* section; SAP's community announcement of the feature dates it to increment 2401.
+  Whatever the KBA's original context, it no longer describes the product. The provider's
+  former closed list of ten types was both incomplete and spelled wrong.
+- **Attributes**: *Name* and *ID*. **Operators**: *Equals* (exact name or ID) and *Matches*
+  (a Java regular expression; not available for Integration Package). Message queues, global
+  variables and global data stores can only be matched by name.
+- **Reference name**: every reference has a mandatory *Name* and an optional *Description*,
+  which the provider did not model before.
+- **Role association**: the BTP role must be created from role template `CustomRoleTemplate`
+  of application `it`, with `custom_role` set to *Static* and the policy's role name in
+  *Values*. It is granted through a role collection, and takes effect after the user logs in
+  again. `PI_Administrator` is required to create and edit policies.
+- **Scope of protection**: design-time operations, operations on deployed artifacts, and
+  runtime data (MPL attachments, traces, data stores, variables, queues). Both UI and API
+  access are covered. Unauthorized users can still see that an artifact exists. Custom header
+  properties are not protected.
+- **Runtimes**: when creating a policy, the user picks the runtimes it is created in, and can
+  edit the selection later ("replicating access policies"). A per-runtime reconciliation
+  status reads *Fail*, *Success* or *Pending*. Offline runtimes receive the policy once they
+  come back.
+
+### Still not publicly documented
+
+- The wire constants for every artifact type other than Integration Flow, for the *ID*
+  attribute, and for the *Matches* operator. The provider therefore passes these values
+  through and only rejects the two former provider values proven wrong (`IntegrationFlow`,
+  `EQUALS`).
+- The `AccessPolicyRuntimeAssignments` entity: its properties, how a runtime is identified,
+  where the reconciliation status lives, and whether assignments are writable. It is also
+  undocumented which runtimes a policy created through the API is assigned to.
+- Whether `PUT` with a different `RoleName` renames a policy, and whether `ArtifactReferences`
+  supports `PUT`/`MERGE`.
+
+All three would be resolved by the Security Content API specification on the Business
+Accelerator Hub, which requires an SAP login to download.
 
 ## `sapintegrationsuite_user_credential` / `sapintegrationsuite_oauth2_client_credential`
 

@@ -73,3 +73,18 @@ func TestBuildPath(t *testing.T) {
 		t.Errorf("BuildPath() = %q, want %q", got, want)
 	}
 }
+
+func TestInt64KeyPredicate(t *testing.T) {
+	cases := map[string]string{"1901": "(1901L)", "0": "(0L)", "-3": "(-3L)"}
+	for in, want := range cases {
+		got, err := Int64KeyPredicate(in)
+		if err != nil || got != want {
+			t.Errorf("Int64KeyPredicate(%q) = %q, %v; want %q", in, got, err, want)
+		}
+	}
+	for _, in := range []string{"", "abc", "1'", "1)/Other(2", "99999999999999999999"} {
+		if got, err := Int64KeyPredicate(in); err == nil {
+			t.Errorf("Int64KeyPredicate(%q) = %q, want an error", in, got)
+		}
+	}
+}

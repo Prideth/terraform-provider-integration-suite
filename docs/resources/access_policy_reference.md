@@ -3,23 +3,26 @@
 page_title: "sapintegrationsuite_access_policy_reference Resource - sapintegrationsuite"
 subcategory: ""
 description: |-
-  Manages a single artifact reference (artifact type plus a match condition) attached to an sapintegrationsuite_access_policy. Modeled as a separate resource because each reference has its own server-assigned identity and CRUD lifecycle.
+  One artifact reference of an access policy: a rule that says which artifacts (by type, and by name or ID) the policy protects. A policy usually has several. Each reference is its own ArtifactReferences entity with a server-assigned ID, which is why it is a separate resource and not a block inside sapintegrationsuite_access_policy.
 ---
 
 # sapintegrationsuite_access_policy_reference (Resource)
 
-Manages a single artifact reference (artifact type plus a match condition) attached to an sapintegrationsuite_access_policy. Modeled as a separate resource because each reference has its own server-assigned identity and CRUD lifecycle.
+One artifact reference of an access policy: a rule that says which artifacts (by type, and by name or ID) the policy protects. A policy usually has several. Each reference is its own ArtifactReferences entity with a server-assigned ID, which is why it is a separate resource and not a block inside sapintegrationsuite_access_policy.
 
 ## Example Usage
 
 ```terraform
-resource "sapintegrationsuite_access_policy_reference" "utilities_flows" {
+resource "sapintegrationsuite_access_policy_reference" "metering_flow" {
   access_policy_id = sapintegrationsuite_access_policy.utilities.id
 
-  artifact_type = "IntegrationFlow"
+  name        = "Metering flow"
+  description = "The metering integration flow of the utilities package"
+
+  artifact_type = "INTEGRATION_FLOW"
   attribute     = "Name"
-  operator      = "EQUALS"
-  value         = "metering"
+  operator      = "exactString"
+  value         = "Metering"
 }
 ```
 
@@ -28,15 +31,20 @@ resource "sapintegrationsuite_access_policy_reference" "utilities_flows" {
 
 ### Required
 
-- `access_policy_id` (String) ID of the sapintegrationsuite_access_policy this reference belongs to.
-- `artifact_type` (String) The type of artifact this reference protects. Must be one of the artifact types SAP currently documents as supported.
-- `attribute` (String) The artifact attribute to match on: "Name" or "Id".
-- `operator` (String) The match operator: "EQUALS" or "MATCHES".
-- `value` (String) The value or expression the artifact's attribute must satisfy.
+- `access_policy_id` (String) Numeric ID of the access policy this reference belongs to.
+- `artifact_type` (String) Artifact type constant as SAP's API stores it in the Type property, for example "INTEGRATION_FLOW". Passed through unchanged; see the Access Policies guide for how to find the constant for other types.
+- `attribute` (String) Artifact attribute the condition is evaluated against, as stored in ConditionAttribute, for example "Name".
+- `name` (String) Name of the reference as shown in the policy's References table. Mandatory in SAP.
+- `operator` (String) Condition type as stored in ConditionType: "exactString" for an exact match. The regular-expression variant is covered in the Access Policies guide.
+- `value` (String) Exact name/ID, or Java regular expression, stored in ConditionValue.
+
+### Optional
+
+- `description` (String) Optional description, for example what a regular expression is meant to match.
 
 ### Read-Only
 
-- `id` (String) Composite identifier in the form "<access_policy_id>/<reference_id>".
+- `id` (String) Composite identifier "<access_policy_id>/<reference_id>", both numeric SAP IDs.
 
 ## Import
 
@@ -45,5 +53,6 @@ Import is supported using the following syntax:
 The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
 
 ```shell
-terraform import sapintegrationsuite_access_policy_reference.utilities_flows <access-policy-id>/<reference-id>
+# "<access_policy_id>/<reference_id>", both numeric SAP IDs.
+terraform import sapintegrationsuite_access_policy_reference.metering_flow 1901/55
 ```

@@ -2,139 +2,210 @@
 page_title: "Access Policies"
 subcategory: "Security"
 description: |-
-  What SAP Integration Suite access policies are, how they relate to BTP roles, and how this
-  provider manages them.
+  How SAP Integration Suite access policies work, how they connect to BTP roles, which parts
+  this provider manages, and what happens to them across the Terraform lifecycle.
 ---
 
 # Access Policies
 
-An SAP Integration Suite **access policy** restricts which artifacts (integration flows,
-OData/REST/SOAP APIs, script collections, value mappings, message mappings, message queues,
-global data stores, and global variables) a given role can see and operate on. This guide
-covers what this provider manages, what it deliberately does not, and the SAP-side concepts
-you need to reason about when writing Terraform for access policies. See
-`docs/resource-design.md` and `docs/sap-api-references.md` in this repository's source for the
-full research trail behind the statements below.
+Out of the box, anyone with the right Integration Suite role collection can work with every
+integration artifact on a tenant. An **access policy** narrows that down. It names a role and
+lists *artifact references*, which are rules like "the integration flow called `Metering`" or
+"every artifact in package `UTILITIES`". From then on, only users who hold that role can
+change the matched artifacts, operate on them once deployed, or read the data they process at
+runtime: message processing log attachments, trace payloads, data store entries, variables
+and queue content.
+
+A few properties of the mechanism are worth knowing before you automate it:
+
+- Protection covers the UI and the public APIs alike. A technical user calling the
+  Integration Content API is subject to the same policies as a person in the browser.
+- An unauthorized user can still *see* that a protected artifact exists. The policy restricts
+  operations and data, not visibility of the artifact list.
+- Custom header properties in message processing logs are never protected. SAP expects them
+  not to carry sensitive data.
+- When several policies match the same artifact, holding the role of *any one* of them is
+  enough. A package-level policy therefore overrides a stricter artifact-level policy for
+  anyone who holds the package role.
+
+## How a policy grants access
+
+The policy itself does not know which users exist. The link is made on the BTP side. You
+create a role in the subaccount from the `CustomRoleTemplate` role template of application
+`it`, set its `custom_role` attribute to *Static*, and put the policy's `role_name` into
+**Values**. You then add that role to a role collection and assign the collection to users or
+groups. SAP Help describes this in *Creating Custom Roles for Access Policies*. Newly assigned
+roles only take effect after the user logs in again, so a freshly granted user may still see
+"access denied" for a while.
+
+That BTP half is deliberately out of this provider's reach. Roles, role collections and their
+assignments are subaccount objects, and the [SAP/btp](https://registry.terraform.io/providers/SAP/btp/latest)
+provider manages them. This provider treats `role_name` as an opaque string. SAP accepts a
+policy whose role does not exist yet, and nothing breaks until someone expects to get in, so
+keep the two configurations side by side and pass the same string to both.
 
 ## The two resources
 
-This provider models an access policy as two separate resources:
+A policy and its references are separate entities in SAP's API. Each reference has its own
+numeric ID and is created and deleted on its own, so the provider models them as two
+resources rather than a nested block:
 
-- [`sapintegrationsuite_access_policy`](../resources/access_policy.md) — the policy itself:
-  a `role_name` and a `description`.
-- [`sapintegrationsuite_access_policy_reference`](../resources/access_policy_reference.md) —
-  one artifact-matching rule attached to a policy. A policy typically has several of these.
-
-They are separate resources, not a nested block, because each reference has its own
-server-assigned ID and independent create/delete lifecycle — see `docs/resource-design.md`
-§17 for the full suitability analysis. A minimal example:
-
-```hcl
-resource "sapintegrationsuite_access_policy" "utilities_architect" {
+```terraform
+resource "sapintegrationsuite_access_policy" "utilities" {
   role_name   = "UTILITIES_ARCHITECT"
-  description = "Access policy for utilities architecture artifacts"
+  description = "Integration flows owned by the utilities architecture team"
 }
 
-resource "sapintegrationsuite_access_policy_reference" "integration_flows" {
-  access_policy_id = sapintegrationsuite_access_policy.utilities_architect.id
+resource "sapintegrationsuite_access_policy_reference" "metering_flow" {
+  access_policy_id = sapintegrationsuite_access_policy.utilities.id
 
-  artifact_type = "IntegrationFlow"
-  attribute     = "Id"
-  operator      = "MATCHES"
-  value         = "UTIL_.*"
+  name          = "Metering flow"
+  artifact_type = "INTEGRATION_FLOW"
+  attribute     = "Name"
+  operator      = "exactString"
+  value         = "Metering"
 }
 ```
 
-`operator = "MATCHES"` requires **a valid Java Regular Expression** (the same syntax
-`java.util.regex.Pattern` accepts) — not a wildcard or glob pattern. `"UTIL_.*"` above matches
-any ID starting with `UTIL_`. A value like `"UTIL_*"` is also valid Java regex syntax, but
-means "`UTIL` followed by zero or more trailing underscores" rather than "`UTIL_` followed by
-anything" — easy to misread as a glob, so prefer the explicit `.*` form.
+The separation matters in brownfield setups. You can attach your own references to a policy
+another team manages, which you look up with the `sapintegrationsuite_access_policy` data
+source, without ever claiming the policy itself. Terraform only ever deletes the reference
+IDs it created or imported. References that someone added through the UI stay untouched.
 
-## What `role_name` is (and isn't)
+## Where the reference values come from
 
-`role_name` identifies a role on the SAP BTP side, associated with the access policy through
-the **SAP BTP cockpit** — not this provider, and not the SAP Integration Suite UI. SAP's own
-documentation describes this as defining a role (for example, a custom role built from a role
-template in your subaccount's Security area) and associating it with the policy in BTP
-cockpit; the artifacts the policy protects then become visible only to users who hold that
-role, typically through a role collection that includes it.
+Each attribute of `sapintegrationsuite_access_policy_reference` maps directly onto a property
+of SAP's `ArtifactReferences` entity. The provider sends your values unchanged:
 
-This provider **does not** manage that BTP-side role or the role collection that grants it to
-users — see `docs/provider-scope.md`. `role_name` is an opaque string this provider passes
-through unchanged; if the underlying BTP role does not exist, SAP will still create the access
-policy (the association is separate), and it is your responsibility to keep the two in sync.
-`role_name` forces resource replacement on change, since SAP does not document renaming a
-policy's role in place.
+| Terraform attribute | SAP property | Label in the UI | Values confirmed on the wire |
+|---|---|---|---|
+| `name` | `Name` | Name (mandatory) | free text |
+| `description` | `Description` | Description | free text |
+| `artifact_type` | `Type` | Artifact Type | `INTEGRATION_FLOW` |
+| `attribute` | `ConditionAttribute` | Attribute | `Name` |
+| `operator` | `ConditionType` | Operator | `exactString` (the UI's *Equals*) |
+| `value` | `ConditionValue` | Value / Expression | exact name or ID, or a Java regular expression |
 
-## Supported artifact types, attributes, and operators
+The UI offers more choices than the last column lists. Artifact types include Integration
+Package, API, OData API, REST API, SOAP API, Script Collection, Value Mapping, Message Mapping,
+Message Queue, Global Data Store, Global Variable, Data Type and Message Type. Attributes
+include *ID*, and operators include *Matches* for Java regular expressions. SAP has not
+published the wire constants for those options anywhere public. The API specification sits
+behind a login on the Business Accelerator Hub, and SAP's own CI/CD tooling only shows the
+integration flow case. Rather than guess at spellings such as `INTEGRATION_PACKAGE`, the
+provider accepts any non-empty string and leaves validation to SAP.
 
-`artifact_type` on a reference accepts exactly the values SAP documents as supported for
-access policies: `IntegrationFlow`, `ODataAPI`, `RestAPI`, `SoapAPI`, `ScriptCollection`,
-`ValueMapping`, `MessageMapping`, `MessageQueue`, `GlobalDataStore`, `GlobalVariable`. Notably,
-`IntegrationPackage` is **not** a valid artifact type here (SAP explicitly documents that
-access policies cannot be scoped to a whole package).
+To find the exact constant for another option, create one reference of that kind in the
+Integration Suite UI (*Monitor* > *Integrations and APIs* > *Manage Security* > *Access
+Policies*). Then read it back:
 
-`attribute` accepts `Name` or `Id` — match by the artifact's display name or its technical ID.
+```terraform
+data "sapintegrationsuite_access_policy_reference" "created_in_ui" {
+  access_policy_id = "1901"
+  reference_id     = "56"
+}
+```
 
-`operator` accepts `EQUALS` (exact match against `value`) or `MATCHES` (Java-regex match
-against `value`, see above).
+The `artifact_type`, `attribute` and `operator` attributes return what SAP actually stored.
+Use those strings in your configuration. Two rules from SAP Help still apply whatever the
+spelling: *Matches* is not available for Integration Package references, and message queues,
+global variables and global data stores can only be matched by name.
 
-The exact-set membership of these three enumerations is confirmed against SAP's own
-documentation; the precise wire-format casing SAP's OData API expects has not been confirmed
-against a live tenant or `$metadata` document, so this provider's validators only accept the
-casing shown above. If your tenant's API rejects a value with this exact casing, please open an
-issue with the API's error response — that is exactly the kind of primary-source evidence this
-project needs to correct it.
+For regular expressions, `value` must be a valid `java.util.regex.Pattern`, not a glob.
+`UTIL_.*` matches everything starting with `UTIL_`. `UTIL_*` is also valid Java syntax, but it
+means "`UTIL` followed by any number of underscores".
 
-## Runtime replication and reconciliation
+## Lifecycle
 
-SAP's "Manage Access Policies" documentation describes replicating a policy to one or more
-runtimes — the Cloud Integration runtime, Integration Cell, and Edge Integration Cell are all
-named as valid targets — and shows a per-runtime reconciliation status of `Fail`, `Success`,
-or `Pending`. This is a real Integration Suite capability, not a documentation gap in this
-project's own imagination.
+**Create.** The policy is created with a POST carrying `RoleName` and `Description`. SAP
+returns a numeric ID, which becomes the resource `id`. Each reference is then created with its
+own POST that points back at the policy. Terraform orders these correctly as long as the
+reference uses `sapintegrationsuite_access_policy.<name>.id`.
 
-What this provider could **not** confirm is whether that capability is exposed through the
-public `AccessPolicies` OData API it uses, as distinct from being specific to the Integration
-Suite application UI. Because of that, this provider:
+**Update.** Changing a policy's `description` is an in-place update. The provider sends a PUT
+with both `RoleName` and `Description`, the same payload SAP's own tooling uses, because an
+OData V2 PUT replaces the whole entity. Changing `role_name` replaces the policy. SAP's API
+includes `RoleName` in that PUT, but nothing documents whether sending a different value
+renames the policy or is rejected, so the provider takes the safe route. Replacing a policy
+has a knock-on effect: SAP deletes a policy's references along with it, and because the new
+policy has a new ID, Terraform also replaces every reference that points at it. Expect the
+plan to show all of them.
 
-- surfaces `reconciliation_status` on `sapintegrationsuite_access_policy` as a best-effort,
-  `Computed`-only field, populated only if and when the API happens to return it;
-- does **not** poll it to a terminal state during create or update;
-- does **not** offer any resource for managing runtime replication, Integration Cell
-  configuration, or Edge Integration Cell configuration — these remain tracked in
-  `ROADMAP.md` as blocked on a confirmed public API.
+References have no in-place update at all. The UI can edit a reference, but no public API
+contract for doing so has been confirmed. Every change to a reference, including a new
+description, deletes the old reference and creates a new one. In the moment between the two
+calls the artifacts that reference matched are not protected by it. If that gap matters to
+you, add `lifecycle { create_before_destroy = true }` to the reference, and give the
+replacement a different `name` in case SAP enforces unique reference names within a policy.
+SAP does not document whether it does.
 
-Treat `reconciliation_status`, when present, as informational only. Do not build automation
-that depends on its exact values or its presence.
+**Delete.** Destroying a policy deletes it and, on SAP's side, all its references. When a
+reference resource is destroyed afterwards, SAP answers *not found* and the provider treats
+the reference as already gone. This makes `terraform destroy` order-independent.
 
-## Ownership boundaries and brownfield drift
+**Drift.** On every refresh the provider reads the policy by ID and the reference through its
+policy's reference list. Reading through the list also confirms that the reference still
+belongs to that policy. A policy or reference deleted outside Terraform drops out of state,
+and the next plan recreates it. A reference edited in the UI shows up as a diff on the edited
+attributes, which Terraform resolves by replacing it.
 
-- `sapintegrationsuite_access_policy` never deletes or modifies references it does not itself
-  manage. If a reference is created outside Terraform (through the UI or another automation),
-  managing the parent policy with this provider has no effect on it — Terraform only acts on
-  the specific reference IDs it created or that you have separately imported.
-- Both resources support `terraform import`:
-  - `terraform import sapintegrationsuite_access_policy.utilities_architect <id>`
-  - `terraform import sapintegrationsuite_access_policy_reference.integration_flows <access_policy_id>/<reference_id>`
-- If a policy or reference is deleted outside Terraform, the next `terraform plan` detects it
-  as removed and proposes recreating it, the same as any other resource in this provider.
-- If a reference's match condition (`artifact_type`, `attribute`, `operator`, or `value`) is
-  changed outside Terraform, `terraform plan` shows the drift as a proposed replacement — SAP
-  does not document an in-place update for these fields, so this provider does not attempt
-  one.
-- `data.sapintegrationsuite_access_policy` and `data.sapintegrationsuite_access_policy_reference`
-  let you read a policy or reference this provider does not manage — for example, to attach new
-  references to a policy someone else's automation owns.
+**Import.** Both resources import by numeric SAP ID:
 
-## Known limitations
+```shell
+terraform import sapintegrationsuite_access_policy.utilities 1901
+terraform import sapintegrationsuite_access_policy_reference.metering_flow 1901/55
+```
 
-- No update-in-place for any field of a reference; every field change replaces the resource.
-- `reconciliation_status` is best-effort and not polled; see above.
-- No support for listing/pagination of access policies as a data source yet — if your tenant
-  has few enough policies that this matters, filter with HCL `for_each`/`locals` over IDs you
-  already know, or open an issue describing the use case for a
-  `sapintegrationsuite_access_policies` list data source.
-- This provider does not manage the BTP-side role or role collection referenced by
-  `role_name` — use the official `SAP/btp` Terraform provider for that.
+IDs differ between tenants, so do not copy them from one landscape to another. The
+`sapintegrationsuite_access_policy` data source can look a policy up by `role_name`, which is
+unique within a tenant and the same everywhere. That is the lookup SAP's own transport
+tooling relies on too.
+
+## Runtimes and replication
+
+Since Edge Integration Cell arrived, a policy can be replicated to several runtimes: the
+Cloud Integration runtime, Integration Cell, and individual Edge Integration Cell
+deployments. In the UI you pick the runtimes when you create a policy and can change them
+later. A per-runtime reconciliation status then reports *Pending* until an offline runtime
+has picked the policy up, and *Success* or *Fail* after that.
+
+The API side of this exists but is not documented. SAP stores the assignments in a navigation
+property called `AccessPolicyRuntimeAssignments` on the policy. We know this because SAP's
+CI/CD tooling explicitly strips it from downloaded policies. What that entity contains, how a
+runtime is identified, and whether assignments can be written through the API are not
+published anywhere public. The provider therefore does not manage runtime targeting. That
+also means SAP decides which runtimes a policy created through the API lands on. Check the
+*Runtimes* column in the Access Policies screen after your first apply, and adjust it there
+if needed.
+
+Earlier releases exposed a `reconciliation_status` attribute on the policy. It was removed
+because the policy entity has no such property; the status lives with the runtime
+assignments. Removing it does not disturb existing state.
+
+## Upgrading from releases before the contract correction
+
+Releases up to and including v0.1.0 sent invented property names (`ArtifactType`,
+`Attribute`, `Operator`, `Value`) and quoted string keys. SAP's API expects the properties
+above and numeric `Edm.Int64` keys, so creating a reference could not have succeeded against a
+real tenant. To move to the corrected schema:
+
+1. Add a `name` to every `sapintegrationsuite_access_policy_reference`.
+2. Replace `artifact_type = "IntegrationFlow"` with `"INTEGRATION_FLOW"`, and
+   `operator = "EQUALS"` with `"exactString"`. The provider rejects the old values at plan
+   time with a message that points to the new ones.
+3. For other old values (`"MATCHES"`, `"ODataAPI"` and so on), look up the real constants
+   with the data source as described above.
+4. If your state somehow holds a reference resource from the old release, remove it with
+   `terraform state rm` and let Terraform create it again.
+
+Policies themselves were created with the right properties before as well. Existing policy
+resources keep working without changes.
+
+## Further reading
+
+- SAP Help: *Access Policies*, *Defining Access Policies*, *Access Policies Examples*,
+  *Creating Custom Roles for Access Policies* and *Manage Access Policies for Edge Integration
+  Cell*.
+- SAP Business Accelerator Hub: *Security Content* API, resource *Access Policies*.
+- `docs/sap-api-references.md` in this repository records the evidence behind each statement
+  in this guide, including where SAP's documentation is silent.

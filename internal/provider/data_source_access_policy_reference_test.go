@@ -22,12 +22,17 @@ func TestAccessPolicyReferenceDataSource_SchemaRequiredComputed(t *testing.T) {
 		{"id", false, true},
 		{"access_policy_id", true, false},
 		{"reference_id", true, false},
+		{"name", false, true},
+		{"description", false, true},
 		{"artifact_type", false, true},
 		{"attribute", false, true},
 		{"operator", false, true},
 		{"value", false, true},
 	}
 
+	if len(resp.Schema.Attributes) != len(cases) {
+		t.Errorf("schema has %d attributes, want %d", len(resp.Schema.Attributes), len(cases))
+	}
 	for _, c := range cases {
 		attr, ok := resp.Schema.Attributes[c.name]
 		if !ok {

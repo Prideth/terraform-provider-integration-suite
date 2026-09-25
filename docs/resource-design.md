@@ -93,87 +93,75 @@ drift, import) before committing to a schema.
 
 ## `sapintegrationsuite_access_policy`
 
-- **Purpose**: manage an access policy that restricts which roles can operate on which
-  Cloud Integration artifacts.
-- **SAP object**: `AccessPolicies` (Security Content API, OData V2 — SAP documents this
-  entity as supporting both read and write operations).
-- **Desired state**: yes — `role_name`, `description`.
-- **Identity**: SAP-assigned technical ID returned on create; `role_name` is unique per tenant
-  but the provider uses the technical ID as the stable Terraform ID once known, consistent
-  with the rest of the Security Content API.
-- **Create**: `POST AccessPolicies` with `RoleName`/`Description`.
-- **Update**: `PATCH AccessPolicies('{id}')` with a payload containing only `Description`
-  (PATCH, not PUT, so fields outside the Terraform schema are left untouched, and the payload
-  is deliberately minimal rather than resending `RoleName` unchanged — see
-  `internal/client/cloudintegration/access_policy.go`); `role_name` uses `RequiresReplace()`
-  since SAP does not document renaming a policy's role.
-- **Delete**: `DELETE AccessPolicies('{id}')`.
-- **Drift detection**: `Read` re-fetches the policy and its reconciliation/runtime status.
-- **Import**: `terraform import sapintegrationsuite_access_policy.utilities <id>`.
-- **Data source**: `data.sapintegrationsuite_access_policy` reads an existing policy by ID —
-  useful for attaching `sapintegrationsuite_access_policy_reference` resources to a policy
-  this provider does not itself manage.
-- **Runtime awareness (best-effort, not polled)**: `reconciliation_status` is surfaced as a
-  computed attribute whenever the API returns one, but Create/Update return as soon as the
-  policy itself is created/updated — they do **not** poll until reconciliation reaches a
-  terminal state. SAP's own "Manage Access Policies" UI documentation confirms a real
-  replication/reconciliation concept exists (a policy can be replicated to one or more
-  runtimes — Cloud Integration runtime, Integration Cell, Edge Integration Cell — and each
-  replication target reports a `Fail`/`Success`/`Pending` reconciliation status, checked via
-  an icon in the UI's "Runtimes" column), but this research pass could not confirm that this
-  is exposed as a property of the public `AccessPolicies` OData entity as opposed to being
-  UI-only, nor that it is a single scalar value rather than a per-runtime status list. Given
-  that uncertainty, this provider does not add a runtime-association resource or attempt to
-  poll reconciliation to a terminal state; `reconciliation_status` stays a best-effort,
-  informational field. See `docs/sap-api-references.md` for the sourcing.
+*Re-audited September 2026. The wire contract comes from SAP's own access-policy automation;
+see `docs/sap-api-references.md` for the evidence.*
+
+- **Purpose**: manage the policy object itself, meaning the role name that unlocks access and
+  its description. The rules that decide *which* artifacts are protected are separate
+  resources.
+- **SAP object**: `AccessPolicies` in the Security Content API (OData V2), keyed by an
+  `Edm.Int64` `Id`.
+- **Desired state**: `role_name`, `description`. Both are persisted properties. There is
+  nothing computed besides the ID.
+- **Identity**: the numeric `Id` SAP returns on create. `role_name` is unique per tenant and
+  is the portable identifier across landscapes. The data source can resolve it to an ID, but
+  the resource keys on the ID because that is what every write addresses.
+- **Create**: `POST AccessPolicies` with `RoleName` and `Description`.
+- **Update**: `PUT AccessPolicies(<id>L)` with `RoleName` and `Description`. This replaces
+  the former `PATCH` with only `Description`. SAP's own tooling uses PUT with both fields, and
+  under OData V2 PUT semantics leaving `RoleName` out risks clearing it. `role_name` keeps
+  `RequiresReplace()`: it appears in the PUT body, but no source says whether a different
+  value renames the policy or is rejected.
+- **Delete**: `DELETE AccessPolicies(<id>L)`. SAP deletes the policy's artifact references
+  with it, including references Terraform never managed. This is the one place where
+  destroying a Terraform resource reaches objects outside its own state, and the guide calls
+  it out.
+- **Drift detection**: `GET AccessPolicies(<id>L)`. A 404 removes the resource from state.
+- **Import**: by numeric ID. Non-numeric IDs are rejected at import time rather than sent to
+  SAP.
+- **Data source**: looks up by `id` or by `role_name` (exactly one). The role-name lookup
+  uses `$filter=RoleName eq '<name>'`, the same query SAP's tooling uses.
+- **Runtime targeting**: not modeled. It lives in the `AccessPolicyRuntimeAssignments`
+  navigation property, whose schema is not public. The former `reconciliation_status`
+  attribute was removed because the entity has no such property.
 
 ## `sapintegrationsuite_access_policy_reference`
 
-- **Purpose**: manage a single artifact reference (artifact type + match condition) attached
-  to an access policy.
-- **Suitability evaluation (§17)**: artifact references have their own server-assigned ID once
-  created, their own create/delete lifecycle independent of other references on the same
-  policy, and ordering is not documented as significant. This favors a **separate resource**
-  over a nested block, because:
-  - independent API identity: yes (server-assigned reference ID)
-  - independent CRUD: yes
-  - import of a single reference: yes, without needing the whole policy's reference set
-  - drift detection per reference: possible independently
-  - a nested-block model would force replacing the entire reference set on any single change
-- **SAP object**: artifact references nested under `AccessPolicies('{id}')`.
-- **Identity**: composite `<access_policy_id>/<reference_id>`.
-- **Schema**:
-
-  ```hcl
-  resource "sapintegrationsuite_access_policy_reference" "utilities_flows" {
-    access_policy_id = sapintegrationsuite_access_policy.utilities.id
-
-    artifact_type = "IntegrationFlow"
-    attribute     = "Name"
-    operator      = "EQUALS"
-    value         = "metering"
-  }
-  ```
-
-  `artifact_type` is validated against the artifact types SAP documents as supported today:
-  `IntegrationFlow`, `ODataAPI`, `RestAPI`, `SoapAPI`, `ScriptCollection`, `ValueMapping`,
-  `MessageMapping`, `MessageQueue`, `GlobalDataStore`, `GlobalVariable`. No values beyond
-  what SAP documents are accepted by the validator.
-- **Create/Delete**: `POST`/`DELETE` against the nested collection.
-- **Import**: `terraform import sapintegrationsuite_access_policy_reference.utilities_flows <access_policy_id>/<reference_id>`.
-- **Data source**: `data.sapintegrationsuite_access_policy_reference` reads a single existing
-  reference by `access_policy_id` and its own `reference_id`.
-- **Ownership boundary**: this resource manages exactly the references Terraform creates.
-  Deleting the parent `sapintegrationsuite_access_policy` resource never implicitly deletes
-  references Terraform did not create (an externally-added reference is simply left alone),
-  and Terraform never enumerates or reconciles a policy's full reference set — each reference
-  is independently created, read, and deleted by its own ID.
-- **`operator = "MATCHES"` semantics**: confirmed by SAP's own documentation as requiring "a
-  valid Java Regular Expression" supported by `java.util.regex.Pattern` — not a wildcard or
-  glob pattern. `"UTIL_.*"` is a correct, idiomatic MATCHES value; a wildcard-style value like
-  `"UTIL_*"` also happens to be valid Java regex syntax (matching `UTIL` followed by zero or
-  more trailing underscores), but is easy to misread as a glob, so this project's examples
-  prefer the unambiguous `.*` form.
+- **Purpose**: manage one artifact reference, the rule matching artifacts by type and by name
+  or ID.
+- **Suitability (§17)**: a reference has its own server-assigned ID and its own create and
+  delete calls, and ordering between references has no documented meaning. A separate
+  resource is the better fit than a nested block:
+  - independent API identity: yes (`ArtifactReferences` keyed by `Edm.Int64`)
+  - independent create/delete: yes, through the top-level `ArtifactReferences` set
+  - import of a single reference: yes
+  - drift detection per reference: yes
+  - a nested block would force Terraform to own the complete reference set of a policy,
+    which breaks shared policies
+- **Schema and wire mapping**: `name` → `Name`, `description` → `Description`,
+  `artifact_type` → `Type`, `attribute` → `ConditionAttribute`, `operator` →
+  `ConditionType`, `value` → `ConditionValue`. The Terraform names follow the labels of SAP's
+  UI, and the values are SAP's wire constants.
+- **Validation**: non-empty strings only, plus plan-time rejection of `IntegrationFlow` and
+  `EQUALS`. Those two were accepted by earlier releases and are now known to be wrong
+  (`INTEGRATION_FLOW`, `exactString`). The complete constant sets are not public, so a closed
+  enum would either be a guess or lock users out of valid types such as Integration Package.
+- **Create**: `POST ArtifactReferences` with the six properties and
+  `"AccessPolicy": {"Id": "<policy id>"}` binding the reference to its policy.
+- **Read**: `GET AccessPolicies(<policy id>L)/ArtifactReferences`, then pick the reference by
+  ID. Going through the policy also proves membership, and a deleted parent surfaces as a 404.
+- **Update**: none. Every attribute has `RequiresReplace()`. SAP's UI can edit a reference,
+  but no public API contract for it was found, and SAP's own sync deletes and recreates
+  references instead. Replacement briefly removes the protection the old reference gave; the
+  guide describes `create_before_destroy` as the mitigation.
+- **Delete**: `DELETE ArtifactReferences(<id>L)`. A 404 counts as success, because deleting
+  the parent policy already removed the reference.
+- **Import**: `<access_policy_id>/<reference_id>`, both numeric.
+- **Ownership boundary**: Terraform creates, reads and deletes only the reference IDs in its
+  state. It never lists a policy's references to remove unknown ones. The exception sits on
+  SAP's side: destroying the parent policy removes every reference.
+- **Regular expressions**: the *Matches* operator takes a `java.util.regex.Pattern`, not a
+  glob. `UTIL_.*` is the unambiguous way to say "starts with `UTIL_`".
 
 ## Value Mapping API model
 

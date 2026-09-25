@@ -3,19 +3,21 @@
 page_title: "sapintegrationsuite_access_policy Resource - sapintegrationsuite"
 subcategory: ""
 description: |-
-  Manages an SAP Integration Suite access policy, which restricts which roles can operate on a set of Cloud Integration artifacts. Backed by the public Security Content OData V2 API (AccessPolicies). Attach artifact references with the separate sapintegrationsuite_access_policy_reference resource.
+  An SAP Integration Suite access policy: a named guard, tied to a BTP role, that restricts who can work with the artifacts its references match. The policy itself only carries the role name and a description; the matching rules live in separate sapintegrationsuite_access_policy_reference resources. Backed by the AccessPolicies entity of the Security Content OData V2 API.
 ---
 
 # sapintegrationsuite_access_policy (Resource)
 
-Manages an SAP Integration Suite access policy, which restricts which roles can operate on a set of Cloud Integration artifacts. Backed by the public Security Content OData V2 API (AccessPolicies). Attach artifact references with the separate sapintegrationsuite_access_policy_reference resource.
+An SAP Integration Suite access policy: a named guard, tied to a BTP role, that restricts who can work with the artifacts its references match. The policy itself only carries the role name and a description; the matching rules live in separate sapintegrationsuite_access_policy_reference resources. Backed by the AccessPolicies entity of the Security Content OData V2 API.
 
 ## Example Usage
 
 ```terraform
+# The role name must match the Values attribute of a BTP custom role; only
+# users holding that role see the artifacts this policy protects.
 resource "sapintegrationsuite_access_policy" "utilities" {
   role_name   = "UTILITIES_ARCHITECT"
-  description = "Utilities architecture access"
+  description = "Integration flows owned by the utilities architecture team"
 }
 ```
 
@@ -24,16 +26,15 @@ resource "sapintegrationsuite_access_policy" "utilities" {
 
 ### Required
 
-- `role_name` (String) The role this access policy applies to. Immutable: SAP does not document renaming a policy's role.
+- `role_name` (String) Role name the policy is associated with. Users only get access to the protected artifacts when a BTP custom role carries exactly this string in its Values attribute. Unique per tenant. Changing it replaces the policy, because SAP does not document renaming a policy in place.
 
 ### Optional
 
-- `description` (String) A free-text description of the access policy.
+- `description` (String) Free-text description shown next to the policy in the Access Policies screen.
 
 ### Read-Only
 
-- `id` (String) SAP-assigned technical ID of the access policy.
-- `reconciliation_status` (String) Replication/reconciliation status of the policy against any associated runtime (Integration Cell / Edge Integration Cell), where SAP reports one.
+- `id` (String) Numeric ID SAP assigns to the policy. It differs between tenants, so use role_name when you need a portable identifier.
 
 ## Import
 
@@ -42,5 +43,7 @@ Import is supported using the following syntax:
 The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
 
 ```shell
-terraform import sapintegrationsuite_access_policy.utilities <access-policy-id>
+# The ID is the numeric policy ID SAP assigns. Look it up by role name with the
+# sapintegrationsuite_access_policy data source if you do not know it.
+terraform import sapintegrationsuite_access_policy.utilities 1901
 ```

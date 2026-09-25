@@ -2,6 +2,47 @@
 
 All notable changes to this project are documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- Access policy artifact references now use the property names SAP's
+  `ArtifactReferences` entity actually has (`Name`, `Description`, `Type`,
+  `ConditionAttribute`, `ConditionType`, `ConditionValue`). Earlier releases
+  sent invented names (`ArtifactType`, `Attribute`, `Operator`, `Value`) and
+  could not create a reference on a real tenant. The contract was confirmed
+  from SAP's own access-policy automation in
+  `SAP/cicd-actions-for-sap-integration-suite`.
+- Access policies and references are now addressed with `Edm.Int64` keys
+  (`AccessPolicies(1901L)`) instead of quoted string keys. References are
+  created and deleted through the top-level `ArtifactReferences` entity set.
+- Updating an access policy's description now sends a `PUT` with `RoleName`
+  and `Description`, matching SAP's tooling, instead of a `PATCH` with only
+  the description.
+
+### Changed
+
+- **Breaking:** `sapintegrationsuite_access_policy_reference` has a new
+  required `name` and an optional `description`. `artifact_type`, `attribute`
+  and `operator` now take SAP's wire constants (for example
+  `INTEGRATION_FLOW`, `Name`, `exactString`) and are passed through
+  unchanged instead of being checked against a closed list. The old list was
+  incomplete (it lacked Integration Package, API, Data Type and Message Type)
+  and spelled wrong. `IntegrationFlow` and `EQUALS` are rejected at plan time
+  with a pointer to the correct value.
+- `data.sapintegrationsuite_access_policy` can look a policy up by
+  `role_name` as well as by `id`. The role name is the same in every tenant;
+  the ID is not.
+- Import IDs for both access policy resources must now be numeric and are
+  checked before any request is sent.
+
+### Removed
+
+- **Breaking:** `reconciliation_status` on the access policy resource and
+  data source. The `AccessPolicies` entity has no such property; runtime
+  replication lives in the undocumented `AccessPolicyRuntimeAssignments`
+  navigation property. Existing state is unaffected.
+
 ## 0.1.0 - 2026-09-24
 
 Initial release. See `ROADMAP.md` for what is planned next and `docs/` for

@@ -62,6 +62,17 @@ func KeyPredicate(key string) string {
 	return fmt.Sprintf("('%s')", EscapeLiteral(key))
 }
 
+// Int64KeyPredicate renders an Edm.Int64 key predicate, e.g. (1901L). The key
+// is parsed as a base-10 integer first, so a malformed or hostile ID can
+// never reach the request path.
+func Int64KeyPredicate(key string) (string, error) {
+	n, err := strconv.ParseInt(key, 10, 64)
+	if err != nil {
+		return "", fmt.Errorf("odata: %q is not a valid Edm.Int64 key", key)
+	}
+	return fmt.Sprintf("(%dL)", n), nil
+}
+
 // CompositeKeyPredicate renders a multi-key OData key predicate, e.g.
 // (Id='foo',Version='1.0.0'), from key/value pairs supplied as consecutive
 // arguments (k1, v1, k2, v2, ...). Values are quoted and escaped as string

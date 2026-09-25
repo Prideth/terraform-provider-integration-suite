@@ -5,6 +5,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/cloudintegration"
@@ -24,6 +25,8 @@ type accessPolicyReferenceDataSourceModel struct {
 	ID             types.String `tfsdk:"id"`
 	AccessPolicyID types.String `tfsdk:"access_policy_id"`
 	ReferenceID    types.String `tfsdk:"reference_id"`
+	Name           types.String `tfsdk:"name"`
+	Description    types.String `tfsdk:"description"`
 	ArtifactType   types.String `tfsdk:"artifact_type"`
 	Attribute      types.String `tfsdk:"attribute"`
 	Operator       types.String `tfsdk:"operator"`
@@ -36,36 +39,47 @@ func (d *accessPolicyReferenceDataSource) Metadata(_ context.Context, req dataso
 
 func (d *accessPolicyReferenceDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Reads a single existing artifact reference attached to an SAP Integration Suite " +
-			"access policy, by the policy's ID and the reference's own SAP-assigned ID.",
+		Description: "Reads one artifact reference of an access policy, exactly as SAP stores it. " +
+			"Because the values are SAP's raw wire constants, this is also the reliable way to learn " +
+			"the artifact_type and operator values for a reference created in the UI.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:    true,
-				Description: "Composite identifier in the form \"<access_policy_id>/<reference_id>\".",
+				Description: "Composite identifier \"<access_policy_id>/<reference_id>\".",
 			},
 			"access_policy_id": schema.StringAttribute{
 				Required:    true,
-				Description: "ID of the sapintegrationsuite_access_policy this reference belongs to.",
+				Description: "Numeric ID of the access policy the reference belongs to.",
+				Validators:  []validator.String{int64StringValidator{}},
 			},
 			"reference_id": schema.StringAttribute{
 				Required:    true,
-				Description: "The reference's own SAP-assigned technical ID.",
+				Description: "Numeric ID of the reference itself.",
+				Validators:  []validator.String{int64StringValidator{}},
+			},
+			"name": schema.StringAttribute{
+				Computed:    true,
+				Description: "Name of the reference.",
+			},
+			"description": schema.StringAttribute{
+				Computed:    true,
+				Description: "Description of the reference, or null when it has none.",
 			},
 			"artifact_type": schema.StringAttribute{
 				Computed:    true,
-				Description: "The type of artifact this reference protects.",
+				Description: "Artifact type constant SAP stores in Type, for example \"INTEGRATION_FLOW\".",
 			},
 			"attribute": schema.StringAttribute{
 				Computed:    true,
-				Description: "The artifact attribute this reference matches on.",
+				Description: "Artifact attribute the condition is evaluated against (ConditionAttribute).",
 			},
 			"operator": schema.StringAttribute{
 				Computed:    true,
-				Description: "The match operator this reference uses.",
+				Description: "Condition type SAP stores in ConditionType, for example \"exactString\".",
 			},
 			"value": schema.StringAttribute{
 				Computed:    true,
-				Description: "The value or expression the artifact's attribute must satisfy.",
+				Description: "Exact value or regular expression SAP stores in ConditionValue.",
 			},
 		},
 	}
@@ -93,9 +107,15 @@ func (d *accessPolicyReferenceDataSource) Read(ctx context.Context, req datasour
 		return
 	}
 
-	ref, err := d.client.GetAccessPolicyReference(ctx, config.AccessPolicyID.ValueString(), config.ReferenceID.ValueString())
+	ref, err := d.client.FindAccessPolicyReference(ctx, config.AccessPolicyID.ValueString(), config.ReferenceID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read SAP Integration Suite access policy reference", diagnosticDetail(err))
+		return
+	}
+	if ref == nil {
+		resp.Diagnostics.AddError("Access policy reference not found",
+			"Access policy "+config.AccessPolicyID.ValueString()+" has no artifact reference with ID "+
+				config.ReferenceID.ValueString()+".")
 		return
 	}
 
@@ -103,9 +123,11 @@ func (d *accessPolicyReferenceDataSource) Read(ctx context.Context, req datasour
 		ID:             types.StringValue(config.AccessPolicyID.ValueString() + "/" + ref.ID),
 		AccessPolicyID: config.AccessPolicyID,
 		ReferenceID:    types.StringValue(ref.ID),
-		ArtifactType:   types.StringValue(ref.ArtifactType),
-		Attribute:      types.StringValue(ref.Attribute),
-		Operator:       types.StringValue(ref.Operator),
-		Value:          types.StringValue(ref.Value),
+		Name:           types.StringValue(ref.Name),
+		Description:    stringOrNull(ref.Description),
+		ArtifactType:   types.StringValue(ref.Type),
+		Attribute:      types.StringValue(ref.ConditionAttribute),
+		Operator:       types.StringValue(ref.ConditionType),
+		Value:          types.StringValue(ref.ConditionValue),
 	})...)
 }

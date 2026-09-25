@@ -3,23 +3,30 @@
 page_title: "sapintegrationsuite_access_policy_reference Data Source - sapintegrationsuite"
 subcategory: ""
 description: |-
-  Reads a single existing artifact reference attached to an SAP Integration Suite access policy, by the policy's ID and the reference's own SAP-assigned ID.
+  Reads one artifact reference of an access policy, exactly as SAP stores it. Because the values are SAP's raw wire constants, this is also the reliable way to learn the artifact_type and operator values for a reference created in the UI.
 ---
 
 # sapintegrationsuite_access_policy_reference (Data Source)
 
-Reads a single existing artifact reference attached to an SAP Integration Suite access policy, by the policy's ID and the reference's own SAP-assigned ID.
+Reads one artifact reference of an access policy, exactly as SAP stores it. Because the values are SAP's raw wire constants, this is also the reliable way to learn the artifact_type and operator values for a reference created in the UI.
 
 ## Example Usage
 
 ```terraform
-data "sapintegrationsuite_access_policy_reference" "utilities_flows" {
-  access_policy_id = "1"
-  reference_id     = "ref-1"
+# Reads a reference exactly as SAP stores it. Useful for learning the wire
+# constants of a reference that was created in the Integration Suite UI, for
+# example one of artifact type "Integration Package" or operator "Matches".
+data "sapintegrationsuite_access_policy_reference" "created_in_ui" {
+  access_policy_id = "1901"
+  reference_id     = "56"
 }
 
-output "utilities_flows_reference_value" {
-  value = data.sapintegrationsuite_access_policy_reference.utilities_flows.value
+output "ui_reference_constants" {
+  value = {
+    artifact_type = data.sapintegrationsuite_access_policy_reference.created_in_ui.artifact_type
+    attribute     = data.sapintegrationsuite_access_policy_reference.created_in_ui.attribute
+    operator      = data.sapintegrationsuite_access_policy_reference.created_in_ui.operator
+  }
 }
 ```
 
@@ -28,13 +35,15 @@ output "utilities_flows_reference_value" {
 
 ### Required
 
-- `access_policy_id` (String) ID of the sapintegrationsuite_access_policy this reference belongs to.
-- `reference_id` (String) The reference's own SAP-assigned technical ID.
+- `access_policy_id` (String) Numeric ID of the access policy the reference belongs to.
+- `reference_id` (String) Numeric ID of the reference itself.
 
 ### Read-Only
 
-- `artifact_type` (String) The type of artifact this reference protects.
-- `attribute` (String) The artifact attribute this reference matches on.
-- `id` (String) Composite identifier in the form "<access_policy_id>/<reference_id>".
-- `operator` (String) The match operator this reference uses.
-- `value` (String) The value or expression the artifact's attribute must satisfy.
+- `artifact_type` (String) Artifact type constant SAP stores in Type, for example "INTEGRATION_FLOW".
+- `attribute` (String) Artifact attribute the condition is evaluated against (ConditionAttribute).
+- `description` (String) Description of the reference, or null when it has none.
+- `id` (String) Composite identifier "<access_policy_id>/<reference_id>".
+- `name` (String) Name of the reference.
+- `operator` (String) Condition type SAP stores in ConditionType, for example "exactString".
+- `value` (String) Exact value or regular expression SAP stores in ConditionValue.

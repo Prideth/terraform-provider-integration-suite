@@ -33,9 +33,11 @@ func TestAccessPolicyResource_SchemaRequiredOptionalComputed(t *testing.T) {
 		{"id", false, false, true},
 		{"role_name", true, false, false},
 		{"description", false, true, false},
-		{"reconciliation_status", false, false, true},
 	}
 
+	if len(s.Attributes) != len(cases) {
+		t.Errorf("schema has %d attributes, want %d", len(s.Attributes), len(cases))
+	}
 	for _, c := range cases {
 		attr, ok := s.Attributes[c.name]
 		if !ok {
@@ -54,9 +56,14 @@ func TestAccessPolicyResource_SchemaRequiredOptionalComputed(t *testing.T) {
 	}
 }
 
-// TestAccessPolicyResource_RoleNameRequiresReplace pins down that role_name
-// forces replacement: SAP does not document renaming a policy's role, so a
-// changed role_name must never be sent through Update.
+// reconciliation_status was removed because the AccessPolicies entity has no
+// such property; runtime replication lives in AccessPolicyRuntimeAssignments.
+func TestAccessPolicyResource_NoReconciliationStatus(t *testing.T) {
+	if _, ok := accessPolicySchema(t).Schema.Attributes["reconciliation_status"]; ok {
+		t.Error("reconciliation_status must not be part of the schema")
+	}
+}
+
 func TestAccessPolicyResource_RoleNameRequiresReplace(t *testing.T) {
 	s := accessPolicySchema(t).Schema
 
@@ -88,43 +95,48 @@ func TestAccessPolicyResource_ImportState(t *testing.T) {
 	r := NewAccessPolicyResource().(resource.ResourceWithImportState)
 
 	resp := &resource.ImportStateResponse{State: newTestState(t, accessPolicySchema(t).Schema)}
-	r.ImportState(context.Background(), resource.ImportStateRequest{ID: "1"}, resp)
+	r.ImportState(context.Background(), resource.ImportStateRequest{ID: "1901"}, resp)
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("ImportState() produced diagnostics: %v", resp.Diagnostics)
 	}
 
 	var id types.String
 	resp.Diagnostics.Append(resp.State.GetAttribute(context.Background(), pathRootID(), &id)...)
-	if id.ValueString() != "1" {
-		t.Errorf("id = %q, want %q", id.ValueString(), "1")
+	if id.ValueString() != "1901" {
+		t.Errorf("id = %q, want %q", id.ValueString(), "1901")
+	}
+}
+
+func TestAccessPolicyResource_ImportState_RejectsNonNumericID(t *testing.T) {
+	r := NewAccessPolicyResource().(resource.ResourceWithImportState)
+
+	for _, id := range []string{"UTILITIES_ARCHITECT", "", "1.5"} {
+		resp := &resource.ImportStateResponse{State: newTestState(t, accessPolicySchema(t).Schema)}
+		r.ImportState(context.Background(), resource.ImportStateRequest{ID: id}, resp)
+		if !resp.Diagnostics.HasError() {
+			t.Errorf("ImportState(%q) should produce a diagnostic", id)
+		}
 	}
 }
 
 func TestAccessPolicyToModel(t *testing.T) {
 	policy := &cloudintegration.AccessPolicy{
-		ID:       "1",
+		ID:       "1901",
 		RoleName: "UTILITIES_ARCHITECT",
 	}
 
 	got := accessPolicyToModel(policy)
 
-	if got.ID.ValueString() != "1" {
-		t.Errorf("ID = %q, want %q", got.ID.ValueString(), "1")
+	if got.ID.ValueString() != "1901" {
+		t.Errorf("ID = %q, want %q", got.ID.ValueString(), "1901")
 	}
 	if !got.Description.IsNull() {
-		t.Errorf("Description = %v, want null when SAP reports no description", got.Description)
-	}
-	if !got.ReconciliationStatus.IsNull() {
-		t.Errorf("ReconciliationStatus = %v, want null when SAP reports none", got.ReconciliationStatus)
+		t.Errorf("Description = %v, want null when SAP reports an empty description", got.Description)
 	}
 
 	policy.Description = "desc"
-	policy.ReconciliationStatus = "SUCCESS"
 	got = accessPolicyToModel(policy)
 	if got.Description.ValueString() != "desc" {
 		t.Errorf("Description = %q, want %q", got.Description.ValueString(), "desc")
-	}
-	if got.ReconciliationStatus.ValueString() != "SUCCESS" {
-		t.Errorf("ReconciliationStatus = %q, want %q", got.ReconciliationStatus.ValueString(), "SUCCESS")
 	}
 }

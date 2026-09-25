@@ -3,6 +3,8 @@ package provider
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -29,11 +31,25 @@ type accessPolicyReferenceResource struct {
 type accessPolicyReferenceModel struct {
 	ID             types.String `tfsdk:"id"`
 	AccessPolicyID types.String `tfsdk:"access_policy_id"`
+	Name           types.String `tfsdk:"name"`
+	Description    types.String `tfsdk:"description"`
 	ArtifactType   types.String `tfsdk:"artifact_type"`
 	Attribute      types.String `tfsdk:"attribute"`
 	Operator       types.String `tfsdk:"operator"`
 	Value          types.String `tfsdk:"value"`
 }
+
+// Values that earlier provider releases accepted for a concept whose real
+// wire value is now known. Only provably wrong values are listed; rejecting
+// them at plan time replaces an opaque OData error at apply time.
+var (
+	legacyArtifactTypeValues = map[string]string{
+		"IntegrationFlow": `use "INTEGRATION_FLOW"`,
+	}
+	legacyOperatorValues = map[string]string{
+		"EQUALS": `use "exactString"`,
+	}
+)
 
 func (r *accessPolicyReferenceResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_access_policy_reference"
@@ -41,60 +57,92 @@ func (r *accessPolicyReferenceResource) Metadata(_ context.Context, req resource
 
 func (r *accessPolicyReferenceResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manages a single artifact reference (artifact type plus a match condition) " +
-			"attached to an sapintegrationsuite_access_policy. Modeled as a separate resource " +
-			"because each reference has its own server-assigned identity and CRUD lifecycle.",
+		Description: "One artifact reference of an access policy: a rule that says which artifacts " +
+			"(by type, and by name or ID) the policy protects. A policy usually has several. Each " +
+			"reference is its own ArtifactReferences entity with a server-assigned ID, which is " +
+			"why it is a separate resource and not a block inside sapintegrationsuite_access_policy.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:    true,
-				Description: "Composite identifier in the form \"<access_policy_id>/<reference_id>\".",
+				Description: "Composite identifier \"<access_policy_id>/<reference_id>\", both numeric SAP IDs.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"access_policy_id": schema.StringAttribute{
 				Required:    true,
-				Description: "ID of the sapintegrationsuite_access_policy this reference belongs to.",
+				Description: "Numeric ID of the access policy this reference belongs to.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					int64StringValidator{},
+				},
+			},
+			"name": schema.StringAttribute{
+				Required:    true,
+				Description: "Name of the reference as shown in the policy's References table. Mandatory in SAP.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
+			},
+			"description": schema.StringAttribute{
+				Optional:    true,
+				Description: "Optional description, for example what a regular expression is meant to match.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
 				},
 			},
 			"artifact_type": schema.StringAttribute{
 				Required: true,
-				Description: "The type of artifact this reference protects. Must be one of the " +
-					"artifact types SAP currently documents as supported.",
+				Description: "Artifact type constant as SAP's API stores it in the Type property, for " +
+					"example \"INTEGRATION_FLOW\". Passed through unchanged; see the Access Policies " +
+					"guide for how to find the constant for other types.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
-					stringvalidator.OneOf(cloudintegration.SupportedArtifactTypes...),
+					stringvalidator.LengthAtLeast(1),
+					legacyValueValidator{legacy: legacyArtifactTypeValues},
 				},
 			},
 			"attribute": schema.StringAttribute{
-				Required:    true,
-				Description: "The artifact attribute to match on: \"Name\" or \"Id\".",
+				Required: true,
+				Description: "Artifact attribute the condition is evaluated against, as stored in " +
+					"ConditionAttribute, for example \"Name\".",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
-					stringvalidator.OneOf("Name", "Id"),
+					stringvalidator.LengthAtLeast(1),
 				},
 			},
 			"operator": schema.StringAttribute{
-				Required:    true,
-				Description: "The match operator: \"EQUALS\" or \"MATCHES\".",
+				Required: true,
+				Description: "Condition type as stored in ConditionType: \"exactString\" for an exact " +
+					"match. The regular-expression variant is covered in the Access Policies guide.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
-					stringvalidator.OneOf("EQUALS", "MATCHES"),
+					stringvalidator.LengthAtLeast(1),
+					legacyValueValidator{legacy: legacyOperatorValues},
 				},
 			},
 			"value": schema.StringAttribute{
 				Required:    true,
-				Description: "The value or expression the artifact's attribute must satisfy.",
+				Description: "Exact name/ID, or Java regular expression, stored in ConditionValue.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
 				},
 			},
 		},
@@ -124,10 +172,12 @@ func (r *accessPolicyReferenceResource) Create(ctx context.Context, req resource
 	}
 
 	created, err := r.client.CreateAccessPolicyReference(ctx, plan.AccessPolicyID.ValueString(), cloudintegration.AccessPolicyReference{
-		ArtifactType: plan.ArtifactType.ValueString(),
-		Attribute:    plan.Attribute.ValueString(),
-		Operator:     plan.Operator.ValueString(),
-		Value:        plan.Value.ValueString(),
+		Name:               plan.Name.ValueString(),
+		Description:        plan.Description.ValueString(),
+		Type:               plan.ArtifactType.ValueString(),
+		ConditionAttribute: plan.Attribute.ValueString(),
+		ConditionType:      plan.Operator.ValueString(),
+		ConditionValue:     plan.Value.ValueString(),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to create SAP Integration Suite access policy reference", diagnosticDetail(err))
@@ -144,7 +194,7 @@ func (r *accessPolicyReferenceResource) Read(ctx context.Context, req resource.R
 		return
 	}
 
-	ref, err := r.client.GetAccessPolicyReference(ctx, state.AccessPolicyID.ValueString(), referenceIDFrom(state.ID.ValueString()))
+	ref, err := r.client.FindAccessPolicyReference(ctx, state.AccessPolicyID.ValueString(), referenceIDFrom(state.ID.ValueString()))
 	if err != nil {
 		var apiErr *apierror.Error
 		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
@@ -154,14 +204,17 @@ func (r *accessPolicyReferenceResource) Read(ctx context.Context, req resource.R
 		resp.Diagnostics.AddError("Failed to read SAP Integration Suite access policy reference", diagnosticDetail(err))
 		return
 	}
+	if ref == nil {
+		resp.State.RemoveResource(ctx)
+		return
+	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, referenceToModel(state.AccessPolicyID.ValueString(), ref))...)
 }
 
-// Update is unreachable in practice: every attribute besides access_policy_id
-// (which forces replacement) is part of the reference's match condition, and
-// SAP's artifact reference API does not document in-place updates for it, so
-// a changed attribute/operator/value also requires replacement.
+// Update is unreachable: every attribute forces replacement, because SAP's
+// public tooling only creates and deletes references and no in-place update
+// contract for ArtifactReferences has been confirmed.
 func (r *accessPolicyReferenceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	resp.Diagnostics.AddError(
 		"Update not supported",
@@ -177,7 +230,7 @@ func (r *accessPolicyReferenceResource) Delete(ctx context.Context, req resource
 		return
 	}
 
-	err := r.client.DeleteAccessPolicyReference(ctx, state.AccessPolicyID.ValueString(), referenceIDFrom(state.ID.ValueString()))
+	err := r.client.DeleteAccessPolicyReference(ctx, referenceIDFrom(state.ID.ValueString()))
 	if err != nil {
 		var apiErr *apierror.Error
 		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
@@ -189,8 +242,17 @@ func (r *accessPolicyReferenceResource) Delete(ctx context.Context, req resource
 
 func (r *accessPolicyReferenceResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	policyID, referenceID, err := splitCompositeID(req.ID)
+	if err == nil {
+		for _, id := range []string{policyID, referenceID} {
+			if _, perr := strconv.ParseInt(id, 10, 64); perr != nil {
+				err = fmt.Errorf("both parts of %q must be numeric SAP IDs", req.ID)
+				break
+			}
+		}
+	}
 	if err != nil {
-		resp.Diagnostics.AddError("Invalid import ID", err.Error())
+		resp.Diagnostics.AddError("Invalid import ID",
+			"Expected \"<access_policy_id>/<reference_id>\" with numeric IDs: "+err.Error())
 		return
 	}
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRoot("access_policy_id"), policyID)...)
@@ -201,10 +263,12 @@ func referenceToModel(policyID string, ref *cloudintegration.AccessPolicyReferen
 	return accessPolicyReferenceModel{
 		ID:             types.StringValue(policyID + "/" + ref.ID),
 		AccessPolicyID: types.StringValue(policyID),
-		ArtifactType:   types.StringValue(ref.ArtifactType),
-		Attribute:      types.StringValue(ref.Attribute),
-		Operator:       types.StringValue(ref.Operator),
-		Value:          types.StringValue(ref.Value),
+		Name:           types.StringValue(ref.Name),
+		Description:    stringOrNull(ref.Description),
+		ArtifactType:   types.StringValue(ref.Type),
+		Attribute:      types.StringValue(ref.ConditionAttribute),
+		Operator:       types.StringValue(ref.ConditionType),
+		Value:          types.StringValue(ref.ConditionValue),
 	}
 }
 
@@ -216,4 +280,53 @@ func referenceIDFrom(id string) string {
 		return id
 	}
 	return referenceID
+}
+
+// int64StringValidator accepts only base-10 integers that fit Edm.Int64.
+type int64StringValidator struct{}
+
+func (int64StringValidator) Description(context.Context) string {
+	return "value must be a numeric SAP ID"
+}
+
+func (v int64StringValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (int64StringValidator) ValidateString(_ context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	if _, err := strconv.ParseInt(req.ConfigValue.ValueString(), 10, 64); err != nil {
+		resp.Diagnostics.AddAttributeError(req.Path, "Invalid SAP ID",
+			fmt.Sprintf("%q is not a numeric SAP ID.", req.ConfigValue.ValueString()))
+	}
+}
+
+// legacyValueValidator rejects values that earlier provider releases accepted
+// by mistake, with a hint where the correct SAP wire value is known.
+type legacyValueValidator struct {
+	legacy map[string]string
+}
+
+func (legacyValueValidator) Description(context.Context) string {
+	return "value must be the constant SAP's API uses, not a value accepted by earlier provider releases"
+}
+
+func (v legacyValueValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v legacyValueValidator) ValidateString(_ context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	value := req.ConfigValue.ValueString()
+	hint, isLegacy := v.legacy[value]
+	if !isLegacy {
+		return
+	}
+	resp.Diagnostics.AddAttributeError(req.Path, "Unsupported legacy value",
+		fmt.Sprintf("%q was accepted by earlier releases of this provider, but it is not the value SAP's "+
+			"access policy API uses; %s.", value, hint))
 }

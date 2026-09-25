@@ -86,9 +86,9 @@ hands-on sample repository, so nothing is implemented. Landscape Configuration
 confirmed; Requests/assessment workflow is out of scope regardless — see "Implemented" below and
 `docs/guides/integration-assessment.md`.
 
-Edge Integration Cell is done — SAP-side registration, activation, and Access Policy replication
-all remain UI/CLI-only (no public API), local monitoring APIs are confirmed real but out of
-scope as runtime data, and the Operations Cockpit API is confirmed real but excluded as
+Edge Integration Cell is done — SAP-side registration and activation remain UI/CLI-only (no public
+API), Access Policy replication has a public but undocumented API surface
+(`public_api_incomplete`), local monitoring APIs are confirmed real but out of scope as runtime data, and the Operations Cockpit API is confirmed real but excluded as
 Kubernetes-adjacent operational configuration — see "Implemented" below and
 `docs/guides/edge-integration-cell.md`.
 
@@ -114,9 +114,12 @@ planned as a separate, independently versioned Terraform provider (working name
 `Prideth/terraform-provider-sap-developer-hub`). See `docs/provider-scope.md` for the boundary
 statement and `docs/feature-support.md`'s single `developer_hub` catalog entry.
 
-Access Policies completion (role/identity semantics, artifact reference lifecycle audit,
-runtime reconciliation research, minimal-PATCH update, data sources, import/drift) is done —
-see "Implemented" below and `docs/guides/access-policies.md`. Partner Directory is also done —
+Access Policies were re-audited in September 2026 against SAP's own access-policy automation.
+The re-audit corrected the artifact-reference wire format (property names, Int64 keys, create and
+delete paths), switched policy updates to PUT, removed the non-existent `reconciliation_status`,
+and added lookup by role name — see "Implemented" below and `docs/guides/access-policies.md`.
+Runtime targeting stays open until the `AccessPolicyRuntimeAssignments` schema is published.
+Partner Directory is also done —
 see "Implemented" below and `docs/guides/partner-directory.md`. Cloud Integration Service
 Endpoints discovery is also done — see "Implemented" below and `docs/guides/service-endpoints.md`.
 Security Content (User Credentials, OAuth2 Client Credentials, Keystore Entry discovery,
@@ -143,9 +146,8 @@ already shipped (see "Implemented" below).
   - `sapintegrationsuite_integration_package`
   - `sapintegrationsuite_integration_flow`
   - `sapintegrationsuite_integration_flow_deployment`
-- Access Policies (role/artifact-reference lifecycle audited and completed; minimal-PATCH
-  update, data sources, and runtime-reconciliation research documented — see
-  `docs/guides/access-policies.md`):
+- Access Policies (wire contract re-audited in 2026 against SAP's own tooling; lookup by role
+  name; runtime targeting still open — see `docs/guides/access-policies.md`):
   - `sapintegrationsuite_access_policy`
   - `sapintegrationsuite_access_policy_reference`
   - `data.sapintegrationsuite_access_policy`
@@ -233,9 +235,9 @@ already shipped (see "Implemented" below).
 - Acceptance test framework (gated on `TF_ACC=1`)
 - Generated provider documentation, greenfield/brownfield examples
 - CI (fmt/vet/test/build/lint) and GoReleaser-based release pipeline
-- Edge Integration Cell classification (registration/activation/Access Policy replication
-  confirmed UI/CLI-only; local monitoring and Operations Cockpit APIs confirmed real but out of
-  scope) — see `docs/guides/edge-integration-cell.md`
+- Edge Integration Cell classification (registration/activation confirmed UI/CLI-only; Access
+  Policy replication has an undocumented public API surface; local monitoring and Operations
+  Cockpit APIs confirmed real but out of scope) — see `docs/guides/edge-integration-cell.md`
 - Classic API Management (a separate `provider.api_management` credential block and
   `internal/client/apimanagementclassic`; API Provider, API Product, Certificate Store Reference,
   and Key Value Map resources and data sources, each scoped to what SAP's `Management.svc` API

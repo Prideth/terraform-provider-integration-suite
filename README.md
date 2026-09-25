@@ -163,7 +163,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 
 | Feature | Status | Terraform Support |
 |---|:---:|---|
-| Edge Integration Cell Access Policy Replication | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
+| Edge Integration Cell Access Policy Replication | ❌ | Planned — API details unconfirmed — see [feature-support.md](docs/feature-support.md#all-features) |
 | Edge Integration Cell Deployment Targeting | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 | Edge Integration Cell Local API Access | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Edge Integration Cell Registration | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |

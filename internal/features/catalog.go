@@ -519,18 +519,18 @@ var Catalog = []Feature{
 		PublicAPI:   true,
 		APIProtocol: "OData V2",
 		Limitations: []string{
-			"reconciliation_status is surfaced whenever the API returns it, but Create/Update do not " +
-				"poll it to a terminal state: SAP's Manage Access Policies UI documents replicating a " +
-				"policy to one or more runtimes (Cloud Integration runtime, Integration Cell, Edge " +
-				"Integration Cell) with a per-runtime Fail/Success/Pending reconciliation status, but " +
-				"this project could not confirm that mechanism is exposed through the public " +
-				"AccessPolicies OData API this provider uses, as opposed to being UI-only. Treat the " +
-				"field as informational, not something to script against.",
-			"Whether RoleName refers to a BTP role collection or an individual BTP role (assigned to " +
-				"users via a role collection) has not been confirmed against SAP's OData $metadata; SAP's " +
-				"own UI documentation describes associating \"a role\" with the policy \"using SAP " +
-				"Business Technology Platform cockpit\", which this provider treats as an opaque string " +
-				"it does not interpret or manage.",
+			"Runtime targeting is not managed. SAP stores the runtimes a policy is replicated to " +
+				"(Cloud Integration runtime, Integration Cell, Edge Integration Cell) in the " +
+				"AccessPolicyRuntimeAssignments navigation property, whose schema and write semantics " +
+				"are not publicly documented; see edge_integration_cell.access_policy_replication. " +
+				"Earlier releases exposed a reconciliation_status attribute; it was removed because the " +
+				"AccessPolicies entity has no such property.",
+			"role_name is matched by SAP against the Values attribute of a BTP custom role. That role " +
+				"and the role collection granting it belong to the SAP/btp provider; this provider only " +
+				"passes the string through.",
+			"role_name forces replacement: SAP's API accepts RoleName in the PUT payload, but no " +
+				"documentation confirms that changing it renames the policy rather than being rejected. " +
+				"Replacing a policy also deletes its artifact references on SAP's side.",
 		},
 		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},
 	},
@@ -547,14 +547,17 @@ var Catalog = []Feature{
 		PublicAPI:   true,
 		APIProtocol: "OData V2",
 		Limitations: []string{
-			"No in-place update: every attribute is part of the reference's match condition and SAP " +
-				"does not document updating a reference in place, so access_policy_id, artifact_type, " +
-				"attribute, operator, and value all force replacement. This is a deliberate lifecycle " +
-				"choice, not a missing capability.",
-			"The exact wire-format casing of the Attribute (\"Name\"/\"Id\" vs. \"NAME\"/\"ID\") and " +
-				"Operator (\"EQUALS\"/\"MATCHES\" vs. \"equals\"/\"matches\") enum values has not been " +
-				"confirmed against a live tenant or OData $metadata; SAP's UI documentation confirms the " +
-				"two values for each but only in prose/UI-label form.",
+			"No in-place update: SAP's UI can edit a reference, but the only public contract found " +
+				"(SAP's own CI/CD tooling) creates and deletes references and never updates one, so every " +
+				"attribute forces replacement. Replacement deletes the old reference before creating the " +
+				"new one, which briefly leaves the matched artifacts unprotected by it.",
+			"artifact_type, attribute and operator are passed through verbatim. Confirmed wire values " +
+				"are Type INTEGRATION_FLOW, ConditionAttribute Name and ConditionType exactString; SAP " +
+				"publishes no complete list of the other constants (for example for Integration Package, " +
+				"Message Queue or regular-expression matching). Read a UI-created reference with the data " +
+				"source to learn them.",
+			"Releases before this correction sent invented field names (ArtifactType, Attribute, " +
+				"Operator, Value) and could not have worked against a real tenant.",
 		},
 		Operations: Operations{Create: true, Read: true, Update: false, Delete: true, Import: true},
 	},
@@ -1368,15 +1371,18 @@ var Catalog = []Feature{
 		Description: "Selecting which runtimes (Integration Cell, specific Edge Integration Cell nodes) " +
 			"an Access Policy replicates to.",
 		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonNoPublicAPI,
-		PublicAPI:     false,
+		SupportReason: ReasonPublicAPIIncomplete,
+		PublicAPI:     true,
+		APIProtocol:   "OData V2",
 		Limitations: []string{
-			"SAP's Access Policies UI documents selecting \"the runtimes where you want to create the " +
-				"new access policy\" and later editing that runtime selection, but the confirmed " +
-				"AccessPolicies OData entity this provider already manages " +
-				"(sapintegrationsuite_access_policy) exposes no writable runtime/location field anywhere " +
-				"— only a computed ReconciliationStatus reporting replication state after the fact. No " +
-				"public write path was found for the runtime-selection step itself.",
+			"The public AccessPolicies entity carries runtime assignments in its " +
+				"AccessPolicyRuntimeAssignments navigation property (SAP's own CI/CD tooling strips it " +
+				"from downloaded policies), and SAP Help documents the per-runtime Fail/Success/Pending " +
+				"reconciliation status. Neither SAP Help nor any public sample documents the entity's " +
+				"properties, how a runtime is identified, or whether assignments can be written through " +
+				"the API, so the provider does not guess at them.",
+			"Unblocking this needs the AccessPolicyRuntimeAssignments entity type from the Security " +
+				"Content API specification on api.sap.com or from a tenant's $metadata document.",
 		},
 	},
 
