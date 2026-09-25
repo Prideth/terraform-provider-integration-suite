@@ -518,12 +518,12 @@ var Catalog = []Feature{
 		PublicAPI:   true,
 		APIProtocol: "OData V2",
 		Limitations: []string{
-			"Runtime targeting is not managed. SAP stores the runtimes a policy is replicated to " +
-				"(Cloud Integration runtime, Integration Cell, Edge Integration Cell) in the " +
-				"AccessPolicyRuntimeAssignments navigation property, whose schema and write semantics " +
-				"are not publicly documented; see edge_integration_cell.access_policy_replication. " +
-				"Earlier releases exposed a reconciliation_status attribute; it was removed because the " +
-				"AccessPolicies entity has no such property.",
+			"Runtime targeting is read-only. The runtimes a policy is replicated to and their " +
+				"replication state can be read with " +
+				"sapintegrationsuite_access_policy_runtime_assignments; whether they can be written " +
+				"through the API is not documented, so they are chosen in the UI. Earlier releases " +
+				"exposed a reconciliation_status attribute; it was removed because the AccessPolicies " +
+				"entity has no such property.",
 			"role_name is matched by SAP against the Values attribute of a BTP custom role. That role " +
 				"and the role collection granting it belong to the SAP/btp provider; this provider only " +
 				"passes the string through.",
@@ -1382,22 +1382,23 @@ var Catalog = []Feature{
 		Key:    "edge_integration_cell.access_policy_replication",
 		Domain: "edge_integration_cell",
 		Name:   "Edge Integration Cell Access Policy Replication",
-		Description: "Selecting which runtimes (Integration Cell, specific Edge Integration Cell nodes) " +
-			"an Access Policy replicates to.",
-		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonPublicAPIIncomplete,
-		PublicAPI:     true,
-		APIProtocol:   "OData V2",
+		Description: "The runtimes (Cloud Integration runtime, Integration Cell, specific Edge " +
+			"Integration Cells) an Access Policy is replicated to, and the replication state of each.",
+		SupportStatus:   StatusReadOnly,
+		SupportReason:   ReasonPublicAPIIncomplete,
+		DataSourceTypes: []string{"sapintegrationsuite_access_policy_runtime_assignments"},
+		PublicAPI:       true,
+		APIProtocol:     "OData V2",
 		Limitations: []string{
-			"The public AccessPolicies entity carries runtime assignments in its " +
-				"AccessPolicyRuntimeAssignments navigation property (SAP's own CI/CD tooling strips it " +
-				"from downloaded policies), and SAP Help documents the per-runtime Fail/Success/Pending " +
-				"reconciliation status. Neither SAP Help nor any public sample documents the entity's " +
-				"properties, how a runtime is identified, or whether assignments can be written through " +
-				"the API, so the provider does not guess at them.",
-			"Unblocking this needs the AccessPolicyRuntimeAssignments entity type from the Security " +
-				"Content API specification on api.sap.com or from a tenant's $metadata document.",
+			"Readable, not writable: the tenant $metadata defines AccessPolicyRuntimeAssignments " +
+				"(Id, RuntimeLocationId, TransferStatus, TransferErrors, StatusUpdatedAt) as a " +
+				"navigation property of AccessPolicies, which the data source reads. Whether " +
+				"assignments can be created or deleted through the API is not documented, and " +
+				"$metadata carries no creatable/updatable flags, so choosing runtimes stays a UI step.",
+			"transfer_status is passed through as SAP returns it: the UI shows Fail, Success and " +
+				"Pending, but the API values are plain strings with no documented enumeration.",
 		},
+		Operations: Operations{Read: true},
 	},
 
 	// --- Capability activation/provisioning (subscription-level toggles) ---

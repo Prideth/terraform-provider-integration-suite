@@ -160,23 +160,22 @@ appears in any confirmed API this provider calls or has researched: not in the N
 targets the implicit default runtime and does not guess at an undocumented query or body
 parameter. `edge_integration_cell.deployment_target` in `docs/feature-support.md` records this.
 
-## Access Policy replication: the API exists, its contract does not
+## Access Policy replication: readable, not writable
 
 In the Access Policies screen an administrator picks the runtimes a policy is created in,
 which can include individual Edge Integration Cells, and can change that selection later. Each
-runtime then reports a reconciliation status. An Edge Integration Cell that is offline shows
+runtime then reports a replication status. An Edge Integration Cell that is offline shows
 *Pending* until it reconnects and picks the policy up.
 
-On the API side, SAP's own CI/CD tooling shows that the public `AccessPolicies` entity carries
-these assignments in a navigation property named `AccessPolicyRuntimeAssignments`. That is as
-far as public evidence goes. Neither SAP Help nor any published sample shows what an
-assignment contains, how an Edge Integration Cell is identified in it, or whether assignments
-can be created through the API. `sapintegrationsuite_access_policy` therefore manages the
-policy and leaves runtime selection to the UI. An earlier release exposed a
-`reconciliation_status` attribute on the policy; it was removed because the policy entity has
-no such property. The [Access Policies guide](access-policies.md) describes what this means in
-practice, and `edge_integration_cell.access_policy_replication` in `docs/feature-support.md`
-tracks the gap.
+The public `AccessPolicies` entity exposes these assignments through its
+`AccessPolicyRuntimeAssignments` navigation property. Each assignment names its runtime by
+`RuntimeLocationId` and carries `TransferStatus`, `TransferErrors` and `StatusUpdatedAt`. The
+`sapintegrationsuite_access_policy_runtime_assignments` data source reads them, which makes an
+Edge Integration Cell that has not received a policy visible from Terraform or from monitoring
+built on it. Whether assignments can be written through the API is not documented, so
+runtime selection itself stays in the UI. The [Access Policies guide](access-policies.md)
+describes the practical consequences, and `edge_integration_cell.access_policy_replication` in
+`docs/feature-support.md` tracks the write gap.
 
 ## What remains manual
 

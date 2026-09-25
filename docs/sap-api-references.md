@@ -689,20 +689,38 @@ and `docs/ISuite_Edge_Integration_Cell/manage-access-policies-for-edge-integrati
   status reads *Fail*, *Success* or *Pending*. Offline runtimes receive the policy once they
   come back.
 
+### Tenant `$metadata` confirmation (September 2026)
+
+A `$metadata` document from a Cloud Foundry tenant (`/api/v1/$metadata`, OData V2,
+namespace `com.sap.hci.api`) confirms the contract above property for property:
+
+| Entity type | Key | Properties | Navigation |
+|---|---|---|---|
+| `AccessPolicy` | `Id` (`Edm.Int64`) | `RoleName`, `Description` | `ArtifactReferences`, `AccessPolicyRuntimeAssignments` |
+| `ArtifactReference` | `Id` (`Edm.Int64`) | `Name`, `Description`, `Type`, `ConditionAttribute`, `ConditionValue`, `ConditionType` | `AccessPolicy` |
+| `AccessPolicyRuntimeAssignment` | `Id` (`Edm.Int64`) | `RuntimeLocationId`, `TransferStatus`, `TransferErrors`, `StatusUpdatedAt` (`Edm.DateTime`) | `AccessPolicy` |
+
+All three entity sets exist (`AccessPolicies`, `ArtifactReferences`,
+`AccessPolicyRuntimeAssignments`). The document carries no `sap:creatable`/`sap:updatable`
+annotations, so it says nothing about which operations each set accepts. The provider's
+contract test (`internal/client/cloudintegration/metadata_contract_test.go`) checks the
+structs and keys against this document whenever it is available locally.
+
 ### Still not publicly documented
 
 - The wire constants for every artifact type other than Integration Flow, for the *ID*
   attribute, and for the *Matches* operator. The provider therefore passes these values
   through and only rejects the two former provider values proven wrong (`IntegrationFlow`,
   `EQUALS`).
-- The `AccessPolicyRuntimeAssignments` entity: its properties, how a runtime is identified,
-  where the reconciliation status lives, and whether assignments are writable. It is also
-  undocumented which runtimes a policy created through the API is assigned to.
+- Whether `AccessPolicyRuntimeAssignments` can be written (their structure is now known, see
+  above), the values `TransferStatus` takes, and which runtimes a policy created through the
+  API is assigned to by default.
 - Whether `PUT` with a different `RoleName` renames a policy, and whether `ArtifactReferences`
   supports `PUT`/`MERGE`.
 
-All three would be resolved by the Security Content API specification on the Business
-Accelerator Hub, which requires an SAP login to download.
+`$metadata` cannot settle any of these. They need the Security Content API specification on
+the Business Accelerator Hub (login required) or read requests against a tenant with existing
+policies.
 
 ## `sapintegrationsuite_user_credential` / `sapintegrationsuite_oauth2_client_credential`
 

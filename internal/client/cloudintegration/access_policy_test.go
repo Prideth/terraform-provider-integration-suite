@@ -261,3 +261,41 @@ func TestClient_DeleteAccessPolicyReference_UsesTopLevelEntitySet(t *testing.T) 
 		t.Errorf("got %s %s, want DELETE /api/v1/ArtifactReferences(55L)", gotMethod, gotPath)
 	}
 }
+
+func TestClient_ListAccessPolicyRuntimeAssignments(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("method = %s, want GET", r.Method)
+		}
+		if want := "/api/v1/AccessPolicies(1901L)/AccessPolicyRuntimeAssignments"; r.URL.Path != want {
+			t.Errorf("path = %q, want %q", r.URL.Path, want)
+		}
+		_, _ = w.Write([]byte(`{"d": {"results": [
+			{"Id": "7", "RuntimeLocationId": "cloudintegration", "TransferStatus": "SUCCESS", "TransferErrors": null, "StatusUpdatedAt": "/Date(1767225600000)/"},
+			{"Id": "8", "RuntimeLocationId": "eic-plant-a", "TransferStatus": "PENDING", "TransferErrors": ""}
+		]}}`))
+	}))
+	defer server.Close()
+
+	got, err := New(http.DefaultClient, server.URL).ListAccessPolicyRuntimeAssignments(context.Background(), "1901")
+	if err != nil {
+		t.Fatalf("ListAccessPolicyRuntimeAssignments() error: %v", err)
+	}
+	if len(got) != 2 || got[0].RuntimeLocationID != "cloudintegration" || got[1].TransferStatus != "PENDING" {
+		t.Errorf("assignments = %+v", got)
+	}
+	if got[0].StatusUpdatedAt != "/Date(1767225600000)/" {
+		t.Errorf("StatusUpdatedAt = %q", got[0].StatusUpdatedAt)
+	}
+}
+
+func TestClient_ListAccessPolicyRuntimeAssignments_RejectsNonNumericID(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		t.Errorf("no request expected, got %s", r.URL.String())
+	}))
+	defer server.Close()
+
+	if _, err := New(http.DefaultClient, server.URL).ListAccessPolicyRuntimeAssignments(context.Background(), "x"); err == nil {
+		t.Error("expected an error for a non-numeric policy ID")
+	}
+}

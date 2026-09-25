@@ -20,6 +20,7 @@ func TestWireContractAgainstMetadata(t *testing.T) {
 		{accessPoliciesEntitySet, accessPolicyLink{}},
 		{artifactReferencesEntitySet, AccessPolicyReference{}},
 		{artifactReferencesEntitySet, accessPolicyReferenceCreate{}},
+		{accessPolicyRuntimeAssignmentsEntitySet, AccessPolicyRuntimeAssignment{}},
 		{customTagConfigurationsEntitySet, customTagConfigurationWriteRequest{}},
 		{integrationAdapterDesigntimeArtifactsEntitySet, IntegrationAdapter{}},
 		{integrationDesigntimeArtifactsEntitySet, IntegrationFlow{}},
@@ -39,6 +40,10 @@ func TestWireContractAgainstMetadata(t *testing.T) {
 
 	m.AssertKey(t, accessPoliciesEntitySet, "Id", "Edm.Int64")
 	m.AssertKey(t, artifactReferencesEntitySet, "Id", "Edm.Int64")
+	m.AssertKey(t, accessPolicyRuntimeAssignmentsEntitySet, "Id", "Edm.Int64")
+	if et := m.EntityTypeOf(t, accessPoliciesEntitySet); et != nil && !et.Properties[accessPolicyRuntimeAssignmentsEntitySet].Navigation {
+		t.Errorf("AccessPolicy has no %s navigation property", accessPolicyRuntimeAssignmentsEntitySet)
+	}
 	m.AssertKey(t, integrationPackagesEntitySet, "Id", "Edm.String")
 	m.AssertKey(t, integrationDesigntimeArtifactsEntitySet, "Id", "Edm.String", "Version", "Edm.String")
 	m.AssertKey(t, messageMappingDesigntimeArtifactsEntitySet, "Id", "Edm.String", "Version", "Edm.String")

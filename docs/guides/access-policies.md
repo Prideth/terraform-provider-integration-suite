@@ -169,14 +169,28 @@ deployments. In the UI you pick the runtimes when you create a policy and can ch
 later. A per-runtime reconciliation status then reports *Pending* until an offline runtime
 has picked the policy up, and *Success* or *Fail* after that.
 
-The API side of this exists but is not documented. SAP stores the assignments in a navigation
-property called `AccessPolicyRuntimeAssignments` on the policy. We know this because SAP's
-CI/CD tooling explicitly strips it from downloaded policies. What that entity contains, how a
-runtime is identified, and whether assignments can be written through the API are not
-published anywhere public. The provider therefore does not manage runtime targeting. That
-also means SAP decides which runtimes a policy created through the API lands on. Check the
-*Runtimes* column in the Access Policies screen after your first apply, and adjust it there
-if needed.
+On the API side, each policy has a navigation property `AccessPolicyRuntimeAssignments`. The
+service's `$metadata` describes one assignment as an `Id`, a `RuntimeLocationId` naming the
+runtime, a `TransferStatus`, `TransferErrors` and a `StatusUpdatedAt` timestamp. The
+`sapintegrationsuite_access_policy_runtime_assignments` data source reads exactly that, so
+you can see from Terraform where a policy has arrived:
+
+```terraform
+data "sapintegrationsuite_access_policy_runtime_assignments" "utilities" {
+  access_policy_id = sapintegrationsuite_access_policy.utilities.id
+}
+```
+
+It is read-only on purpose. Nothing documents whether assignments can be created or removed
+through the API, and `$metadata` does not say either, so choosing the runtimes stays a UI step.
+That also means SAP decides which runtimes a policy created through the API lands on. After
+the first apply, check the data source or the *Runtimes* column in the Access Policies screen,
+and adjust the selection in the UI if needed. `transfer_status` is passed through unchanged:
+the UI shows Fail, Success and Pending, but SAP does not document the values the API uses.
+
+Because the status changes on SAP's side without any Terraform action, do not use the data
+source as a gate inside the same apply that creates the policy. Read it in a separate run, or
+in monitoring that polls it.
 
 Earlier releases exposed a `reconciliation_status` attribute on the policy. It was removed
 because the policy entity has no such property; the status lives with the runtime

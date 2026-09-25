@@ -323,6 +323,7 @@ func (p *sapIntegrationSuiteProvider) DataSources(_ context.Context) []func() da
 		NewScriptCollectionDataSource,
 		NewAccessPolicyDataSource,
 		NewAccessPolicyReferenceDataSource,
+		NewAccessPolicyRuntimeAssignmentsDataSource,
 		NewPartnerDataSource,
 		NewPartnersDataSource,
 		NewPartnerStringParameterDataSource,

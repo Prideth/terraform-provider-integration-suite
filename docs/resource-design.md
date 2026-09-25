@@ -121,9 +121,10 @@ see `docs/sap-api-references.md` for the evidence.*
   SAP.
 - **Data source**: looks up by `id` or by `role_name` (exactly one). The role-name lookup
   uses `$filter=RoleName eq '<name>'`, the same query SAP's tooling uses.
-- **Runtime targeting**: not modeled. It lives in the `AccessPolicyRuntimeAssignments`
-  navigation property, whose schema is not public. The former `reconciliation_status`
-  attribute was removed because the entity has no such property.
+- **Runtime targeting**: read-only. `data.sapintegrationsuite_access_policy_runtime_assignments`
+  reads the `AccessPolicyRuntimeAssignments` navigation property (structure confirmed by tenant
+  `$metadata`); writing assignments is undocumented and not modeled. The former
+  `reconciliation_status` attribute was removed because the entity has no such property.
 
 ## `sapintegrationsuite_access_policy_reference`
 

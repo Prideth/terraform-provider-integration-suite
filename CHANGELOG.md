@@ -34,6 +34,11 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- `data.sapintegrationsuite_access_policy_runtime_assignments` lists the
+  runtimes an access policy is replicated to (Cloud Integration runtime,
+  Integration Cell, Edge Integration Cells) with SAP's transfer status,
+  errors and last status change. Choosing the runtimes remains a UI step
+  because writing assignments is not documented.
 - Contract tests that check every OData wire struct, key and function
   import against a tenant `$metadata` document when one is available
   locally. See "Checking wire contracts against `$metadata`" in

@@ -15,10 +15,44 @@ import (
 // set, and a reference is bound to its policy through the AccessPolicy
 // navigation property in the create payload.
 const (
-	accessPoliciesEntitySet      = "AccessPolicies"
-	artifactReferencesEntitySet  = "ArtifactReferences"
-	accessPolicyReferencesNavKey = "ArtifactReferences"
+	accessPoliciesEntitySet                 = "AccessPolicies"
+	artifactReferencesEntitySet             = "ArtifactReferences"
+	accessPolicyReferencesNavKey            = "ArtifactReferences"
+	accessPolicyRuntimeAssignmentsEntitySet = "AccessPolicyRuntimeAssignments"
 )
+
+// AccessPolicyRuntimeAssignment is one runtime a policy is replicated to, with
+// the replication state SAP reports for it. The shape follows the
+// AccessPolicyRuntimeAssignment entity type of the tenant $metadata.
+// StatusUpdatedAt is an Edm.DateTime literal ("/Date(<millis>)/").
+type AccessPolicyRuntimeAssignment struct {
+	ID                string `json:"Id"`
+	RuntimeLocationID string `json:"RuntimeLocationId"`
+	TransferStatus    string `json:"TransferStatus"`
+	TransferErrors    string `json:"TransferErrors"`
+	StatusUpdatedAt   string `json:"StatusUpdatedAt"`
+}
+
+// ListAccessPolicyRuntimeAssignments returns the runtimes the policy is
+// assigned to, read through the policy's AccessPolicyRuntimeAssignments
+// navigation property.
+func (c *Client) ListAccessPolicyRuntimeAssignments(ctx context.Context, policyID string) ([]AccessPolicyRuntimeAssignment, error) {
+	path, err := accessPolicyPath(policyID)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := c.odata.Get(ctx, path+"/"+accessPolicyRuntimeAssignmentsEntitySet)
+	if err != nil {
+		return nil, err
+	}
+
+	var assignments []AccessPolicyRuntimeAssignment
+	if err := v2.DecodeCollection(body, &assignments); err != nil {
+		return nil, err
+	}
+	return assignments, nil
+}
 
 // AccessPolicy is the wire representation of an AccessPolicies entity. Id is
 // an Edm.Int64 that OData V2 JSON serializes as a string.
