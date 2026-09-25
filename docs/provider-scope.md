@@ -129,14 +129,12 @@ Kubernetes and Helm providers directly.
 
 ## Confirmed-but-not-yet-implemented capabilities
 
-Three capabilities have confirmed real public APIs but are not yet implemented, distinct from
+Two capabilities have confirmed real public APIs but are not yet implemented, distinct from
 both the "separate provider" and "out of scope" categories above — nothing rules them out, they
-simply have not had a dedicated implementation phase yet:
+simply have not had a dedicated implementation phase yet. (API Composition's business data graph,
+previously listed here, is now implemented as the experimental
+`sapintegrationsuite_business_data_graph`; see `docs/guides/api-composition.md`.)
 
-- **API Composition** (Business Data Graph) — the strongest evidence of any unimplemented
-  capability in this provider's catalog: a Configuration API confirmed with complete, verbatim
-  Create/Read/Update worked examples, and Delete explicitly stated to exist. The clearest
-  candidate for the next phase beyond this document's current scope.
 - **Data Space Integration** — a confirmed, separately credentialed OData REST API, but a
   genuinely complex, multi-persona object model (Connectors, Assets, Policies, Contract
   Definitions/Negotiations/Agreements) built on an external standard, warranting its own

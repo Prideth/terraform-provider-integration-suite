@@ -50,6 +50,17 @@ provider "sapintegrationsuite" {
     client_id     = var.api_management_client_id
     client_secret = var.api_management_client_secret
   }
+
+  # Optional. Only sapintegrationsuite_business_data_graph uses this block.
+  # The values come from a service key of an API Composition service
+  # instance with plan "configuration"; the credentials above do not work
+  # for the Configuration API. Set all four values or none.
+  api_composition {
+    host          = var.api_composition_host
+    token_url     = var.api_composition_token_url
+    client_id     = var.api_composition_client_id
+    client_secret = var.api_composition_client_secret
+  }
 }
 ```
 
@@ -58,9 +69,21 @@ provider "sapintegrationsuite" {
 
 ### Optional
 
+- `api_composition` (Block, Optional) Credentials for API Composition's Configuration API, used only by sapintegrationsuite_business_data_graph. The API has its own region-specific host and OAuth client, from a service key of an API Composition service instance with plan "configuration"; the oauth and api_management credentials do not work there. Set all four values, or none. Each can also come from a SAP_INTEGRATION_SUITE_API_COMPOSITION_* environment variable. (see [below for nested schema](#nestedblock--api_composition))
 - `api_management` (Block, Optional) Optional, and independent of the oauth block above. Classic API Management (API Providers, API Proxies, API Products, Key Value Maps) authenticates against its own API Portal application URL and its own OAuth 2.0 client, generated from the apiportal-apiaccess service plan — never the Cloud Integration credentials configured above. Leave this entire block out if you do not use any sapintegrationsuite_api_provider, sapintegrationsuite_api_product, sapintegrationsuite_api_key_value_map, or sapintegrationsuite_api_management_certificate_store_reference resource or data source. All four values (or their SAP_INTEGRATION_SUITE_API_MANAGEMENT_* environment variable equivalents) must be supplied together, or all left unset. (see [below for nested schema](#nestedblock--api_management))
 - `host` (String) Base URL of the SAP Integration Suite tenant used for Cloud Integration APIs, for example https://<tenant>.it-cpi<...>.cfapps.<region>.hana.ondemand.com. Can also be set via the SAP_INTEGRATION_SUITE_HOST environment variable.
 - `oauth` (Block, Optional) OAuth 2.0 client credentials used to authenticate against the SAP Integration Suite APIs. (see [below for nested schema](#nestedblock--oauth))
+
+<a id="nestedblock--api_composition"></a>
+### Nested Schema for `api_composition`
+
+Optional:
+
+- `client_id` (String) OAuth 2.0 client ID from the service key. Environment variable: SAP_INTEGRATION_SUITE_API_COMPOSITION_CLIENT_ID.
+- `client_secret` (String, Sensitive) OAuth 2.0 client secret from the service key. Environment variable: SAP_INTEGRATION_SUITE_API_COMPOSITION_CLIENT_SECRET.
+- `host` (String) Region-specific API Composition host from the service key, for example https://eu10.graph.sap. The provider appends /configuration/v1/sap.graph. Environment variable: SAP_INTEGRATION_SUITE_API_COMPOSITION_HOST.
+- `token_url` (String) Full OAuth 2.0 token endpoint URL, ending in /oauth/token. If the service key only has the authentication server URL, append /oauth/token. Environment variable: SAP_INTEGRATION_SUITE_API_COMPOSITION_TOKEN_URL.
+
 
 <a id="nestedblock--api_management"></a>
 ### Nested Schema for `api_management`

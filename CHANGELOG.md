@@ -34,6 +34,21 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- Experimental `sapintegrationsuite_business_data_graph` resource and data
+  source for API Composition's Configuration API, with a new optional
+  `provider.api_composition` block. Its credentials come from an API
+  Composition service instance with plan `configuration`; the Cloud
+  Integration and API Portal credentials do not work there. The schema
+  follows SAP's configuration file format, including locating cues, key
+  mappings with format strategies, `source_entity` and `exclude`. Create and
+  Update wait for SAP's asynchronous processing (`PROCESSING` until
+  `DEPLOYMENT_INITIATED` or `FAILED`, 20 minutes by default, configurable
+  with `timeouts`). A graph that ends in `FAILED` stays in state and is
+  tainted. SAP shows no PATCH body and no delete request; the provider sends
+  the writable properties and `DELETE` on the graph's URL. See the new API
+  Composition guide. This also corrects an earlier research note that named
+  the `integration-flow` plan of Process Integration Runtime for
+  configuration; that plan is for client applications consuming a graph.
 - `save_as_version` on `sapintegrationsuite_integration_flow`,
   `sapintegrationsuite_message_mapping` and
   `sapintegrationsuite_script_collection` saves uploaded content under an

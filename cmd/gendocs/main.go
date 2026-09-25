@@ -66,6 +66,7 @@ var domainOrder = []struct {
 	{"partner_directory", "Partner Directory"},
 	{"api_management_classic", "Classic API Management"},
 	{"api_gateway", "Current API Management / API Artifacts"},
+	{"api_composition", "API Composition"},
 	{"integration_cell", "Integration Cell"},
 	{"edge_integration_cell", "Edge Integration Cell"},
 	{"integration_assessment", "Integration Assessment"},

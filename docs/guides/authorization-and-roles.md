@@ -60,6 +60,12 @@ Classic API Management client (plan `apiportal-apiaccess`):
 | API providers, products, certificate store references, key value maps | `APIPortal.Administrator` (`APIPortal.Guest` is read-only) |
 | Virtual host configuration (not implemented by this provider yet) | `APIManagement.SelfService.Administrator` |
 
+API Composition client (`api_composition` block): the credentials come from a service key of an
+*API Composition* service instance with plan **`configuration`**, which SAP names as the plan for
+the Configuration API. SAP documents no role parameters for this plan. For people, the role
+collection `Graph.KeyUser` (role `Graph_Key_User`) allows creating and changing business data
+graphs, and `Graph.Guest` gives read-only access. See the [API Composition guide](api-composition.md).
+
 `sapintegrationsuite_provider_features` and `sapintegrationsuite_provider_feature` need no
 credentials at all.
 

@@ -1,0 +1,1 @@
+terraform import sapintegrationsuite_business_data_graph.sales sales

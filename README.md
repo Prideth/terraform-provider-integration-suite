@@ -163,6 +163,12 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Reusable API Artifact | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 | Runtime Profile | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 
+### API Composition
+
+| Feature | Status | Terraform Support |
+|---|:---:|---|
+| API Composition Business Data Graph | 🧪 | Resource + Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
+
 ### Integration Cell
 
 | Feature | Status | Terraform Support |
@@ -202,7 +208,6 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 
 | Feature | Status | Terraform Support |
 |---|:---:|---|
-| API Composition Business Data Graph | ❌ | Planned — see [feature-support.md](docs/feature-support.md#all-features) |
 | Data Space Integration | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
 | Developer Hub | ↗️ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Event Mesh | ↗️ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
@@ -218,7 +223,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Trading Partner Management Partner Directory Generation | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Trading Partner Management Partner Profile | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 
-18 supported · 12 partial · 4 read-only · 1 experimental · 54 unsupported · 2 planned as a separate provider, out of 91 evaluated Integration Suite features.
+18 supported · 12 partial · 4 read-only · 2 experimental · 53 unsupported · 2 planned as a separate provider, out of 91 evaluated Integration Suite features.
 
 <!-- END GENERATED FEATURE SUPPORT -->
 

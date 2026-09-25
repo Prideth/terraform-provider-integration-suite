@@ -35,9 +35,10 @@ type sapIntegrationSuiteProvider struct {
 
 // providerModel mirrors the provider block's schema.
 type providerModel struct {
-	Host          types.String        `tfsdk:"host"`
-	OAuth         *oauthModel         `tfsdk:"oauth"`
-	APIManagement *apiManagementModel `tfsdk:"api_management"`
+	Host           types.String         `tfsdk:"host"`
+	OAuth          *oauthModel          `tfsdk:"oauth"`
+	APIManagement  *apiManagementModel  `tfsdk:"api_management"`
+	APIComposition *apiCompositionModel `tfsdk:"api_composition"`
 }
 
 type oauthModel struct {
@@ -52,6 +53,19 @@ type oauthModel struct {
 // service plan), entirely independent of the oauth block above, which only
 // ever authenticates Cloud Integration and current API Management calls.
 type apiManagementModel struct {
+	Host         types.String `tfsdk:"host"`
+	TokenURL     types.String `tfsdk:"token_url"`
+	ClientID     types.String `tfsdk:"client_id"`
+	ClientSecret types.String `tfsdk:"client_secret"`
+}
+
+// apiCompositionModel mirrors the optional api_composition block. API
+// Composition's Configuration API has its own region-specific host and its
+// own OAuth client, which come from an instance of the API Composition
+// service with plan "configuration". SAP does not document the field names
+// of that instance's service key, so the four values are taken as they are
+// rather than parsed from a key file. See docs/guides/api-composition.md.
+type apiCompositionModel struct {
 	Host         types.String `tfsdk:"host"`
 	TokenURL     types.String `tfsdk:"token_url"`
 	ClientID     types.String `tfsdk:"client_id"`
@@ -77,6 +91,14 @@ type Data struct {
 	// document the two credential sets as interchangeable.
 	APIManagementClassicHost       string
 	APIManagementClassicHTTPClient *sapthttp.Client
+
+	// APICompositionHost and APICompositionHTTPClient are the API
+	// Composition Configuration API counterparts of Host and HTTPClient,
+	// set only when provider.api_composition (or its environment
+	// variables) is complete. They are never derived from the other two
+	// credential sets.
+	APICompositionHost       string
+	APICompositionHTTPClient *sapthttp.Client
 }
 
 func (p *sapIntegrationSuiteProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -157,6 +179,40 @@ func (p *sapIntegrationSuiteProvider) Schema(_ context.Context, _ provider.Schem
 					},
 				},
 			},
+			"api_composition": schema.SingleNestedBlock{
+				Description: "Credentials for API Composition's Configuration API, used only by " +
+					"sapintegrationsuite_business_data_graph. The API has its own region-specific host " +
+					"and OAuth client, from a service key of an API Composition service instance with " +
+					"plan \"configuration\"; the oauth and api_management credentials do not work " +
+					"there. Set all four values, or none. Each can also come from a " +
+					"SAP_INTEGRATION_SUITE_API_COMPOSITION_* environment variable.",
+				Attributes: map[string]schema.Attribute{
+					"host": schema.StringAttribute{
+						Optional: true,
+						Description: "Region-specific API Composition host from the service key, for " +
+							"example https://eu10.graph.sap. The provider appends " +
+							"/configuration/v1/sap.graph. Environment variable: " +
+							"SAP_INTEGRATION_SUITE_API_COMPOSITION_HOST.",
+					},
+					"token_url": schema.StringAttribute{
+						Optional: true,
+						Description: "Full OAuth 2.0 token endpoint URL, ending in /oauth/token. If the " +
+							"service key only has the authentication server URL, append /oauth/token. " +
+							"Environment variable: SAP_INTEGRATION_SUITE_API_COMPOSITION_TOKEN_URL.",
+					},
+					"client_id": schema.StringAttribute{
+						Optional: true,
+						Description: "OAuth 2.0 client ID from the service key. Environment variable: " +
+							"SAP_INTEGRATION_SUITE_API_COMPOSITION_CLIENT_ID.",
+					},
+					"client_secret": schema.StringAttribute{
+						Optional:  true,
+						Sensitive: true,
+						Description: "OAuth 2.0 client secret from the service key. Environment variable: " +
+							"SAP_INTEGRATION_SUITE_API_COMPOSITION_CLIENT_SECRET.",
+					},
+				},
+			},
 		},
 	}
 }
@@ -214,6 +270,10 @@ func (p *sapIntegrationSuiteProvider) Configure(ctx context.Context, req provide
 	}
 
 	if !p.configureAPIManagementClassic(ctx, config.APIManagement, data, &resp.Diagnostics) {
+		return
+	}
+
+	if !p.configureAPIComposition(ctx, config.APIComposition, data, &resp.Diagnostics) {
 		return
 	}
 
@@ -282,6 +342,63 @@ func (p *sapIntegrationSuiteProvider) configureAPIManagementClassic(ctx context.
 	return true
 }
 
+// configureAPIComposition resolves the optional api_composition block and
+// its environment variables and, when all four values are present, builds
+// the HTTP client for API Composition's Configuration API. It fails only
+// when some but not all values are set; leaving all of them out is fine.
+func (p *sapIntegrationSuiteProvider) configureAPIComposition(ctx context.Context, cfg *apiCompositionModel, data *Data, diags *diag.Diagnostics) bool {
+	var host, tokenURL, clientID, clientSecret types.String
+	if cfg != nil {
+		host = cfg.Host
+		tokenURL = cfg.TokenURL
+		clientID = cfg.ClientID
+		clientSecret = cfg.ClientSecret
+	}
+
+	resolvedHost := stringOrEnv(host, "SAP_INTEGRATION_SUITE_API_COMPOSITION_HOST")
+	resolvedTokenURL := stringOrEnv(tokenURL, "SAP_INTEGRATION_SUITE_API_COMPOSITION_TOKEN_URL")
+	resolvedClientID := stringOrEnv(clientID, "SAP_INTEGRATION_SUITE_API_COMPOSITION_CLIENT_ID")
+	resolvedClientSecret := stringOrEnv(clientSecret, "SAP_INTEGRATION_SUITE_API_COMPOSITION_CLIENT_SECRET")
+
+	present := 0
+	for _, v := range []string{resolvedHost, resolvedTokenURL, resolvedClientID, resolvedClientSecret} {
+		if v != "" {
+			present++
+		}
+	}
+	if present == 0 {
+		return true
+	}
+	if present < 4 {
+		diags.AddError(
+			"Incomplete API Composition configuration",
+			"provider.api_composition requires host, token_url, client_id, and client_secret (or their "+
+				"SAP_INTEGRATION_SUITE_API_COMPOSITION_* environment variable equivalents) to be supplied "+
+				"together. Supply all four, or omit the block entirely to leave "+
+				"sapintegrationsuite_business_data_graph unconfigured.",
+		)
+		return false
+	}
+
+	authenticatedClient, invalidateToken, err := auth.Config{
+		TokenURL:     resolvedTokenURL,
+		ClientID:     resolvedClientID,
+		ClientSecret: resolvedClientSecret,
+	}.HTTPClient(ctx, http.DefaultClient)
+	if err != nil {
+		diags.AddError("Unable to configure API Composition authentication", err.Error())
+		return false
+	}
+
+	data.APICompositionHost = resolvedHost
+	data.APICompositionHTTPClient = sapthttp.New(sapthttp.Config{
+		Transport:       authenticatedClient,
+		UserAgent:       sapthttp.UserAgent(p.version),
+		InvalidateToken: invalidateToken,
+	})
+	return true
+}
+
 func (p *sapIntegrationSuiteProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewIntegrationPackageResource,
@@ -313,6 +430,7 @@ func (p *sapIntegrationSuiteProvider) Resources(_ context.Context) []func() reso
 		NewAPIProductResource,
 		NewAPIManagementCertificateStoreReferenceResource,
 		NewAPIKeyValueMapResource,
+		NewBusinessDataGraphResource,
 	}
 }
 
@@ -346,6 +464,7 @@ func (p *sapIntegrationSuiteProvider) DataSources(_ context.Context) []func() da
 		NewAPIProductDataSource,
 		NewAPIManagementCertificateStoreReferenceDataSource,
 		NewAPIKeyValueMapDataSource,
+		NewBusinessDataGraphDataSource,
 	}
 }
 

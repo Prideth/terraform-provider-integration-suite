@@ -24,21 +24,24 @@ provider completion and hardening pass — a catalog-wide accuracy audit, a repo
 quality/security review, and a `password_wo` schema fix this pass found and corrected — is also
 done; see "Implemented" below for what that produced.
 
+API Composition's business data graph is now implemented as an experimental resource. SAP
+documents create, read and update and the configuration format; the PATCH body and the delete
+request are inferred and wait for verification against a live system. See
+`docs/guides/api-composition.md`.
+
 Future work follows newly published SAP APIs and incoming feature requests, not a fixed backlog.
 The clearest concrete opportunities already identified, in case SAP's documented API surface
 moves first, are listed in the "Confirmed-but-not-yet-implemented capabilities" section of
-`docs/provider-scope.md` — API Composition's Business Data Graph (already the strongest evidence
-of any unimplemented object in this catalog), Classic API Management's API Proxy content upload,
-Data Space Integration, OData Provisioning, and Integration Assessment's Landscape Configuration.
+`docs/provider-scope.md` — Classic API Management's API Proxy content upload, Data Space
+Integration, OData Provisioning, and Integration Assessment's Landscape Configuration.
 
 The remaining Integration Suite capability audit is done. Two capability areas had no prior
 catalog entry at all and were added: **API Composition** (Business Data Graph, activated
-alongside Developer Hub as a sub-capability of API Management) is the strongest
-confirmed-but-unimplemented finding of the whole provider — a Configuration API with complete,
-verbatim Create/Read/Update worked examples and Delete stated to exist, the clearest candidate
-for the next implementation phase beyond this roadmap's current horizon — and **OData
-Provisioning**, where a positive signal (an `ODPAPIAccess` role) exists without yet a confirmed
-schema. Three previously-placeholder entries were reclassified with real evidence: **Event Mesh**
+alongside Developer Hub as a sub-capability of API Management) was, at the time of this audit,
+the strongest confirmed-but-unimplemented finding of the whole provider; it has since been
+implemented, see "Implemented" below — and **OData Provisioning**, where a positive signal (an
+`ODPAPIAccess` role) exists without yet a confirmed schema. Three previously-placeholder entries
+were reclassified with real evidence: **Event Mesh**
 is now `separate_provider` (a genuine, well-documented Solace PubSub+ broker API, deliberately
 excluded because it predates Integration Suite and belongs to a different provider's boundary,
 the same reasoning already applied to Developer Hub); **Data Space Integration** is confirmed
@@ -254,6 +257,11 @@ already shipped (see "Implemented" below).
   - `data.sapintegrationsuite_api_management_certificate_store_reference`
   - `sapintegrationsuite_api_key_value_map`
   - `data.sapintegrationsuite_api_key_value_map`
+- API Composition business data graph, experimental (separate `provider.api_composition`
+  credentials from an API Composition instance with plan `configuration`; PATCH body and delete
+  request inferred) — see `docs/guides/api-composition.md`:
+  - `sapintegrationsuite_business_data_graph`
+  - `data.sapintegrationsuite_business_data_graph`
 
 ## v0.2.x
 
@@ -270,9 +278,6 @@ already shipped (see "Implemented" below).
 - Integration Assessment Landscape Configuration (Application/Application Instance/Technology/
   Technology Instance/Vendor), once a field-level wire contract is confirmed for it — see
   `docs/guides/integration-assessment.md` (**Research required**)
-- API Composition Business Data Graph, the strongest confirmed-but-unimplemented finding in this
-  provider's catalog — a Configuration API with complete, verbatim Create/Read/Update worked
-  examples and Delete stated to exist — see `docs/sap-api-references.md` (**Next**)
 - Data Space Integration (Connector/Asset/Policy/Contract Definition/Contract Negotiation), once
   its field-level wire contract is confirmed — see `docs/sap-api-references.md` (**Research
   required**)

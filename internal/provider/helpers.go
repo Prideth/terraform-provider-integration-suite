@@ -57,6 +57,21 @@ func requireAPIManagementClassicHTTPClient(data *Data, noun string, diags *diag.
 	return false
 }
 
+// requireAPICompositionHTTPClient is the API Composition counterpart of
+// requireHTTPClient. provider.api_composition is optional, so the check
+// happens when a resource or data source that needs it is configured.
+func requireAPICompositionHTTPClient(data *Data, noun string, diags *diag.Diagnostics) bool {
+	if data.APICompositionHTTPClient != nil {
+		return true
+	}
+	diags.AddError(
+		"API Composition configuration is required for this "+noun+".",
+		"Configure provider.api_composition (host, token_url, client_id, client_secret) or the "+
+			"corresponding SAP_INTEGRATION_SUITE_API_COMPOSITION_* environment variables.",
+	)
+	return false
+}
+
 // diagnosticDetail renders an error for a Terraform diagnostic detail
 // string. For a SAP API error it surfaces the status code, SAP error code,
 // and message so the user sees what SAP actually reported rather than a bare

@@ -36,4 +36,15 @@ provider "sapintegrationsuite" {
     client_id     = var.api_management_client_id
     client_secret = var.api_management_client_secret
   }
+
+  # Optional. Only sapintegrationsuite_business_data_graph uses this block.
+  # The values come from a service key of an API Composition service
+  # instance with plan "configuration"; the credentials above do not work
+  # for the Configuration API. Set all four values or none.
+  api_composition {
+    host          = var.api_composition_host
+    token_url     = var.api_composition_token_url
+    client_id     = var.api_composition_client_id
+    client_secret = var.api_composition_client_secret
+  }
 }

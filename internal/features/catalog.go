@@ -1704,39 +1704,39 @@ var Catalog = []Feature{
 		PublicAPI:     false,
 	},
 
-	// --- Other Integration Suite capability areas (research status only) ---
+	// --- API Composition ---
 	{
 		Key:    "api_composition.business_data_graph",
-		Domain: "other_capability",
+		Domain: "api_composition",
 		Name:   "API Composition Business Data Graph",
-		Description: "A composed, unified GraphQL/OData business data model (a \"Business Data " +
-			"Graph\") spanning multiple backend systems (S/4HANA, SuccessFactors, custom OData/" +
-			"REST sources), activated as a sub-capability of API Management alongside Developer " +
-			"Hub and current API Management.",
-		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonNotImplemented,
-		PublicAPI:     true,
-		Planned:       true,
+		Description: "A business data graph combines the business systems of a landscape (S/4HANA, " +
+			"SAP Sales Cloud, custom OData services and others) into one connected API. Managed " +
+			"through API Composition's Configuration API.",
+		SupportStatus:   StatusExperimental,
+		SupportReason:   ReasonPublicAPIIncomplete,
+		ResourceTypes:   []string{"sapintegrationsuite_business_data_graph"},
+		DataSourceTypes: []string{"sapintegrationsuite_business_data_graph"},
+		PublicAPI:       true,
+		APIProtocol:     "OData service with plain JSON bodies (Configuration API)",
 		Limitations: []string{
-			"The strongest confirmed-but-unimplemented finding from this provider's capability " +
-				"audit: a genuine, separately entitled \"API Composition\" service (plan " +
-				"configuration) exposes a Configuration API at " +
-				"{region-specific host}/configuration/v1/sap.graph/GraphConfiguration, confirmed " +
-				"with verbatim worked examples for Create (POST, full sample body with " +
-				"businessDataGraphIdentifier/dataSources/locatingPolicy), Read (GET by ID), and " +
-				"Update (PATCH by ID); Delete is explicitly stated to exist (\"Whether you need to " +
-				"create, update, or delete business data graphs, this API provides an automated " +
-				"option\") but no verbatim DELETE example was captured during this audit pass.",
-			"Authentication reuses this provider's existing OAuth 2.0 client-credentials pattern, " +
-				"but through a third distinct credential set: a Process Integration Runtime service " +
-				"instance on the integration-flow plan (explicitly documented as NOT the same api " +
-				"plan this provider's own oauth block already uses), separate again from " +
-				"provider.api_management's apiportal-apiaccess credentials.",
-			"Deliberately not implemented in this audit-only phase: this phase's scope is " +
-				"classification, not implementation. Recommended as the top candidate for a future " +
-				"dedicated phase, given the unusually strong Create/Read/Update evidence already on " +
-				"record — stronger than most objects this provider has implemented to date.",
+			"Needs its own credentials in provider.api_composition: a service key of an API " +
+				"Composition service instance with plan \"configuration\". SAP does not document that " +
+				"service key field by field, so the four values are entered as they are.",
+			"SAP documents the Create body, GET and PATCH on GraphConfiguration/{id}, and the status " +
+				"model. It gives no PATCH body and no delete request. The provider sends the writable " +
+				"properties as the PATCH body and DELETE to the graph's URL. Not yet verified against " +
+				"a live system.",
+			"SAP processes graphs asynchronously. Create and Update wait until the status leaves " +
+				"PROCESSING (20 minutes by default, configurable with timeouts). A graph that ends in " +
+				"FAILED is kept in state and marked tainted.",
+			"Extensions cannot be managed through the Configuration API, according to SAP; " +
+				"extensions is read-only and left alone on update.",
+			"Cue-scoped key mappings and the OData containment setting are described by SAP without " +
+				"a property name and cannot be set.",
+			"SAP does not describe a logMessages entry, so each is exposed as the JSON text SAP " +
+				"returned.",
 		},
+		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},
 	},
 	{
 		Key:    "odata_provisioning",

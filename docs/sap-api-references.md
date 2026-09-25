@@ -1422,27 +1422,53 @@ catalog) — auditing the actual documentation tree turned up two capability are
 alongside the three (Event Mesh, Data Space Integration, Open Connectors) already tracked as
 `research_required` placeholders.
 
-### API Composition — the strongest confirmed-but-unimplemented finding of this entire audit
+### API Composition — business data graph (re-audited September 2026)
 
-Activated as a sub-capability of API Management, alongside Developer Hub and current API
-Management (`initial-setup-12ad448.md`, confirmed: "To activate API Composition, select ...
-Developer Hub [and] API Composition"). Its "Business Data Graph" object — a composed GraphQL/
-OData business data model spanning multiple backend systems — is managed through a **Configuration
-API** confirmed with complete, verbatim worked examples:
-`configuration-api-specification-and-usage-b5b27c9.md` shows `POST
-{region-specific host}/configuration/v1/sap.graph/GraphConfiguration` with a full sample body
-(`businessDataGraphIdentifier`, `dataSources`, `locatingPolicy`), `GET .../GraphConfiguration/
-{BDG-Id}`, and `PATCH .../GraphConfiguration/{BDG-Id}`, plus a documented `$metadata` endpoint.
-`manage-business-data-graphs-using-api-composition-configuration-api-655bf12.md` explicitly
-states Delete is also supported ("Whether you need to create, update, or delete business data
-graphs, this API provides an automated option"), though no verbatim DELETE example was captured.
-Authentication is a third, distinct credential set beyond this provider's existing `oauth` and
-`api_management` blocks: a Process Integration Runtime service instance on the `integration-flow`
-plan, explicitly documented as *not* the `api` plan this provider's own `oauth` block already
-uses. This is confirmed real, confirmed field-level-schema evidence — stronger than most objects
-this provider has already implemented — and is deliberately not implemented in this audit-only
-phase; see `internal/features/catalog.go`'s `api_composition.business_data_graph` entry and
-ROADMAP.md for why it is flagged as the top candidate for a future dedicated phase.
+API Composition (formerly Graph) is activated as a capability of API Management, together with
+Developer Hub (`initial-setup-12ad448.md`). Its business data graphs are managed through a
+Configuration API. Sources, all from the `ISuite_API_Composition` folder of the SAP-docs mirror
+of the Integration Suite help:
+
+- `configuration-api-specification-and-usage-b5b27c9.md`: service root
+  `{region-specific host}/configuration/v1/sap.graph`, OData metadata at `.../$metadata`, the
+  `GraphConfiguration` resource, the property table, a full create example
+  (`POST .../GraphConfiguration`, 201), `GET .../GraphConfiguration/{BDG-Id}` (200) and
+  `PATCH .../GraphConfiguration/{BDG-Id}` (200, no body shown), and the status model
+  (`PROCESSING`, then `DEPLOYMENT_INITIATED` or `FAILED`, with `logMessages`). The table marks
+  `businessDataGraphIdentifier`, `dataSources` and `locatingPolicy` as required, and
+  `effectiveGraphModelVersion`, `statusDetails`, `logMessages` and `status` as read-only.
+- `business-data-graph-configuration-file-e93d38c.md`: the field-level model. The identifier is
+  up to 20 lowercase alphanumeric characters with hyphens. Services have `destinationName` and an
+  optional `path`. `locatingPolicy` is an object with `cues` (objects with `name` and
+  `description`), `keyMapping` (`foreignKey` and `references`, each with `dataSource`,
+  `entityName`, `attributes` limited to one entry, and an optional `strategy` with `name` =
+  `format`, `match`, `replace`) and `rules` (`name`, `leading`, optional `local`, `cues`,
+  `sourceEntity`). `exclude` takes entity names with an optional trailing wildcard. The page also
+  describes OData containment and cue-scoped key mappings without naming a property for either.
+- `data-locating-policy-28d2c2c.md`: rule selection prefers a specific name over a wildcard and
+  a rule with a matching cue over the default rule; order carries no meaning.
+- `manage-business-data-graphs-using-api-composition-configuration-api-655bf12.md`: the API
+  creates, updates and deletes graphs, and "managing extensions is not supported".
+- `initial-setup-12ad448.md`: the API Composition service plan `configuration` is the one for the
+  Configuration API; Process Integration Runtime plan `integration-flow` is for consuming graphs.
+  Roles `Graph_Key_User` (role collection `Graph.KeyUser`) and the read-only `Graph_Guest`.
+- `connect-to-your-business-systems-1a0dd22.md`: destinations need the additional property
+  `IntegrationCell.Include = true`.
+
+Not documented, and therefore inferred or left out by the provider: the PATCH body (the provider
+sends the writable properties), the delete request (`DELETE` on the graph's URL), the field names
+of the `configuration` plan's service key, the structure of a `logMessages` entry, and properties
+for OData containment and cue-scoped key mappings. The property table's "Array of locating
+policies" contradicts both examples, which show a single object; the provider follows the
+examples. The `$metadata` document needs credentials and has not been checked.
+
+**Correction:** the original audit named Process Integration Runtime with plan `integration-flow`
+as the credentials for the Configuration API. That plan is for client applications that consume
+a graph. The Configuration API uses an API Composition instance with plan `configuration`.
+
+Implemented as the experimental `sapintegrationsuite_business_data_graph` resource and data
+source; see `docs/guides/api-composition.md` and the catalog entry
+`api_composition.business_data_graph`.
 
 ### OData Provisioning — a positive signal, not yet confirmed
 
