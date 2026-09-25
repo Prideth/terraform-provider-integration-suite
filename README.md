@@ -84,6 +84,8 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Custom Tag Configuration | ⚠️ | Resource + Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
 | Data Store | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Data Store Entry | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
+| Data Type | ❌ | Planned — API details unconfirmed — see [feature-support.md](docs/feature-support.md#all-features) |
+| Design-Time Artifact Versioning | ❌ | Planned — see [feature-support.md](docs/feature-support.md#all-features) |
 | Integration Adapter | ⚠️ | Resource + Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
 | Integration Adapter Deployment | ⚠️ | Resource — see [feature-support.md](docs/feature-support.md#all-features) |
 | Integration Flow | ✅ | Resource |
@@ -94,13 +96,15 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Message Mapping Deployment | ✅ | Resource |
 | Message Processing Logs | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Message Store Entries / JMS Resources | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
+| Message Type | ❌ | Planned — API details unconfirmed — see [feature-support.md](docs/feature-support.md#all-features) |
 | Number Range | ⚠️ | Resource — see [feature-support.md](docs/feature-support.md#all-features) |
 | Script Collection | ✅ | Resource + Data Source |
 | Script Collection Deployment | ✅ | Resource |
 | Service Endpoints | 👁️ | Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
+| Service Interface | ❌ | Planned — API details unconfirmed — see [feature-support.md](docs/feature-support.md#all-features) |
 | Value Mapping | ⚠️ | Resource + Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
 | Value Mapping Deployment | ✅ | Resource |
-| Value Mapping Entry | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+| Value Mapping Entry | ❌ | Planned — API details unconfirmed — see [feature-support.md](docs/feature-support.md#all-features) |
 | Variable | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 
 ### Security & Access Policies
@@ -213,7 +217,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Trading Partner Management Partner Directory Generation | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Trading Partner Management Partner Profile | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 
-18 supported · 11 partial · 4 read-only · 0 experimental · 51 unsupported · 2 planned as a separate provider, out of 86 evaluated Integration Suite features.
+18 supported · 11 partial · 4 read-only · 0 experimental · 55 unsupported · 2 planned as a separate provider, out of 90 evaluated Integration Suite features.
 
 <!-- END GENERATED FEATURE SUPPORT -->
 

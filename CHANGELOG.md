@@ -54,7 +54,11 @@ All notable changes to this project are documented in this file.
   `fingerprint_sha1/256/512`, `created_by`, `created_time`,
   `last_modified_by` and `last_modified_time`.
 - The feature catalog lists OAuth2 Password Credentials, OAuth2 SAML Bearer,
-  security material where-used and PGP keyrings with their current status.
+  security material where-used and PGP keyrings with their current status,
+  and the Cloud Integration artifact types data type, message type, fault
+  message type and service interface, plus explicit design-time versioning.
+  Value mapping entries move from "research required" to "public API
+  incomplete": create and read are documented, per-entry delete is not.
 - `data.sapintegrationsuite_access_policy_runtime_assignments` lists the
   runtimes an access policy is replicated to (Cloud Integration runtime,
   Integration Cell, Edge Integration Cells) with SAP's transfer status,

@@ -164,7 +164,7 @@ var Catalog = []Feature{
 		APIProtocol: "OData V2",
 		Limitations: []string{
 			"No confirmed in-place update: changing name, content, or content_hash replaces the resource (create a new artifact, then delete the old one) instead of calling an unverified PUT.",
-			"SAP separately documents a ValueMappingDesigntimeArtifactSaveAsVersion action this provider does not yet use.",
+			"Explicit versions (ValueMappingDesigntimeArtifactSaveAsVersion) are not used yet; see cloud_integration.design_time_versioning.",
 			"Whether Delete removes only the active version or every version of the artifact is unconfirmed against a primary source.",
 		},
 		Operations: Operations{Create: true, Read: true, Update: false, Delete: true, Import: true},
@@ -182,18 +182,102 @@ var Catalog = []Feature{
 		Operations:      Operations{Create: true, Read: true, Update: true, Delete: true, Import: true, Deploy: true, Undeploy: true},
 	},
 	{
-		Key:           "cloud_integration.value_mapping_entry",
-		Domain:        "cloud_integration",
-		Name:          "Value Mapping Entry",
-		Description:   "Individual source/target value pairs inside a value mapping scheme, managed through UpsertValMaps, UpdateDefaultValMap, and DeleteValMaps.",
+		Key:    "cloud_integration.value_mapping_entry",
+		Domain: "cloud_integration",
+		Name:   "Value Mapping Entry",
+		Description: "Individual source/target value pairs inside a value mapping's " +
+			"agency/identifier pair, managed through UpsertValMaps, UpdateDefaultValMap and " +
+			"DeleteValMaps.",
 		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonResearchRequired,
+		SupportReason: ReasonPublicAPIIncomplete,
 		PublicAPI:     true,
-		APIProtocol:   "OData V2 (actions)",
+		APIProtocol:   "OData V2 (function imports)",
 		Planned:       true,
 		Limitations: []string{
-			"Exact request/response payload shapes and DeleteValMaps' delete granularity are not confirmed against a reachable primary source.",
-			"UpsertValMaps requires an already-existing source/target agency-identifier scheme, so entries cannot be managed independently of the artifact's own content.",
+			"Create and update are documented (POST /UpsertValMaps?Id=&Version=&SrcAgency=&SrcId=" +
+				"&TgtAgency=&TgtId=&SrcValue=&TgtValue=&IsConfigured=, returning a ValMap with Id " +
+				"and Value{SrcValue, TgtValue}), and reading goes through ValMapSchema(...)/ValMaps. " +
+				"Deletion is not documented per entry: DeleteValMaps takes only Id, Version and the " +
+				"agency/identifier pair, and the tenant $metadata has no ValMapId parameter for it.",
+			"A resource per entry could therefore not implement destroy. A resource owning a whole " +
+				"agency/identifier pair could, but SAP does not document whether UpsertValMaps creates " +
+				"a missing pair, what IsConfigured=false does (SAP only says it should always be true " +
+				"once configured), or whether DeleteValMaps removes the pair or only its entries. " +
+				"Those need a check against a tenant before business data is written.",
+			"Entries set through the API also compete with the value mapping's own content: " +
+				"uploading content through sapintegrationsuite_value_mapping replaces them.",
+		},
+	},
+	{
+		Key:    "cloud_integration.design_time_versioning",
+		Domain: "cloud_integration",
+		Name:   "Design-Time Artifact Versioning",
+		Description: "Saving a design-time artifact under an explicit version number (for example " +
+			"1.0.3) instead of working only on the active draft.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonNotImplemented,
+		PublicAPI:     true,
+		APIProtocol:   "OData V2 (function imports)",
+		Planned:       true,
+		Limitations: []string{
+			"SAP's API offers this and the provider has not implemented it yet. SAP Help documents " +
+				"POST /IntegrationDesigntimeArtifactSaveAsVersion?Id=''&SaveAsVersion='' (after a PUT " +
+				"of the content), and the tenant $metadata has the same function import with " +
+				"parameters Id and SaveAsVersion for message mappings, script collections, value " +
+				"mappings, data types, message types, fault message types and service interfaces.",
+			"Until then the design-time resources work on the active version, and the version they " +
+				"report is whatever SAP assigns.",
+		},
+	},
+	{
+		Key:    "cloud_integration.data_type",
+		Domain: "cloud_integration",
+		Name:   "Data Type",
+		Description: "A reusable XSD data type artifact (simple or complex) used by message types " +
+			"and mappings.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonPublicAPIIncomplete,
+		PublicAPI:     true,
+		APIProtocol:   "OData V2",
+		Limitations: []string{
+			"The tenant $metadata defines DataTypeDesigntimeArtifacts (Id and Version as key, " +
+				"PackageId, Name, Namespace, Description, IsSimpleType, ArtifactContent) and a " +
+				"DataTypeDesigntimeArtifactSaveAsVersion function import. SAP Help documents only the " +
+				"UI and lists no API resource or example request for data types, so create, update " +
+				"and delete are unverified.",
+		},
+	},
+	{
+		Key:           "cloud_integration.message_type",
+		Domain:        "cloud_integration",
+		Name:          "Message Type",
+		Description:   "A message type artifact that wraps a data type as a message root element.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonPublicAPIIncomplete,
+		PublicAPI:     true,
+		APIProtocol:   "OData V2",
+		Limitations: []string{
+			"The tenant $metadata defines MessageTypeDesigntimeArtifacts (Id and Version as key, " +
+				"PackageId, Name, Namespace, Description, DataTypeUsed, ArtifactContent) and a " +
+				"SaveAsVersion function import; FaultMessageTypeDesigntimeArtifacts has the same shape " +
+				"for fault messages. SAP Help documents only the UI for both.",
+		},
+	},
+	{
+		Key:    "cloud_integration.service_interface",
+		Domain: "cloud_integration",
+		Name:   "Service Interface",
+		Description: "A service interface artifact describing operations and their request, " +
+			"response and fault message types.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonPublicAPIIncomplete,
+		PublicAPI:     true,
+		APIProtocol:   "OData V2",
+		Limitations: []string{
+			"The tenant $metadata defines ServiceInterfaceDesigntimeArtifacts (Id and Version as " +
+				"key, PackageId, Name, Namespace, Description, ArtifactContent, Resources navigation) " +
+				"and a SaveAsVersion function import. SAP Help documents creating, editing and " +
+				"importing service interfaces from the Enterprise Services Repository only in the UI.",
 		},
 	},
 	{
@@ -430,6 +514,10 @@ var Catalog = []Feature{
 		APIProtocol:   "OData V2",
 		Planned:       true,
 		Limitations: []string{
+			"The tenant $metadata (September 2026) defines NumberRanges keyed by Name, with " +
+				"DeployedBy and DeployedOn alongside the writable fields. That makes GET by key and " +
+				"DELETE plausible, but neither is documented, so Read and Delete stay as described " +
+				"below until they are verified against a tenant.",
 			"SAP documents no GET operation for this entity anywhere — unlike every sibling entity " +
 				"in the same Message Stores API family (DataStores, DataStoreEntries, Variables all " +
 				"have documented GET examples), NumberRanges has none in SAP's curated \"Message " +

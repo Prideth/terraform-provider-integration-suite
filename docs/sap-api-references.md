@@ -70,6 +70,38 @@ API. This document is that trace.
 - **Provider choices**: only listed keys are managed; the existing `DataType` is resent with
   each value; unknown keys are rejected before any write.
 
+## Cloud Integration: tenant `$metadata` findings (September 2026)
+
+The tenant `$metadata` of `/api/v1` settles several open points for Integration Content. As
+elsewhere, it confirms names, keys and types but not which operations SAP accepts.
+
+- **Value mapping entries.** `UpsertValMaps` (POST; `Id`, `Version`, `SrcAgency`, `SrcId`,
+  `TgtAgency`, `TgtId`, `ValMapId`, `SrcValue`, `TgtValue`, `IsConfigured`) returns a `ValMap`
+  (`Id`, complex `Value` with `SrcValue`/`TgtValue`). `UpdateDefaultValMap` takes the same
+  identifiers plus `ValMapId` and `IsConfigured`. `DeleteValMaps` takes only `Id`, `Version` and
+  the agency/identifier pair, so there is no documented per-entry delete. SAP Help's *Value
+  Mapping Example Requests* shows `UpsertValMaps` and a filtered read of
+  `ValMapSchema(...)/ValMaps`. Reclassified from `research_required` to
+  `public_api_incomplete`; see `cloud_integration.value_mapping_entry`.
+- **Explicit versions.** `…SaveAsVersion` function imports (`Id`, `SaveAsVersion`) exist for
+  integration flows, message mappings, script collections, value mappings, data types, message
+  types, fault message types and service interfaces. SAP Help's *Integration Flow Example
+  Requests* documents `IntegrationDesigntimeArtifactSaveAsVersion` after a PUT. The provider does
+  not use it yet (`cloud_integration.design_time_versioning`, `not_implemented`).
+- **New design-time artifact types.** `DataTypeDesigntimeArtifacts`,
+  `MessageTypeDesigntimeArtifacts`, `FaultMessageTypeDesigntimeArtifacts` and
+  `ServiceInterfaceDesigntimeArtifacts`, all keyed by `Id` and `Version` with `Namespace` and
+  `ArtifactContent`. SAP Help documents them only as UI procedures and does not list them in the
+  Integration Content resource table.
+- **Number ranges.** `NumberRanges` is keyed by `Name` and also carries `DeployedBy` and
+  `DeployedOn`. GET by key and DELETE remain undocumented.
+- **Integration packages.** `IntegrationPackage` also has `ResourceId`, `PartnerContent`,
+  `UpdateAvailable`, `SupportedPlatform`, `Products`, `Keywords`, `Countries`, `Industries` and
+  `LineOfBusiness`. The provider does not expose them yet; whether the classification fields can
+  be written is undocumented.
+- **Locks.** `IntegrationDesigntimeLocks` lists who has an artifact open in the editor. That is
+  operational state, not configuration, and stays out of scope.
+
 ## `sapintegrationsuite_value_mapping` / `..._deployment`
 
 - **SAP product area**: Integration Suite / Cloud Integration
