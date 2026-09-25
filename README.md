@@ -149,6 +149,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | API Artifact — Current API Management | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 | API Artifact Deployment — Integration Cell | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 | API Artifact Policy | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
+| MCP Server | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 | Reusable API Artifact | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 | Runtime Profile | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 
@@ -207,7 +208,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Trading Partner Management Partner Directory Generation | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Trading Partner Management Partner Profile | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 
-17 supported · 11 partial · 3 read-only · 0 experimental · 47 unsupported · 2 planned as a separate provider, out of 80 evaluated Integration Suite features.
+17 supported · 11 partial · 3 read-only · 0 experimental · 48 unsupported · 2 planned as a separate provider, out of 81 evaluated Integration Suite features.
 
 <!-- END GENERATED FEATURE SUPPORT -->
 

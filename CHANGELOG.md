@@ -35,6 +35,19 @@ All notable changes to this project are documented in this file.
   the ID is not.
 - Import IDs for both access policy resources must now be numeric and are
   checked before any request is sent.
+- The feature catalog lists MCP servers (`api_gateway.mcp_server`) as a
+  current API Management object without a public API. The other Current API
+  Management and Integration Cell entries now cite the September 2026
+  re-audit, which confirmed that none of them has a public API yet.
+
+### Documentation
+
+- The Current API Management guide was rewritten around a per-object status
+  table, the 2026 evidence (Integration Content API, Client SDK 3.0.6, SAP's
+  CI/CD tooling, What's New), MCP servers, virtual host rules, and what can
+  be automated around these objects today.
+- The Access Policies guide was rewritten around the confirmed wire
+  contract, with lifecycle side effects and upgrade steps.
 
 ### Removed
 

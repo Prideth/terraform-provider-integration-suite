@@ -100,12 +100,13 @@ content upload wire format from any reachable primary source, not because no API
 "Implemented" below and `docs/guides/classic-api-management.md` for the full boundary and
 exactly what would need to be confirmed to revisit API Proxy.
 
-Current API Management / API Artifacts / Integration Cell (API Artifacts, Runtime Profiles,
-Integration Cell, Virtual Hosts, Policies, Reusable API Artifacts) research is done — see
-`docs/guides/current-api-management.md`: SAP currently exposes no public API for any object in
-this family, so this provider implements none of it; the finding is treated as settled rather
-than repeatedly reopened, and is revisited only if SAP publishes something new (see the capability
-audit phase above).
+Current API Management / API Artifacts / Integration Cell (API Artifacts, MCP Servers, Runtime
+Profiles, Integration Cell, Virtual Hosts, Policies, Reusable API Artifacts) was re-audited in
+September 2026 after SAP's 2026 releases (API-centric integration, MCP Gateway, Client SDK
+3.0.0). SAP still exposes no public API for any object in this family, so this provider
+implements none of it — see `docs/guides/current-api-management.md` for the evidence and for the
+design that applies once an API appears. The channels to watch are listed at the end of that
+guide.
 
 Developer Hub — SAP's API/Event/MCP Server catalog, publication, and subscription capability — is
 not part of this provider's roadmap at all. It has its own API boundary, its own OAuth

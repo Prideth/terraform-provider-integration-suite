@@ -1127,110 +1127,125 @@ var Catalog = []Feature{
 		Operations: Operations{Create: true, Read: true, Delete: true, Import: true},
 	},
 
-	// --- Current API Management (API Artifacts / Integration Cell) — distinct from Classic
-	// API Management (API Providers/Proxies/Products), which remains a separate, later phase.
-	// Keys keep the "api_gateway" prefix from earlier research passes (never renamed once
-	// shipped), but names/descriptions now use SAP's current "API Artifact"/"Integration
-	// Cell" terminology throughout — see docs/guides/current-api-management.md.
+	// --- Current API Management (API Artifacts / MCP Servers / Integration Cell) — distinct
+	// from Classic API Management (API Providers/Proxies/Products). Keys keep the "api_gateway"
+	// prefix from earlier research passes (never renamed once shipped); names and descriptions
+	// use SAP's current terminology. Re-audited September 2026: see
+	// docs/guides/current-api-management.md and docs/sap-api-references.md.
 	{
 		Key:    "api_gateway.api_artifact",
 		Domain: "api_gateway",
 		Name:   "API Artifact — Current API Management",
-		Description: "A design-time API configuration (endpoints, policies, security, runtime " +
-			"behavior) in SAP's current, API-centric integration model, created under Design > " +
-			"Integrations and APIs.",
+		Description: "A design-time API (REST, SOAP or OData) in SAP's API-centric integration " +
+			"model: endpoints, policies and security, created inside an integration package under " +
+			"Design > Integrations and APIs and deployed to Integration Cell or Edge Integration Cell.",
 		SupportStatus: StatusUnsupported,
 		SupportReason: ReasonNoPublicAPI,
 		PublicAPI:     false,
 		Planned:       true,
 		Limitations: []string{
-			"Reverified thoroughly for this feature family, not merely re-asserted: the canonical " +
-				"Integration Content OData API's own exhaustive resource table (the same one this " +
-				"provider already relies on for IntegrationDesigntimeArtifacts and every sibling " +
-				"entity) does not list API Artifacts at all, ruling out the hypothesis that they are " +
-				"just a new IntegrationDesigntimeArtifacts Type value. Over twenty documentation " +
-				"pages covering every stage of the artifact lifecycle (four creation methods, " +
-				"configuration, versioning, access management, deletion, deployment, monitoring) " +
-				"were read in full; none mentions a REST/OData endpoint, entity set, or SAP Business " +
-				"Accelerator Hub link. Corrected from research_required to no_public_api: this is a " +
-				"confirmed absence, not an open question.",
+			"SAP has not published an API for API artifacts. The September 2026 re-audit checked " +
+				"the Integration Content API's resource table (Help version of 2026-07-10; no API " +
+				"artifact resource), both SAP API Documentation index pages (only the " +
+				"CloudIntegrationAPI and Classic APIMgmt packages), every current creation, " +
+				"versioning, copy, deletion and deployment page (UI procedures only), SAP's " +
+				"API Management Client SDK 3.0.6 (Classic API Portal endpoints only) and SAP's own " +
+				"2026 CI/CD tooling (no API artifact automation).",
+			"The 2026 features around API artifacts, such as API-centric integration, simplified " +
+				"creation from a URL or specification, AI-generated OpenAPI specifications and " +
+				"product subscriptions, are all UI features.",
 		},
 	},
 	{
 		Key:    "api_gateway.api_artifact_deployment",
 		Domain: "api_gateway",
 		Name:   "API Artifact Deployment — Integration Cell",
-		Description: "The runtime deployment state of an API Artifact on Integration Cell or " +
-			"Edge Integration Cell.",
+		Description: "The runtime deployment of an API Artifact or MCP Server on Integration Cell " +
+			"or Edge Integration Cell, including the virtual host chosen at deployment time.",
 		SupportStatus: StatusUnsupported,
 		SupportReason: ReasonNoPublicAPI,
 		PublicAPI:     false,
 		Planned:       true,
 		Limitations: []string{
-			"Same reverification and same conclusion as api_gateway.api_artifact: no deployment or " +
-				"undeploy API was found documented anywhere. Confirmed from SAP's own documentation, " +
-				"for whenever a public API does exist: runtime profile is effectively immutable once " +
-				"an API artifact is created (RequiresReplace territory), with a documented exception " +
-				"only for reassigning the target Edge Integration Cell node; and the virtual host " +
-				"selected at deployment time can differ from the one configured at design time, with " +
-				"the deployed endpoint URL reflecting whichever was actually used to deploy — see " +
-				"docs/sap-api-references.md and docs/guides/current-api-management.md.",
+			"SAP documents deployment only as a UI action; no deploy, undeploy or status API " +
+				"exists for API artifacts or MCP servers.",
+			"Semantics to preserve if an API appears: the runtime profile is fixed once the " +
+				"artifact exists (except for choosing the target Edge Integration Cell), and the " +
+				"deployment-time virtual host may differ from the design-time one, with the deployed " +
+				"endpoint URL following the deployment-time choice. Terraform would need to keep the " +
+				"two virtual hosts as separate attributes.",
 		},
 	},
 	{
 		Key:    "api_gateway.api_policy",
 		Domain: "api_gateway",
 		Name:   "API Artifact Policy",
-		Description: "A policy or mediation step (authentication, authorization, quota, rate " +
-			"limiting, transformation, and so on) attached to an API Artifact.",
+		Description: "A policy or mediation step (authentication, quota, rate limiting, " +
+			"transformation, external callout and so on) inside an API Artifact.",
 		SupportStatus: StatusUnsupported,
 		SupportReason: ReasonNoPublicAPI,
 		PublicAPI:     false,
 		Planned:       true,
 		Limitations: []string{
-			"Whether policies are persisted as opaque content nested inside the artifact or as " +
-				"independently addressable entities could not be determined, since no public API " +
-				"exists for API Artifacts at all to inspect either representation against.",
+			"Policies are edited inside the API artifact's policy editor and have no separate " +
+				"lifecycle in SAP Help. Without an API for the artifact itself there is nothing to " +
+				"show whether policies would be nested content or addressable entities; a separate " +
+				"resource would only make sense for the latter.",
 		},
 	},
 	{
 		Key:    "api_gateway.reusable_api_artifact",
 		Domain: "api_gateway",
 		Name:   "Reusable API Artifact",
-		Description: "A modular, internal-only API Artifact variant with no external HTTP " +
-			"endpoint of its own, invoked by other API Artifacts through the API Direct adapter.",
+		Description: "An internal-only API Artifact with no external endpoint, invoked by other " +
+			"API Artifacts through the API Direct adapter to share logic such as authentication " +
+			"or transformation.",
 		SupportStatus: StatusUnsupported,
 		SupportReason: ReasonNoPublicAPI,
 		PublicAPI:     false,
 		Limitations: []string{
-			"SAP's own documentation confirms this is a variant of the general API Artifact " +
-				"concept (not accessible via HTTP endpoint, invoked only via API Direct, cannot " +
-				"recursively call other reusable APIs, requires a unique base path), which is why " +
-				"this is its own catalog entry rather than folded silently into api_gateway." +
-				"api_artifact — but the underlying blocker is identical: no public API exists for " +
-				"API Artifacts of any kind.",
+			"A variant of the API artifact (unique base path, not reachable over HTTP, cannot call " +
+				"another reusable API), created through the same UI. It shares the API artifact's " +
+				"blocker. If an API appears, the intended model is a type discriminator on the API " +
+				"artifact resource rather than a second resource.",
+		},
+	},
+	{
+		Key:    "api_gateway.mcp_server",
+		Domain: "api_gateway",
+		Name:   "MCP Server",
+		Description: "A Model Context Protocol server artifact that exposes APIs as tools for AI " +
+			"agents, created from an API artifact, an HTTP endpoint with an OpenAPI specification, " +
+			"an RFC-enabled backend, a remote MCP server or a Classic API proxy, and deployed to " +
+			"Integration Cell.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonNoPublicAPI,
+		PublicAPI:     false,
+		Limitations: []string{
+			"New in 2026 (MCP Gateway, July 2026; remote MCP servers, September 2026). Creation, " +
+				"tool selection, authentication and deployment are documented only as UI procedures, " +
+				"and no MCP server resource appears in any public API or in SAP's Client SDK.",
+			"Publishing an MCP server as a Developer Hub product belongs to the separate Developer " +
+				"Hub provider, not to this one.",
 		},
 	},
 	{
 		Key:    "api_gateway.runtime_profile",
 		Domain: "api_gateway",
 		Name:   "Runtime Profile",
-		Description: "The target integration platform (Cloud Integration, Integration Cell, " +
-			"Edge Integration Cell, SAP Process Orchestration) an API Artifact or integration " +
-			"flow is designed and deployed for.",
+		Description: "The target platform (Cloud Integration, Integration Cell, Edge Integration " +
+			"Cell, SAP Process Orchestration) an API Artifact or integration flow is designed and " +
+			"deployed for.",
 		SupportStatus: StatusUnsupported,
 		SupportReason: ReasonNoPublicAPI,
 		PublicAPI:     false,
 		Limitations: []string{
-			"Configured and displayed only under Settings > Integrations; no API was found for " +
-				"reading or managing this list. Even setting the missing API aside, this provider " +
-				"judges the profile list a weak data-source candidate on its own merits: it is " +
-				"small, stable, effectively enum-like platform metadata, better served by " +
-				"documentation than a live API call. SAP's own \"Runtime Profiles\" reference page " +
-				"does not list a distinct \"Integration Cell\" row at all, despite Integration Cell " +
-				"being offered as a runtime profile choice elsewhere in the same documentation set — " +
-				"an inconsistency in SAP's own documentation this provider records rather than " +
-				"resolves by guessing.",
+			"Runtime profiles are enabled and disabled under Settings > Integrations only. Even " +
+				"with an API, the list would be a weak data source: small, platform-defined and better " +
+				"served by documentation.",
+			"SAP's Runtime Profiles reference page still (September 2026) lists no Integration " +
+				"Cell row, although Integration Cell is offered as a runtime profile when creating API " +
+				"artifacts and MCP servers.",
 		},
 	},
 
@@ -1244,30 +1259,30 @@ var Catalog = []Feature{
 		SupportReason: ReasonNoPublicAPI,
 		PublicAPI:     false,
 		Limitations: []string{
-			"Reconfirmed for this feature family: Integration Cell activation is a Settings > " +
-				"Runtime UI step, and runtime content/status is visible only through Monitor > " +
-				"Integrations and APIs, its own monitoring surface distinct from Cloud Integration's. " +
-				"No public status or configuration API was found for Integration Cell runtime " +
-				"content, only UI-facing operations.",
+			"Split by concern, none has a public API: activation is a Settings > Runtime UI " +
+				"step; runtime discovery and status are shown only in Monitor > Integrations and " +
+				"APIs with the Integration Cell runtime selected; configuration such as trace log " +
+				"level (new for Integration Cell APIs in August 2026) is UI-only; and the only " +
+				"deployment targeting is the runtime profile chosen in the UI.",
 		},
 	},
 	{
 		Key:    "integration_cell.virtual_host",
 		Domain: "integration_cell",
 		Name:   "Integration Cell Virtual Host",
-		Description: "The public-facing host name and base path through which API Artifacts " +
-			"(and MCP Servers) deployed to Integration Cell are exposed.",
+		Description: "A host name under the Integration Cell default domain (or a custom domain) " +
+			"through which API Artifacts and MCP Servers are exposed.",
 		SupportStatus: StatusUnsupported,
 		SupportReason: ReasonNoPublicAPI,
 		PublicAPI:     false,
 		Limitations: []string{
-			"Managed under Monitor > Manage Virtual Host by an administrator holding the " +
-				"PI_Administrator role collection; no Create/Read/Update/Delete API was found " +
-				"documented anywhere, despite dedicated UI-procedure pages existing for configuring, " +
-				"editing, and deleting an eligible virtual host. If a public API is ever confirmed, " +
-				"the default virtual host would need read-only treatment rather than an ordinary " +
-				"mutable resource — SAP documents it as having restricted editability compared to an " +
-				"administrator-created additional virtual host.",
+			"Virtual hosts are added, edited and deleted in Monitor > Integrations and APIs > " +
+				"Virtual Host (PI_Administrator); SAP documents no API for any of these steps.",
+			"Rules a future resource would have to respect: at most 11 virtual hosts per tenant, " +
+				"the name Default is reserved, the host alias is at most 22 characters, and deletion " +
+				"is blocked for the default virtual host and for hosts used by deployed APIs. APIs that " +
+				"referenced a deleted host fall back to the default one. The default host would have " +
+				"to be read-only in Terraform.",
 		},
 	},
 	{

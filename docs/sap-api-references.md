@@ -986,62 +986,67 @@ the Message Stores API family. This provider does not manage that role or role c
   plus a keystore-level `LastModifiedTime` this project judged not worth a second, overlapping
   data source for.
 
-## Current API Management: API Artifacts, Integration Cell, Virtual Hosts, Runtime Profiles
+## Current API Management: API Artifacts, MCP Servers, Integration Cell, Virtual Hosts, Runtime Profiles
 
-- **SAP product area**: Integration Suite's current, API-centric integration model — API
-  Artifacts, Runtime Profiles, Integration Cell, Virtual Hosts, Policies, Reusable API
-  Artifacts, MCP Servers. Explicitly distinct from **Classic API Management** (API Providers,
-  API Proxies, API Products, classic Key Value Maps), which remains a separate, later phase —
-  see "Explicitly ruled out" below for where the one page that does document a public API in
-  this whole area turns out to belong to the classic model instead.
-- **Research method**: this product area lives under a different top-level documentation
-  directory in the same `SAP-docs/btp-integration-suite` mirror
-  (`docs/ISuite_Integrations_APIs/`, 1,662 markdown files) rather than the `docs/ci/` tree this
-  project has used for every other Cloud Integration feature so far. No `SAP-docs` GitHub
-  organization repository dedicated specifically to "API Artifacts" or "Integration Cell" exists
-  either — confirmed by listing every repository in the `SAP-docs` organization. This mirror is
-  therefore the complete, authoritative source available for this research pass.
+*Re-audited September 2026. Result unchanged: no public API for any object in this family.*
 
-### The decisive negative finding: API Artifacts are absent from the Integration Content API's own resource table
+The first research pass concluded that SAP publishes no API for this family. SAP shipped a lot
+of new functionality here in 2026 (API-centric integration, the MCP Gateway, reusable APIs,
+remote MCP servers, Client SDK 3.0.0), so the re-audit checked every channel again instead of
+relying on that result. Each item below names what was checked and what it showed.
 
-The single strongest piece of evidence in this entire research pass: `docs/ISuite_Integrations_APIs/integration-content-d1679a8.md` is the *same* canonical "Integration Content" OData API overview page this project already relies on for `IntegrationPackages`, `IntegrationDesigntimeArtifacts`, `MessageMappingDesigntimeArtifacts`, `ScriptCollectionDesigntimeArtifacts`, `ValueMappingDesigntimeArtifacts`, `IntegrationAdapterDesigntimeArtifacts`, `IntegrationRuntimeArtifacts`, `ServiceEndpoints`, `BuildAndDeployStatus`, `CustomTagConfigurations`, and `MDI Delta Token`. Its "Resources" table is exhaustive by construction (it is the definitive list of every entity this API exposes) — and **API Artifacts do not appear in it at all**. This directly and conclusively rules out the hypothesis (Outcome A) that API Artifacts are represented through `IntegrationDesigntimeArtifacts` with a new `Type` value, or through any other existing Integration Content resource: they are simply not part of this API.
+| # | Source | Identity / version | Finding |
+|---|---|---|---|
+| 1 | Integration Content API resource table | Help page `integration-content-d1679a8`, version synced 2026-07-10 | Resources: integration packages (Discover, Design), custom tags, integration flows with configurations and resources, message mappings, script collections, build and deploy status, MDI delta token, runtime artifacts with errors and endpoints, value mappings, integration adapters. No API artifact, MCP server, runtime profile or virtual host. |
+| 2 | *API Documentation* index pages | `api-documentation-3fd9fc9` (Cloud Integration), `api-documentation-e26b332` (API Management) | Point to `https://api.sap.com/package/CloudIntegrationAPI/odata` and `https://api.sap.com/package/APIMgmt/all` only. |
+| 3 | Lifecycle pages in `SAP-docs/btp-integration-suite`, `docs/ISuite_Integrations_APIs/` | ~60 pages matching api-artifact, mcp, runtime-profile, virtual-host, integration-cell | All UI procedures. None names an endpoint, entity set, HTTP method or Business Accelerator Hub page. |
+| 4 | SAP API Management Client SDK | Maven Central `com.sap.apimgmt.client.sdk:apim-client-sdk`, versions up to 3.0.6 (published 2026-09-18); What's New "Update Client SDK to Version 3.0.0", 2026-09-20 | Classes: `APIProxyClient`, `APIProductClient`, `APIKeyValueMapClient` and models for proxies, products, providers, key maps, virtual hosts (Classic). Endpoints: `/apiportal/api/1.0/Management.svc`, `/apiportal/api/1.0/ContentArchive.svc`, `/api/1.0/apis/`. Classic API Portal only. |
+| 5 | SAP's CI/CD tooling | `github.com/SAP/cicd-actions-for-sap-integration-suite`, 2026 | Actions for packages, integration flows, deployments, Partner Directory and access policies. None for API artifacts or MCP servers. |
+| 6 | API Management What's New (Cloud Foundry) | `what-s-new-for-sap-api-management-cloud-foundry-d9d60be`, entries to 2026-09-20 | 2026 Integration Cell entries (API-centric integration, MCP Gateway, reusable API artifact, simplified creation, product subscriptions, trace data, tool limit 30, remote MCP servers) are UI features. No API announced. |
+| 7 | Business Accelerator Hub | `api.sap.com` search and index | No page for API artifacts, MCP servers, Integration Cell or virtual hosts is indexed. The hub renders in the browser and gates specification downloads behind an SAP login, so this channel was only checked through search engines. |
 
-One incidental but useful confirmation from the same page: it documents the Edge Integration Cell path convention explicitly — `https://<host address>/location/<runtime location id>/api/v1/<relative resource path>` — resolving a question this project had flagged as unconfirmed during the Number Ranges research phase (whether Edge Integration Cell uses a distinct `/location/<runtime-location-id>/...` path prefix). Confirmed here for the Integration Content API; whether the same convention would apply to a hypothetical future API Artifact API remains unconfirmed, since no such API exists to check it against.
+*Accessing API Management APIs Programmatically* (`accessing-api-management-apis-programmatically-24a2c37`)
+is still about the Classic API Portal's `apiportal-apiaccess` plan (roles
+`APIPortal.Administrator`, `APIPortal.Guest`, `APIManagement.SelfService.Administrator`).
 
-### No public API found anywhere for API Artifacts, Integration Cell, Virtual Hosts, or Runtime Profiles
+### Semantics recorded for a future implementation
 
-Every one of the following pages was fetched and read in full during this research pass — covering artifact creation (by target URL/OpenAPI, by destination, by discoverable system, by API provider reference), design/configuration, versioning (including revert), access management, deletion, deployment, monitoring, service types, Reusable API Artifacts, Virtual Host management, Runtime Profile configuration, and both capability-activation bootstrap steps:
+These come from the current Help pages and would constrain any future resource design:
 
-- `api-artifact-a4f87b1.md` (overview), `creating-an-api-artifact-c2fe62c.md`, `configure-an-api-artifact-79aee17.md`, `copy-an-api-artifact-820c9e8.md`, `delete-an-api-artifact-81694d6.md`, `deploy-an-api-artifact-b70e7ec.md`
-- `create-an-api-artifact-using-a-target-url-or-an-openapi-specification-914f57e.md`, `create-an-api-artifact-using-a-destination-a0bdfd4.md`, `create-an-api-artifact-using-a-discoverable-system-bd5c1f4.md`, `create-an-api-artifact-by-referring-to-an-api-provider-2d21e65.md`
-- `api-artifact-versioning-3f2e06b.md`, `access-management-for-api-artifact-2a89115.md`, `service-types-for-api-artifacts-4dd2dde.md`
-- `reusable-api-artifact-26a9db1.md`, `create-a-reusable-api-artifact-0112688.md`, `consuming-a-reusable-api-artifact-291f424.md`
-- `integration-cell-bd33000.md` (overview), `get-started-with-integration-cell-c4b531d.md`, `activate-integration-cell-1a627da.md`
-- `virtual-hosts-in-integration-cell-dd401ec.md`, `configuring-additional-virtual-host-26c7416.md`, `view-and-edit-virtual-host-for-api-artifacts-a87d799.md`, `delete-an-eligible-virtual-host-102257d.md`
-- `IntegrationSettings/runtime-profiles-8007daa.md`, `IntegrationSettings/set-default-runtime-profile-efebd50.md`
-- `monitor-apis-and-mcp-servers-399b6c6.md`
-- `activate-and-configure-the-api-management-capability-and-access-developer-hub-2111650.md`
+- **Runtime profile** is fixed after an API artifact is created, except for choosing the
+  target Edge Integration Cell (*Creating an API Artifact*). SAP's *Runtime Profiles* page
+  (`runtime-profiles-8007daa`) still lists Cloud Integration, Cloud Integration – Starter, SAP
+  Process Orchestration and Edge Integration Cell, but no Integration Cell row.
+- **Design-time and deployment-time virtual host** can differ. The deployed endpoint follows
+  the deployment-time choice (*Deploy an MCP Server*, `deploy-an-mcp-server-017ba42`, and the
+  corresponding API artifact page).
+- **Virtual host rules** (`configuring-additional-virtual-host-26c7416`,
+  `delete-an-eligible-virtual-host-102257d`): at most 11 virtual hosts per tenant; name
+  `Default` reserved; alias up to 22 characters of letters, digits and hyphens, not starting
+  with a hyphen; deletion blocked for the default virtual host and for hosts referenced by
+  deployed APIs; APIs referencing a deleted host fall back to the default host.
+- **API artifact versioning** (`api-artifact-versioning-3f2e06b`): versions coexist at design
+  time and runtime, one version is active, and revert keeps all versions.
+- **MCP server sources**: API artifact, HTTP endpoint with OpenAPI specification, RFC-enabled
+  backend, remote MCP server, Classic API proxy. Deployment targets Integration Cell only.
+- **Destinations for Integration Cell** (`create-an-api-artifact-using-a-destination-a0bdfd4`)
+  need the label `IntegrationCell.Include = true`, and only proxy types `Internet` and
+  `OnPremise` are supported.
 
-Every single one of these describes its subject exclusively through the SAP Integration Suite web UI (*Design* > *Integrations and APIs*, *Monitor* > *Integrations and APIs*, *Settings* > *Runtime*/*Integrations*) — procedures phrased as "Log on to SAP Integration Suite... choose the navigation icon... select... choose Deploy from the options." **Not one of these pages mentions an OData/REST endpoint, an entity set name, an HTTP method, an example request, or a link to SAP Business Accelerator Hub** — the pattern every other confirmed public API in this provider (Integration Content, Security Content, Partner Directory, Message Stores, Access Policies) uses consistently and without exception. This is the same negative-evidence pattern this project has previously used to correctly rule out a public API (for example Known Hosts in the Security Content research pass), applied here across a much larger and more thoroughly checked page set.
+### Side findings for other areas
 
-Specific findings, confirmed verbatim from these pages:
-
-- **Runtime profile immutability** (`deploy-an-api-artifact-b70e7ec.md`, confirmed word-for-word): "API artifact deployments are runtime-specific. After an API artifact is created on a specific runtime, you cannot change its runtime profile either by editing the artifact or during deployment. For example, an API artifact created for the Integration Cell runtime cannot later be deployed to the Edge Integration Cell runtime, and vice versa. The only exception applies to API artifacts created with the Edge Integration Cell runtime profile, where you can select or change the target Edge Integration Cell node during editing or deployment." This confirms the task's expected design (`runtime_profile` as `RequiresReplace`, with the Edge Integration Cell node-reassignment exception) — but since no public API exists to build a Terraform resource against in the first place, this remains documentation, not implemented behavior.
-- **Design-time vs. deployment-time virtual host** (same page, confirmed word-for-word with a worked example): "The virtual host configured in the API artifact at design time and the virtual host selected during deployment can be different... If the API artifact is configured with the virtual host `api-dev.company.com` at design time, but you select `api-prod.company.com` during deployment, the design-time configuration continues to show `api-dev.company.com`. However, after deployment, the endpoint URL displayed in Monitor > Manage Integration Content uses `api-prod.company.com`, because it reflects the virtual host associated with the deployed runtime artifact." Confirms the task's expected split between a design-time resource field and a deployment-time resource field — again, moot without a public API for either resource.
-- **`Runtime Profiles` page**: lists Cloud Integration, Cloud Integration – Starter, SAP Process Orchestration (per release/SP), and Edge Integration Cell as the profiles configurable under *Settings* > *Integrations*. Notably, plain **"Integration Cell" does not appear as a row in this table at all**, despite being offered as a Runtime Profile choice during API artifact creation/deployment elsewhere in the same documentation set — an internal inconsistency in SAP's own documentation, not a fact this project resolved either way, and not one this project attempts to paper over with a guess.
-- **Reusable API Artifacts** (`reusable-api-artifact-26a9db1.md`, confirmed): "not accessible via HTTP endpoint," invoked only "by calling APIs... via the API Direct adapter," "cannot recursively call other reusable APIs," each requiring "a unique base path." Confirms the task's expected constraints exactly, but this is again UI/conceptual documentation with no API contract behind it.
-- **Access control for API artifacts** (`access-management-for-api-artifact-2a89115.md`): "currently supported only for API artifacts deployed on the *Edge Integration Cell* runtime" — not yet Integration Cell, a detail worth knowing if Edge Integration Cell work begins before Integration Cell gains equivalent support.
-- **Virtual Host role requirement** (`virtual-hosts-in-integration-cell-dd401ec.md`, confirmed): "As an API administrator with the *PI\_Administrator* role collection assigned, you can configure and manage virtual hosts."
-- **API Artifact design role requirement** (`delete-an-api-artifact-81694d6.md`, confirmed): "You are assigned the *PI\_Integration\_Developer* role" — matching the task's expected role split (design/deploy vs. virtual host administration) exactly.
-- **Capability activation, both API Management and Integration Cell**: both confirmed as pure `Settings`-driven bootstrap procedures (`activate-and-configure-the-api-management-capability-and-access-developer-hub-2111650.md`; `activate-integration-cell-1a627da.md`, "From the left navigation pane, choose *Settings* > *Runtime*"). Consistent with, and reconfirming, this provider's existing `capabilities.api_management`/`capabilities.integration_cell` catalog entries (`no_public_api`) — no change needed to either.
-
-### Explicitly ruled out: the one "programmatic access" page belongs to Classic API Management, not this phase
-
-`accessing-api-management-apis-programmatically-24a2c37.md` is the only page in the entire `docs/ISuite_Integrations_APIs/` tree whose title suggests a REST/OData API for "API Management." Reading it in full confirms it describes exclusively the **`apiportal-apiaccess` service plan** — `APIPortal.Administrator`/`APIPortal.Guest` roles, and a worked example calling `<url>/apiportal/api/1.0/Management.svc/APIProxies`. `APIProxies` and `Management.svc` are Classic API Management (API Portal) concepts, confirmed by the identical file also being mirrored under `docs/apim/API-Management/APIM-Initial-Setup/` — the separate documentation tree this project has identified as Classic API Management's own doc set, to be researched properly in that later phase. This page is not evidence of a public API for current API Artifacts; it is evidence that Classic API Management's public API remains exactly what it always was, cross-linked into the current documentation tree because both product models happen to share the "Integrations and APIs" navigation area in the UI.
-
-### Consequence for this phase's Terraform decisions
-
-Given a confirmed, exhaustive Integration Content resource table that excludes API Artifacts entirely, and a complete absence of any REST/OData documentation anywhere else in this product area despite thoroughly checking every stage of the artifact lifecycle, this project concludes: **SAP currently exposes API Artifacts, Integration Cell runtime, Virtual Hosts, Runtime Profiles, and Policies through the SAP Integration Suite web UI only — no public design-time or runtime API was found for any of them.** This is Outcome C from this phase's own research framework: a real, UI-supported feature area with no public API this provider could build a Terraform resource against without guessing at an endpoint SAP has never documented, which this provider does not do. See `docs/resource-design.md` for the suitability walkthrough this conclusion is based on, and `docs/guides/current-api-management.md` for the practitioner-facing explanation of the whole boundary.
+- **Edge Integration Cell runtime targeting**: the Integration Content page (item 1) now
+  documents `https://<host>/location/<runtime location id>/api/v1/<relative resource path>`
+  for calls against an Edge Integration Cell. SAP's CI/CD tooling still called the EIC path
+  "not yet published" in its version of 2026-05-05, two months before that Help version. This
+  affects `edge_integration_cell.deployment_target` and is evaluated in the Edge Integration
+  Cell section.
+- **Classic API Management virtual hosts**: the custom-domain and mutual-TLS virtual host
+  pages (`configuring-a-custom-domain-for-a-virtual-host-6b9e5a3`,
+  `configuring-mutual-tls-for-default-domain-virtual-host-9faf7ce`) describe an API for the
+  **Classic** API Portal, used with a service key for `APIManagement.SelfService.Administrator`.
+  They say nothing about Integration Cell and are evaluated in the Classic API Management
+  section.
 
 ## Classic API Management: API Providers, API Products, Certificate Store References, Key Value Maps
 

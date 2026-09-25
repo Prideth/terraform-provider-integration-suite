@@ -1411,6 +1411,13 @@ is in `docs/sap-api-references.md`; this section records why every object in thi
 up `unsupported`/`no_public_api`, walked through the same 14-question format used elsewhere in
 this document where a question is answerable at all.
 
+*September 2026 re-audit:* the verdict holds for every object below and for MCP servers, which
+did not exist during the first pass. The re-audit and the design intent for a future API
+(runtime profile as `RequiresReplace`, separate design-time and deployment-time virtual hosts,
+a read-only default virtual host, reusable APIs as a type on the API artifact resource) are
+written up in `docs/guides/current-api-management.md`. The subsections below keep the original
+reasoning, which the re-audit did not change.
+
 ### API Artifact — no resource, no data source
 
 1. **Who creates it**: a practitioner, via *Design* > *Integrations and APIs* in the SAP
