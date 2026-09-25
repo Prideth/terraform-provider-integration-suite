@@ -105,6 +105,8 @@ All notable changes to this project are documented in this file.
 
 ### Documentation
 
+- New guide "Authorization and Roles": the SAP role templates each resource
+  family needs, where they are assigned, and how to diagnose a 403.
 - The Current API Management guide was rewritten around a per-object status
   table, the 2026 evidence (Integration Content API, Client SDK 3.0.6, SAP's
   CI/CD tooling, What's New), MCP servers, virtual host rules, and what can
