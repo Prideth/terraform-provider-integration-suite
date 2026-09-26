@@ -26,13 +26,17 @@ subscription this provider otherwise assumes. Its service key is confirmed to co
 
 - `entities` — base URL for the Entities API
 - `management` — base URL for the Management API
-- `clientid` / `clientsecret` / `url` (token server) — the same OAuth 2.0 client-credentials
-  shape this provider already uses for Cloud Integration, current API Management, and Classic
-  API Management
+- `clientid` / `clientsecret` / `url` (token server; SAP says to append `/oauth/token` to it) —
+  the same OAuth 2.0 client-credentials shape this provider already uses for Cloud Integration,
+  current API Management, and Classic API Management
 
-Two distinct base URLs, not one, is itself a confirmed and notable finding: whatever the
-`entities` vs. `management` split actually means at the wire level was not investigated further,
-since (see below) no implementation was reached that would need to distinguish between them.
+The SAP Business Accelerator Hub's public catalog (re-audit September 2026) lists exactly two API
+artifacts in the package `SAPIntegrationAssessment`, both of type **OData**, version 1.0.0:
+**Entities** (`EntitiesAPI`, "Access entities of Integration Assessment") and **Management**
+(`ManagementAPI`, "Manage content of Integration Assessment"). The entity inventory below
+therefore belongs to the Entities API. The Management API is about content, which matches the
+UI's *Content Management* page: updating SAP-delivered content and importing and exporting a
+tenant's data. That is an operation, not desired state.
 
 This provider does not add a `provider.integration_assessment` configuration block in this
 phase. Adding provider schema with nothing behind it to configure would be dead surface area —
@@ -47,10 +51,10 @@ each with a one-paragraph description — genuinely the most complete *inventory
 found for any capability audited without a lucky primary-source PDF (compare
 `docs/guides/classic-api-management.md`, where a complete official user guide with worked
 examples was found). What is missing, despite substantial effort (the SAP-docs mirror, the
-official "SAP Integration Solution Advisory Methodology" PDF user guide, and SAP's own TechEd
-IN262 hands-on sample repository, all checked and all UI-procedure-only), is any worked
-request/response example for any entity — so this inventory is classified by *shape and
-described limits*, not by a confirmed wire contract.
+official "SAP Integration Solution Advisory Methodology" PDF user guide, SAP's own TechEd
+IN262 hands-on sample repository, and in September 2026 the Business Accelerator Hub catalog,
+all checked), is any field-level contract for any entity — so this inventory is classified by
+*shape and described limits*, not by a confirmed wire contract.
 
 ### Master data — SAP-maintained ISA-M taxonomy
 
@@ -93,11 +97,18 @@ trail, including the specific sources checked and found to contain UI procedures
 ## Revisiting this decision
 
 The gap here is narrower than it looks: the entity inventory, the authentication mechanism, and
-the general API shape (two base URLs) are all genuinely confirmed. What is missing is one
-specific kind of evidence — a worked request or response body for any entity — the same kind of
-gap this provider already treats as `public_api_incomplete` elsewhere (see Classic API
-Management's API Proxy). If SAP's Business Accelerator Hub page for the
-`SAPIntegrationAssessment` package ever becomes reachable without an SAP support login, or a
-primary source with worked examples surfaces, start with Landscape Configuration — the
-strongest-evidenced candidate — before Master Data, and treat Requests/assessment workflow as
-settled out of scope rather than reopening it.
+the API shape (two OData services) are all confirmed. What is missing is the field-level
+contract: entity set names, properties, keys and types. The specification files on the Business
+Accelerator Hub are still only downloadable after an SAP login; the Hub's anonymous access ends
+at its login page, and no SAP sample repository calls these APIs.
+
+Because both APIs are OData services, the contract can be read from a tenant directly: an OData
+service describes itself at `<service root>/$metadata`. Anyone with a service key of
+*Integration Assessment APIs* can fetch `<entities>/$metadata` and `<management>/$metadata`
+with a client-credentials token. This is how this provider validates every Cloud Integration
+wire struct (see `CONTRIBUTING.md`, "Checking wire contracts against `$metadata`"), and it is
+the concrete step that would unblock an implementation here. Once such a document is
+available, start with Landscape Configuration — the strongest candidate — before Master Data,
+and treat Requests/assessment workflow as settled out of scope rather than reopening it. An
+implementation would also add a `provider.integration_assessment` block, since the credentials
+are a separate service key.

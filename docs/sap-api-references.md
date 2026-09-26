@@ -1656,6 +1656,17 @@ across the whole provider, not something to keep re-verifying capability-by-capa
   walkthrough, no API calls). The SAP Business Accelerator Hub package
   (`hub.sap.com/package/SAPIntegrationAssessment/overview`) is unreachable without an SAP support
   login, the same limitation this project has hit repeatedly for other packages.
+- **Re-audit September 2026**: the SAP-docs pages are unchanged. The Hub's catalog service
+  (`api.sap.com/odata/1.0/catalog.svc`) is readable anonymously at package level:
+  `ContentPackages('SAPIntegrationAssessment')/Artifacts` lists `EntitiesAPI` ("Entities",
+  "Access entities of Integration Assessment") and `ManagementAPI` ("Management", "Manage
+  content of Integration Assessment"), both `SubType: ODATA`, version 1.0.0, state `ACTIVE`,
+  last modified July 2025. The artifacts' `$value` and `APIContent.APIs(...)` both redirect to
+  the Hub's OAuth flow (public client `sb-hubXsuaa-public`), which ends at a login page, so the
+  specifications stay out of reach. A GitHub repository search found no SAP sample calling
+  these APIs beyond the UI-only `teched2022-IN262`. Since both are OData services, their
+  `$metadata` documents, fetched with a service key, are the way to confirm the contract (see
+  `CONTRIBUTING.md`, "Checking wire contracts against `$metadata`").
 - **Consequence for this phase's Terraform decisions**: no resource or data source is
   implemented. Unlike Current API Management's family (no API exists at all) or Developer Hub's
   Product (a specific unconfirmed detail blocking an otherwise well-understood entity), this is a
@@ -1672,7 +1683,7 @@ across the whole provider, not something to keep re-verifying capability-by-capa
 | API Proxy content upload | `Management.svc/APIProxies` (Classic API Management) | Entity, GET, and DELETE confirmed; the ZIP content Create/Update wire format is not — see `docs/guides/classic-api-management.md` |
 | Certificate Chain, Secure Parameter, Known Hosts | Security Content API | Reverified during the Security Content phase; remain without a confirmed public contract (Certificate Chain is documented only as a Key Pair capability) or without any public API at all (Known Hosts) — see `docs/guides/security-content.md` |
 | Value mapping entry-level management | `UpsertValMaps`, `UpdateDefaultValMap`, `DeleteValMaps` | Confirmed public, deferred — exact payload/path shapes and delete granularity not confirmed against a reachable primary source; see `docs/resource-design.md` |
-| Integration Assessment | `entities`/`management` APIs (see above) | Confirmed public with a fully confirmed entity inventory; no field-level wire contract confirmed for any entity — see `docs/guides/integration-assessment.md` |
+| Integration Assessment | `EntitiesAPI`/`ManagementAPI`, both OData (see above) | Confirmed public with a fully confirmed entity inventory; no field-level wire contract confirmed for any entity. Unblocked by the services' `$metadata`, fetched with a service key — see `docs/guides/integration-assessment.md` |
 
 ## Explicitly ruled out
 

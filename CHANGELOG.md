@@ -156,6 +156,11 @@ All notable changes to this project are documented in this file.
   be automated around these objects today.
 - The Access Policies guide was rewritten around the confirmed wire
   contract, with lifecycle side effects and upgrade steps.
+- The Integration Assessment guide records the September 2026 re-audit:
+  both APIs are OData services according to the Business Accelerator Hub,
+  their specifications still need an SAP login, and a `$metadata` document
+  fetched with a service key is the step that would unblock an
+  implementation. CONTRIBUTING describes how to fetch it.
 
 ### Removed
 

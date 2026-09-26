@@ -1929,6 +1929,10 @@ var Catalog = []Feature{
 				"reachable primary source (the SAP-docs mirror, an official PDF user guide, and an " +
 				"SAP TechEd hands-on sample repository were all checked and cover only UI procedures), " +
 				"so no field-level JSON schema could be confirmed for any entity in this group.",
+			"Re-audit September 2026: the Business Accelerator Hub lists both APIs (Entities and " +
+				"Management) as OData services, but their specifications need an SAP login. The " +
+				"services' $metadata, fetched with an Integration Assessment service key, would " +
+				"settle the contract.",
 		},
 	},
 	{
@@ -1947,7 +1951,8 @@ var Catalog = []Feature{
 				"per-tenant limits confirming real, bounded storage (maximum 20000 Applications, 20000 " +
 				"Application Instances, 50 Technologies, 150 Technology Instances, 10000 Vendors) — " +
 				"but, as with integration_assessment.master_data, no field-level JSON schema for any " +
-				"Create/Read/Update/Delete operation was found in any reachable primary source.",
+				"Create/Read/Update/Delete operation was found in any reachable primary source. The " +
+				"Entities API is an OData service, so its $metadata is the next evidence to obtain.",
 		},
 	},
 	{

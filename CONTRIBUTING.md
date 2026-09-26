@@ -178,10 +178,20 @@ document the contract tests skip, which is why CI stays green without tenant
 access. A skipped contract test is not evidence, so mention in the PR
 whether you ran them.
 
-`$metadata` settles property names, keys, types and navigation. It does not
-settle enum values (they are plain `Edm.String`) or whether SAP actually
-accepts a create or update on an entity set. Those still need SAP's
-documentation, SAP's own published tooling, or a live request.
+`$metadata` settles property names, keys, types, length facets such as
+`MaxLength`, and navigation. It does not settle enum values (they are plain
+`Edm.String`) or whether SAP actually accepts a create or update on an entity
+set. Those still need SAP's documentation, SAP's own published tooling, or a
+live request.
+
+The same approach works for other SAP OData services whose specification is
+only available behind the Business Accelerator Hub login. Integration
+Assessment's two APIs and API Composition's Configuration API are OData
+services; with a service key of the respective instance, fetch
+`<service root>/$metadata` the same way and store it under `.specs/`. For
+Integration Assessment the service roots are the key's `entities` and
+`management` values, and the token endpoint is its `url` plus `/oauth/token`.
+A document like that is what an implementation of those areas needs first.
 
 ## Documentation standards
 
