@@ -107,7 +107,7 @@ Do not conflate these: a feature can be fully supported by this provider and sti
 | `partner_directory.binary_parameter` | partner_directory | supported | Yes | Yes | Yes | Yes | Yes | Yes | — | Resource + Data Source |
 | `partner_directory.partner` | partner_directory | read_only (unsafe_terraform_lifecycle) | Yes | — | Yes | — | — | — | — | Data Source |
 | `partner_directory.string_parameter` | partner_directory | supported | Yes | Yes | Yes | Yes | Yes | Yes | — | Resource + Data Source |
-| `partner_directory.user_credential_parameter` | partner_directory | partial (unsafe_terraform_lifecycle) | Yes | Yes | Yes | — | Yes | Yes | — | Resource |
+| `partner_directory.user_credential_parameter` | partner_directory | supported | Yes | Yes | Yes | Yes | Yes | Yes | — | Resource |
 | `security.access_policy` | security | supported | Yes | Yes | Yes | Yes | Yes | Yes | — | Resource + Data Source |
 | `security.access_policy_reference` | security | supported | Yes | Yes | Yes | — | Yes | Yes | — | Resource + Data Source |
 | `security.certificate` | security | supported | Yes | Yes | Yes | Yes | Yes | Yes | — | Resource |
@@ -238,13 +238,8 @@ Grouped by why, not just that. A feature can be `partial` and reachable via one 
   - Explicit versions (ValueMappingDesigntimeArtifactSaveAsVersion) are not used yet; see cloud_integration.design_time_versioning.
   - Whether Delete removes only the active version or every version of the artifact is unconfirmed against a primary source.
 - **`partner_directory.partner`** — A Partner ID (Pid) known to the tenant's Partner Directory.
-  - No resource: SAP documents no confirmed create operation for Partners — a Pid comes into existence implicitly the first time a StringParameter, BinaryParameter, AlternativePartner, AuthorizedUser, or UserCredentialParameter references it.
-  - Deleting a Pid is documented as cascading to every entity belonging to it, which is the other reason this stays read-only: a Partner resource's Destroy could erase content owned by an entirely different Terraform module.
-- **`partner_directory.user_credential_parameter`** — A communication username/password credential scoped to a Partner ID (Pid). (partial support already implemented — see Limitations below)
-  - The password is a write-only attribute (password_wo): Terraform never stores it in plan or state, and this provider never requests or reads a password back from SAP, which does not document returning one. Requires Terraform CLI 1.11 or later.
-  - No in-place update: no public API for changing an existing credential's password was confirmed, so rotating it (via the paired password_wo_version attribute) replaces the resource — delete the old credential, then create a new one.
-  - UserCredentialParameter cannot be combined with other Partner Directory entity types in a single OData batch (ChangeSet) request; this provider always issues it standalone.
-  - Import recovers partner_id, parameter_id, and user, but never the password: a configuration applied right after import must still supply password_wo and a password_wo_version, which plans as a replacement even though nothing server-side has actually changed.
+  - No resource: SAP's API reads all partners and deletes a partner, but has no create operation. A Pid comes into existence implicitly the first time a StringParameter, BinaryParameter, AlternativePartner, AuthorizedUser, or UserCredentialParameter references it.
+  - Deleting a partner removes the partner and all its entities (SAP's Delete Partner description). A Partner resource's destroy could therefore erase content owned by other Terraform resources or modules, which is the other reason this stays read-only.
 - **`security.key_pair`** — An SAP-generated key pair keystore entry (private key plus X.509 certificate), as opposed to one uploaded from outside the tenant. (partial support already implemented — see Limitations below)
   - Create confirmed field-for-field via SAP's own "Generate a Key Pair" documentation: POST KeyPairGenerationRequests. The private key never leaves SAP — this resource has no field for it and never requests one.
   - No update operation is documented for a generated key pair: every attribute that defines the generated key material is RequiresReplace.

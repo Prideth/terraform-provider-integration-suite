@@ -860,9 +860,7 @@ the other file-based resources.
   and left to fail later against an API that only recognizes that one key.
 - **Feature catalog status**: `partial` — Create/Read/Update are fully implemented against a
   confirmed API contract; the permanently absent Delete is the reason for `partial` rather than
-  `supported`, the same category of gap as
-  `sapintegrationsuite_partner_user_credential_parameter`'s missing Update, just on a different
-  operation.
+  `supported`.
 
 ## Number Ranges / Variables / Data Stores / Data Store Entries — suitability check
 
@@ -1058,8 +1056,9 @@ is acceptable.
   every other file-based resource in this provider. `content_type` is not restricted to a fixed
   validator list, since SAP's documented values (`xml`, `xsl`, `xsd`, `json`, `text`, `zip`,
   `gz`, `zlib`, `crt`) coexist with encoding-suffixed variants like `xml;encoding=UTF-8` that a
-  short fixed list would incorrectly reject. SAP's documented 260 KB maximum decoded value size
-  is checked client-side before any request is sent.
+  short fixed list would incorrectly reject. The value limit checked client-side before any
+  request is 1,572,864 bytes, the `MaxLength` of `BinaryParameter.Value` in the tenant
+  `$metadata`; older SAP pages still mention 260 KB.
 - **Security note**: Partner Directory data is stored unencrypted. Neither resource is meant
   for secrets — see the User Credential Parameter entry below and
   `docs/guides/partner-directory.md`.
@@ -1099,10 +1098,9 @@ is acceptable.
 - **Identity**: `User` is the entity's key; the Terraform ID is the same value.
 - **Update**: `PUT` repoints an existing mapping at a different `partner_id`; `user` forces
   replacement (it is the mapping's identity).
-- **Case normalization — unconfirmed**: whether SAP lowercases `User` internally was not
-  confirmed against a primary source or a live tenant. This provider does not normalize it,
-  to avoid introducing behavior that has not been verified; see
-  `docs/guides/partner-directory.md`.
+- **Case**: SAP stores `User` lowercased (its example creates `MyUser` and returns `myuser`).
+  A mixed-case value would come back different from the configuration, so the resource and the
+  data source reject uppercase letters at plan time instead of normalizing silently.
 - **Boundary**: this resource manages only the Partner Directory mapping, never the BTP user,
   OAuth client, or communication user credential itself.
 - **Import**: `terraform import sapintegrationsuite_partner_authorized_user.example commuser1`.
@@ -1119,20 +1117,21 @@ is acceptable.
   Framework v1.17.0 in this module supports it; requires Terraform CLI 1.11+), so Terraform
   never persists it to plan or state. The client-layer `UserCredentialParameter` struct used
   for `Get` and for decoding `Create`'s response has no `Password` field at all — a password
-  can never end up copied into a Go value this provider exposes, independent of what SAP's
-  response body actually contains, since no primary source confirming or ruling out a
-  password read-back was found.
-- **Update — deliberately absent**: no public API for changing an existing credential's
-  password in place was confirmed. Rather than guess at a `PUT`/`PATCH` for a security-sensitive
-  entity, every field is `RequiresReplace`, including a `password_wo_version` marker the
-  practitioner bumps to signal a rotation; Terraform then deletes the old credential and creates
-  a new one using only the two confirmed operations (`POST`, `DELETE`).
+  can never end up copied into a Go value this provider exposes. SAP returns `Password` as
+  `null`, or as a SHA-256 hash with `returnHashedPassword=SHA256`, which the provider never
+  requests.
+- **Update — POST, in place**: SAP documents that a POST with the same `Pid` and `Id` updates the
+  entry and that PUT is not supported (re-audit September 2026). `user` and the
+  `password_wo_version` marker are therefore updatable; changing either sends the POST with the
+  configured user and password, and the credential never disappears in between. Only
+  `partner_id` and `parameter_id` force replacement.
+- **Create — refuses to overwrite**: the same POST overwrites an existing entry, so Create
+  first reads `(Pid, Id)` and stops with an "import it instead" error when it exists.
 - **Import**: recovers `partner_id`, `parameter_id`, and `user` only — never the password, since
-  there is nothing to recover it from. A configuration applied right after import must still
-  supply `password_wo`/`password_wo_version`, which plans as a replacement even though nothing
-  has changed server-side; this is inherent to importing a write-only-secret resource.
-- **Feature catalog status**: `partial`, not `supported` — the missing update/read-back is a
-  permanent property of this resource's security model, not a gap expected to close later.
+  there is nothing to recover it from. The first apply after import is an in-place update that
+  sends the configured password.
+- **Feature catalog status**: `supported`. The password is never read back, which is a property
+  of the security model, not a missing operation.
 
 ## `sapintegrationsuite_user_credential`
 

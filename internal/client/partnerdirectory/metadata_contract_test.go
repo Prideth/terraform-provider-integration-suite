@@ -34,4 +34,8 @@ func TestWireContractAgainstMetadata(t *testing.T) {
 	m.AssertKey(t, userCredentialParametersEntitySet, "Pid", "Edm.String", "Id", "Edm.String")
 	m.AssertKey(t, alternativePartnersEntitySet, "Hexagency", "Edm.String", "Hexscheme", "Edm.String", "Hexid", "Edm.String")
 	m.AssertKey(t, authorizedUsersEntitySet, "User", "Edm.String")
+
+	// The binary parameter size check follows the service's own MaxLength,
+	// not the older 260 KB figure some SAP pages still give.
+	m.AssertMaxLength(t, binaryParametersEntitySet, "Value", MaxBinaryParameterValueBytes)
 }

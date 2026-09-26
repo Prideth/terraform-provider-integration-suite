@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"errors"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -10,7 +9,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/apierror"
 	"github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/partnerdirectory"
 )
 
@@ -31,8 +29,8 @@ type partnerUserCredentialParameterResource struct {
 // but since password_wo is WriteOnly, Terraform always supplies it as null
 // there regardless of what the practitioner configured, and this code
 // never reads PasswordWO's value from this struct. The real value is read
-// once, directly out of Config (the only place Terraform actually sends
-// it), in Create; see the pathRoot("password_wo") lookup there.
+// directly out of Config (the only place Terraform actually sends it) in
+// Create and Update.
 // password_wo_version is the plain, stored companion attribute that makes
 // password rotation a detectable, plannable change — the standard pattern
 // for a write-only secret paired with a version marker.
@@ -56,15 +54,12 @@ func (r *partnerUserCredentialParameterResource) Schema(_ context.Context, _ res
 			"username and password scoped to a partner ID (Pid), consumed by an integration flow " +
 			"through the generated security artifact alias \"pd:<partner_id>:<parameter_id>:" +
 			"UserCredential\". Backed by the public Partner Directory OData V2 API " +
-			"(UserCredentialParameters). Unlike StringParameters/BinaryParameters, this entity is " +
-			"treated as security-sensitive: password_wo is a write-only attribute that Terraform " +
-			"never stores in plan or state, this provider never requests or reads a password " +
-			"back from SAP, and no in-place update exists — changing the password (via " +
-			"password_wo_version), user, partner_id, or parameter_id all replace the resource, " +
-			"since no public API for updating an existing credential's password was confirmed. " +
-			"UserCredentialParameter cannot be combined with other Partner Directory entity types " +
-			"in a single OData batch request; this provider always issues it standalone. See " +
-			"docs/guides/partner-directory.md for the full security analysis.",
+			"(UserCredentialParameters). password_wo is write-only: Terraform never stores it in " +
+			"plan or state, and the provider never reads a password back from SAP. Changing user " +
+			"or password_wo_version updates the credential in place with a POST, which SAP " +
+			"documents as the update method for this entity (PUT is not supported). Because that " +
+			"POST overwrites, create refuses to run when the credential already exists; import " +
+			"it instead. See docs/guides/partner-directory.md.",
 		Attributes: map[string]schema.Attribute{
 			"runtime_location_id": runtimeLocationResourceAttribute(),
 			"id": schema.StringAttribute{
@@ -91,31 +86,23 @@ func (r *partnerUserCredentialParameterResource) Schema(_ context.Context, _ res
 			},
 			"user": schema.StringAttribute{
 				Required:    true,
-				Description: "The communication username.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
+				Description: "The communication username. Changing it updates the credential in place.",
 			},
 			"password_wo": schema.StringAttribute{
 				Required:  true,
 				Sensitive: true,
 				WriteOnly: true,
 				Description: "The communication password. Write-only: Terraform never stores " +
-					"this value in plan or state, and it is never read back from SAP, which does " +
-					"not document returning a stored credential's password. Must be supplied on " +
-					"every apply that creates or replaces this resource (Terraform requires " +
-					"Terraform CLI 1.11 or later for write-only attributes).",
+					"this value in plan or state, and it is never read back from SAP. It is sent on " +
+					"create and on every update, since SAP's update replaces user and password " +
+					"together. Requires Terraform CLI 1.11 or later.",
 			},
 			"password_wo_version": schema.StringAttribute{
 				Required: true,
-				Description: "An arbitrary value (for example a counter or timestamp) that a " +
-					"practitioner changes to signal that password_wo's value has changed and the " +
-					"credential should be rotated. Since no in-place password update is confirmed, " +
-					"changing this value replaces the resource (delete the old credential, create " +
-					"a new one with the new password).",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
+				Description: "An arbitrary value (for example a counter or timestamp) that you " +
+					"change whenever password_wo changes. Terraform cannot see the write-only " +
+					"password, so changing this value is what triggers the in-place update that " +
+					"sends the new password.",
 			},
 		},
 	}
@@ -136,6 +123,18 @@ func (r *partnerUserCredentialParameterResource) Configure(_ context.Context, re
 	r.client = partnerdirectory.New(data.HTTPClient, data.Host)
 }
 
+func userCredentialParameterToModel(ucp *partnerdirectory.UserCredentialParameter, version, location types.String) partnerUserCredentialParameterModel {
+	return partnerUserCredentialParameterModel{
+		ID:                types.StringValue(ucp.Pid + "/" + ucp.Id),
+		PartnerID:         types.StringValue(ucp.Pid),
+		ParameterID:       types.StringValue(ucp.Id),
+		User:              types.StringValue(ucp.User),
+		PasswordWO:        types.StringNull(),
+		PasswordWOVersion: version,
+		RuntimeLocationID: location,
+	}
+}
+
 func (r *partnerUserCredentialParameterResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan partnerUserCredentialParameterModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -153,21 +152,31 @@ func (r *partnerUserCredentialParameterResource) Create(ctx context.Context, req
 		return
 	}
 
-	created, err := client.CreateUserCredentialParameter(ctx,
-		plan.PartnerID.ValueString(), plan.ParameterID.ValueString(), plan.User.ValueString(), password.ValueString())
+	pid, id := plan.PartnerID.ValueString(), plan.ParameterID.ValueString()
+
+	// SAP's POST overwrites an existing credential with the same Pid and
+	// Id, so creating over one would silently replace a password this
+	// configuration does not own.
+	if _, err := client.GetUserCredentialParameter(ctx, pid, id); err == nil {
+		resp.Diagnostics.AddError(
+			"Partner Directory user credential parameter already exists",
+			"A user credential parameter "+pid+"/"+id+" already exists. Creating it would overwrite "+
+				"its user and password, so the provider stops here. Import it with "+
+				"terraform import, then apply to set the configured password.",
+		)
+		return
+	} else if !isNotFound(err) {
+		resp.Diagnostics.AddError("Failed to check for an existing SAP Integration Suite Partner Directory user credential parameter", diagnosticDetail(err))
+		return
+	}
+
+	created, err := client.CreateUserCredentialParameter(ctx, pid, id, plan.User.ValueString(), password.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to create SAP Integration Suite Partner Directory user credential parameter", diagnosticDetail(err))
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, partnerUserCredentialParameterModel{
-		ID:                types.StringValue(created.Pid + "/" + created.Id),
-		PartnerID:         types.StringValue(created.Pid),
-		ParameterID:       types.StringValue(created.Id),
-		User:              types.StringValue(created.User),
-		PasswordWO:        types.StringNull(),
-		PasswordWOVersion: plan.PasswordWOVersion,
-	})...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, userCredentialParameterToModel(created, plan.PasswordWOVersion, plan.RuntimeLocationID))...)
 }
 
 func (r *partnerUserCredentialParameterResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -183,8 +192,7 @@ func (r *partnerUserCredentialParameterResource) Read(ctx context.Context, req r
 
 	ucp, err := client.GetUserCredentialParameter(ctx, state.PartnerID.ValueString(), state.ParameterID.ValueString())
 	if err != nil {
-		var apiErr *apierror.Error
-		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
+		if isNotFound(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -192,26 +200,37 @@ func (r *partnerUserCredentialParameterResource) Read(ctx context.Context, req r
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, partnerUserCredentialParameterModel{
-		ID:                types.StringValue(ucp.Pid + "/" + ucp.Id),
-		PartnerID:         types.StringValue(ucp.Pid),
-		ParameterID:       types.StringValue(ucp.Id),
-		User:              types.StringValue(ucp.User),
-		PasswordWO:        types.StringNull(),
-		PasswordWOVersion: state.PasswordWOVersion,
-	})...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, userCredentialParameterToModel(ucp, state.PasswordWOVersion, state.RuntimeLocationID))...)
 }
 
-// Update is unreachable in practice: every attribute besides
-// password_wo_version's own value forces replacement, and
-// password_wo_version itself is also RequiresReplace, since no confirmed
-// public API exists for updating a stored credential's password in place.
+// Update changes user and password in place. SAP documents POST with the
+// same Pid and Id as the update method for this entity; the request always
+// carries both, so the configured password is sent on every update.
 func (r *partnerUserCredentialParameterResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	resp.Diagnostics.AddError(
-		"Update not supported",
-		"sapintegrationsuite_partner_user_credential_parameter does not support in-place updates; "+
-			"Terraform should have replaced this resource instead of updating it.",
-	)
+	var plan partnerUserCredentialParameterModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	client, ok := locatedClient(r.client, plan.RuntimeLocationID, &resp.Diagnostics)
+	if !ok {
+		return
+	}
+
+	var password types.String
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, pathRoot("password_wo"), &password)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	updated, err := client.UpdateUserCredentialParameter(ctx,
+		plan.PartnerID.ValueString(), plan.ParameterID.ValueString(), plan.User.ValueString(), password.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to update SAP Integration Suite Partner Directory user credential parameter", diagnosticDetail(err))
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, userCredentialParameterToModel(updated, plan.PasswordWOVersion, plan.RuntimeLocationID))...)
 }
 
 func (r *partnerUserCredentialParameterResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -226,11 +245,7 @@ func (r *partnerUserCredentialParameterResource) Delete(ctx context.Context, req
 	}
 
 	err := client.DeleteUserCredentialParameter(ctx, state.PartnerID.ValueString(), state.ParameterID.ValueString())
-	if err != nil {
-		var apiErr *apierror.Error
-		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
-			return
-		}
+	if err != nil && !isNotFound(err) {
 		resp.Diagnostics.AddError("Failed to delete SAP Integration Suite Partner Directory user credential parameter", diagnosticDetail(err))
 	}
 }
@@ -239,10 +254,8 @@ func (r *partnerUserCredentialParameterResource) Delete(ctx context.Context, req
 // never be recovered (SAP does not return it, and it is write-only in this
 // provider's own model even if it did), and password_wo_version is a
 // practitioner-chosen marker with no server-side equivalent to read back.
-// A configuration applied right after import must supply both, which will
-// plan as an update to password_wo_version even though nothing server-side
-// actually changes — this is an inherent, documented limitation of
-// importing a write-only-secret resource, not a bug.
+// The first apply after import therefore plans an in-place update that
+// sends the configured password.
 func (r *partnerUserCredentialParameterResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	loc, parts, err := splitLocatedImportID(req.ID, 2)
 	if err != nil {

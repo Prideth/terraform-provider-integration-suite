@@ -1354,20 +1354,22 @@ budget was directed at the desired-state-configuration candidates above instead.
   "Partner Directory Concepts", "Partner Directory Entity Types", and "Requests for String
   Parameter, Binary Parameter, and Authorized User" documentation pages.
 - **Entity sets and confirmed operations**:
-  - `Partners` — GET (read) is documented; no confirmed create operation. SAP documents Pid
-    uniqueness as "ensured by the tenant owner application" (the caller picks the value, it is
-    not server-allocated), and describes deleting a Pid as capable of removing every entry
-    belonging to it in the Partner Directory "via one call". No `sapintegrationsuite_partner`
-    resource exists because of this — see `docs/resource-design.md`.
+  - `Partners` — "You can read all partners or delete a partner from the Partner
+    Directory" (`partner-directory-0fe80dc`); no create. The tenant `$metadata` has only the key
+    `Pid` (`MaxLength=60`). SAP documents Pid uniqueness as "ensured by the tenant owner
+    application", and the UI's *Delete Partner* deletes "a partner and all its entities". No
+    `sapintegrationsuite_partner` resource exists because of this — see `docs/resource-design.md`.
   - `StringParameters` — GET/POST/PUT/DELETE, key `(Pid, Id)`. A documented example request
     body: `{"Pid":"partner1","Id":"sp1","Value":"sp1v"}`.
   - `BinaryParameters` — GET/POST/PUT/DELETE, key `(Pid, Id)`, `Value` base64-encoded.
     Documented `ContentType` values: `xml`, `xsl`, `xsd`, `json`, `text`, `zip`, `gz`, `zlib`,
     `crt` (with encoding-suffixed variants such as `xml;encoding=UTF-8` also valid — this
     provider does not restrict `content_type` to the short documented list for that reason).
-    SAP documents a 260 KB maximum `Value` size and recommends storing larger uncompressed
-    XML/XSL/XSD content as a `zip` instead (auto-unzipped by the XML Validator and XSLT Mapping
-    steps).
+    The encoding suffix is confirmed by `partner-directory-0fe80dc` ("you can also specify the
+    encoding for xml, xsl, xsd, json, and text (separated by semicolon)"). Size: the request
+    examples say 260 KB, the entity types page says 262,144 bytes and 1.5 MB, and the tenant
+    `$metadata` declares `Value` as `Edm.Binary` with `MaxLength=1572864`. Re-audit September 2026: the
+    provider enforces the `$metadata` value, pinned by the partnerdirectory contract test.
   - `AlternativePartners` — GET/POST/PUT/DELETE. The documented entity carries both plain
     (`Agency`, `Scheme`, `Id`, `Pid`) and hex-encoded (`Hexagency`, `Hexscheme`, `Hexid`) fields;
     a documented example request URL, `AlternativePartners(Hexagency='6167656e637931',...)`,
@@ -1376,21 +1378,27 @@ budget was directed at the desired-state-configuration candidates above instead.
     fields; SAP computes the hex key itself.
   - `AuthorizedUsers` — GET/POST/PUT/DELETE, key `User`. SAP documents this as many-to-one
     (one communication user per Pid, a Pid can have several). Documented example body:
-    `{"User": "...", "Pid": "PartnerZ"}`. Whether `User` is case-normalized internally was not
-    confirmed against a primary source; this provider does not normalize it.
-  - `UserCredentialParameters` — POST (create) and DELETE are documented; no confirmed
-    PUT/PATCH for updating an existing credential's password. Documented example body:
+    `{"User": "...", "Pid": "PartnerZ"}`. Re-audit September 2026: SAP lowercases `User`. The
+    example request creates `MyUser` and the response shows `myuser`; filters on `User` must be
+    lowercase (Locale.English); the scripting API returns users lowercased. The provider rejects
+    uppercase `user` values.
+  - `UserCredentialParameters` — POST, GET (a `Pid` filter is mandatory for the collection)
+    and DELETE. Re-audit September 2026 (`requests-for-usercredentialparameter-79c06dd`): "You
+    can also use the POST request to update a User Credentials parameter with the same values
+    for PID and Id", and "PUT requests are not supported". The provider updates user and
+    password in place with that POST and checks for an existing entry before create. Documented example body:
     `{"Pid":"Receiver_1","Id":"USER","User":"...", "Password":"..."}`. SAP documents the
     generated security-artifact alias format as `pd:<Pid>:<Id>:UserCredential`, matching the
     property set via the exchange property `RECEIVER_CREDENTIAL` in scripts. SAP additionally
     documents that `UserCredentialParameter` and `CertificateUserMapping` cannot be included
     together with other entity types in a single OData ChangeSet (batch) request.
-- **Password read-back — could not confirm either way**: no primary source was found
-  definitively stating whether a GET (or the POST response) on `UserCredentialParameters`
-  returns the password. Given that genuine uncertainty for a security-sensitive credential,
-  this provider's `UserCredentialParameter` Go type (used for every response this client
-  decodes) simply has no `Password` field at all, so the answer to "does this provider ever
-  expose it" is "no" regardless of what SAP's API actually does.
+- **Password read-back**: SAP documents that "the returned value for the `Password` property
+  is always null", unless the query option `returnHashedPassword=SHA256` asks for a SHA-256
+  hash. The provider never sends that option, and its `UserCredentialParameter` Go type has no
+  `Password` field at all.
+- **Runtime cache**: string parameters, binary parameters and authorized users are cached on
+  runtime nodes; invalidation after a change "can take a few minutes"
+  (`partner-directory-cache-1577f77`).
 - **CSRF protection**: SAP's OData V2 services on Cloud Foundry/BTP require a valid
   `X-CSRF-Token` for POST/PUT/PATCH/DELETE, obtained via a GET with `X-CSRF-Token: fetch`
   against the same resource, independently of OAuth authentication (OAuth proves identity;

@@ -17,14 +17,10 @@ const authorizedUsersEntitySet = "AuthorizedUsers"
 // Pid, but a Pid can have several authorized users. The User field is the
 // entity's key.
 //
-// Whether SAP itself lowercases User when it is persisted (so that two
-// entries differing only in case would collide, or a filter needs a
-// case-normalized value to match) was not confirmed against a primary
-// source or a live tenant during this feature's research pass. This
-// client and the resource built on it deliberately do not normalize User
-// to avoid introducing behavior that has not been verified; see
-// docs/guides/partner-directory.md for the caveat this leaves for
-// practitioners.
+// SAP stores User lowercased (Locale.English): its example request creates
+// "MyUser" and the response carries "myuser", and filters on User must use
+// lowercase. The client passes User through unchanged; the provider rejects
+// uppercase values before they reach SAP.
 type AuthorizedUser struct {
 	User string `json:"User"`
 	Pid  string `json:"Pid"`

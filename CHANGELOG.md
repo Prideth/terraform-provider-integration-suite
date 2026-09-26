@@ -31,6 +31,21 @@ All notable changes to this project are documented in this file.
   empty. Endpoints now also carry `id`, `title`, `version`, `summary`,
   `description` and `last_updated`, and entry points carry
   `additional_information`.
+- The Partner Directory resources (string and binary parameters, alternative
+  partners, authorized users) no longer drop `runtime_location_id` from state
+  on update, and the user credential parameter no longer drops it on create
+  and read. With an Edge Integration Cell location set, Terraform previously
+  reported an inconsistent result or planned a replacement on every run.
+- **Breaking:** `sapintegrationsuite_partner_authorized_user` and its data
+  source reject `user` values with uppercase letters. SAP stores authorized
+  users lowercased (its own example creates `MyUser` and returns `myuser`),
+  so a mixed-case value could never match what SAP reported back and failed
+  after apply.
+- The size check for `sapintegrationsuite_partner_binary_parameter` allows
+  values up to 1,572,864 bytes, the `MaxLength` the tenant `$metadata`
+  declares for `BinaryParameter.Value`, instead of 260 KB. Older SAP pages
+  still give the lower figure; the contract tests pin the new value to the
+  `$metadata`.
 
 ### Added
 
@@ -122,6 +137,14 @@ All notable changes to this project are documented in this file.
   `valid_not_before` and `valid_not_after` as RFC 3339 timestamps instead of
   SAP's raw `/Date(...)/` literals. OData V2 date literals with a zone
   offset are now parsed correctly.
+- `sapintegrationsuite_partner_user_credential_parameter` rotates passwords
+  and changes `user` in place. SAP documents a POST with the same Pid and Id
+  as the update for this entity (PUT is not supported), so changing
+  `password_wo_version` or `user` no longer deletes and re-creates the
+  credential, and integration flows keep a valid credential throughout.
+  Because that POST also overwrites, create now fails when the credential
+  already exists and asks for an import. The catalog lists the resource as
+  supported.
 
 ### Documentation
 

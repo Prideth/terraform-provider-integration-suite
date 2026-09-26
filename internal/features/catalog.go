@@ -1028,12 +1028,13 @@ var Catalog = []Feature{
 		PublicAPI:   true,
 		APIProtocol: "OData V2",
 		Limitations: []string{
-			"No resource: SAP documents no confirmed create operation for Partners — a Pid comes " +
-				"into existence implicitly the first time a StringParameter, BinaryParameter, " +
-				"AlternativePartner, AuthorizedUser, or UserCredentialParameter references it.",
-			"Deleting a Pid is documented as cascading to every entity belonging to it, which is " +
-				"the other reason this stays read-only: a Partner resource's Destroy could erase " +
-				"content owned by an entirely different Terraform module.",
+			"No resource: SAP's API reads all partners and deletes a partner, but has no create " +
+				"operation. A Pid comes into existence implicitly the first time a StringParameter, " +
+				"BinaryParameter, AlternativePartner, AuthorizedUser, or UserCredentialParameter " +
+				"references it.",
+			"Deleting a partner removes the partner and all its entities (SAP's Delete Partner " +
+				"description). A Partner resource's destroy could therefore erase content owned by " +
+				"other Terraform resources or modules, which is the other reason this stays read-only.",
 		},
 		Operations: Operations{Read: true},
 	},
@@ -1072,8 +1073,11 @@ var Catalog = []Feature{
 		Limitations: []string{
 			"Partner Directory data is stored unencrypted; do not store secrets, private keys, or " +
 				"other sensitive content — see docs/guides/partner-directory.md.",
-			"SAP documents a 260 KB maximum decoded value size; this provider validates it before " +
-				"upload rather than letting an oversized payload fail against the live API.",
+			"Values can be up to 1.5 MiB (1572864 bytes), the MaxLength of BinaryParameter.Value in " +
+				"the tenant $metadata and the size SAP's entity types page gives; some SAP pages still " +
+				"say 260 KB. The provider checks the limit before uploading.",
+			"content_type takes SAP's values (xml, xsl, xsd, json, text, zip, gz, zlib, crt), for " +
+				"the text types optionally with an encoding such as \"xml;encoding=UTF-8\".",
 		},
 		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},
 	},
@@ -1110,9 +1114,8 @@ var Catalog = []Feature{
 		PublicAPI:   true,
 		APIProtocol: "OData V2",
 		Limitations: []string{
-			"Whether SAP normalizes the User value's case internally was not confirmed against a " +
-				"primary source; this provider passes it through exactly as configured, without " +
-				"normalizing it.",
+			"SAP stores users lowercased (its example creates \"MyUser\" and returns \"myuser\"), " +
+				"so the provider rejects uppercase letters in user at plan time.",
 			"Manages only the Partner Directory mapping, never the underlying BTP user, OAuth " +
 				"client, or communication user credential itself.",
 		},
@@ -1123,8 +1126,7 @@ var Catalog = []Feature{
 		Domain:        "partner_directory",
 		Name:          "Partner Directory User Credential Parameter",
 		Description:   "A communication username/password credential scoped to a Partner ID (Pid).",
-		SupportStatus: StatusPartial,
-		SupportReason: ReasonUnsafeTerraformLifecycle,
+		SupportStatus: StatusSupported,
 		ResourceTypes: []string{"sapintegrationsuite_partner_user_credential_parameter"},
 		PublicAPI:     true,
 		APIProtocol:   "OData V2",
@@ -1132,18 +1134,17 @@ var Catalog = []Feature{
 			"The password is a write-only attribute (password_wo): Terraform never stores it in " +
 				"plan or state, and this provider never requests or reads a password back from " +
 				"SAP, which does not document returning one. Requires Terraform CLI 1.11 or later.",
-			"No in-place update: no public API for changing an existing credential's password was " +
-				"confirmed, so rotating it (via the paired password_wo_version attribute) replaces " +
-				"the resource — delete the old credential, then create a new one.",
+			"User and password change in place: SAP documents POST with the same Pid and Id as " +
+				"the update (PUT is not supported). Changing password_wo_version sends the new " +
+				"password. Because that POST overwrites, create stops when the credential already " +
+				"exists and asks for an import instead.",
 			"UserCredentialParameter cannot be combined with other Partner Directory entity types " +
 				"in a single OData batch (ChangeSet) request; this provider always issues it " +
 				"standalone.",
-			"Import recovers partner_id, parameter_id, and user, but never the password: a " +
-				"configuration applied right after import must still supply password_wo and a " +
-				"password_wo_version, which plans as a replacement even though nothing server-side " +
-				"has actually changed.",
+			"Import recovers partner_id, parameter_id, and user, but never the password. The " +
+				"first apply after import is an in-place update that sets the configured password.",
 		},
-		Operations: Operations{Create: true, Read: true, Update: false, Delete: true, Import: true},
+		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},
 	},
 
 	// --- Classic API Management ---

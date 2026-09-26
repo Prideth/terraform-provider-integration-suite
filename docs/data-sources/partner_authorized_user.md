@@ -23,7 +23,7 @@ data "sapintegrationsuite_partner_authorized_user" "commuser" {
 
 ### Required
 
-- `user` (String) The communication user to look up.
+- `user` (String) The communication user to look up, in lowercase, the form SAP stores it in.
 
 ### Optional
 

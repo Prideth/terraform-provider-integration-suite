@@ -92,8 +92,8 @@ func TestClient_ListBinaryParameters(t *testing.T) {
 }
 
 func TestMaxBinaryParameterValueBytes(t *testing.T) {
-	if MaxBinaryParameterValueBytes != 260*1024 {
-		t.Errorf("MaxBinaryParameterValueBytes = %d, want %d (260 KB)", MaxBinaryParameterValueBytes, 260*1024)
+	if MaxBinaryParameterValueBytes != 1572864 {
+		t.Errorf("MaxBinaryParameterValueBytes = %d, want 1572864 (1.5 MiB, the MaxLength of BinaryParameter.Value)", MaxBinaryParameterValueBytes)
 	}
 }
 

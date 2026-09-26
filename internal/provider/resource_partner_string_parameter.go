@@ -161,10 +161,11 @@ func (r *partnerStringParameterResource) Update(ctx context.Context, req resourc
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, partnerStringParameterModel{
-		ID:          types.StringValue(plan.PartnerID.ValueString() + "/" + plan.ParameterID.ValueString()),
-		PartnerID:   plan.PartnerID,
-		ParameterID: plan.ParameterID,
-		Value:       plan.Value,
+		ID:                types.StringValue(plan.PartnerID.ValueString() + "/" + plan.ParameterID.ValueString()),
+		PartnerID:         plan.PartnerID,
+		ParameterID:       plan.ParameterID,
+		Value:             plan.Value,
+		RuntimeLocationID: plan.RuntimeLocationID,
 	})...)
 }
 

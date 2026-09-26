@@ -2,11 +2,17 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/partnerdirectory"
 )
 
 func partnerUserCredentialParameterSchema(t *testing.T) resource.SchemaResponse {
@@ -68,16 +74,17 @@ func TestPartnerUserCredentialParameterResource_PasswordIsWriteOnlyAndSensitive(
 	}
 }
 
-// TestPartnerUserCredentialParameterResource_EveryFieldForcesReplace pins
-// down that no in-place update path exists: identity, the communication
-// user, and the version marker that signals a password rotation all force
-// replacement, since no confirmed public API exists for updating a stored
-// credential's password.
-func TestPartnerUserCredentialParameterResource_EveryFieldForcesReplace(t *testing.T) {
+// Only the identity forces replacement. user and password_wo_version
+// change in place, through the POST SAP documents as this entity's update.
+func TestPartnerUserCredentialParameterResource_ReplacementFields(t *testing.T) {
 	s := partnerUserCredentialParameterSchema(t).Schema
 
-	fields := []string{"partner_id", "parameter_id", "user", "password_wo_version"}
-	for _, name := range fields {
+	for name, wantReplace := range map[string]bool{
+		"partner_id":          true,
+		"parameter_id":        true,
+		"user":                false,
+		"password_wo_version": false,
+	} {
 		attr, ok := s.Attributes[name].(schema.StringAttribute)
 		if !ok {
 			t.Fatalf("attribute %q is not a StringAttribute", name)
@@ -90,19 +97,109 @@ func TestPartnerUserCredentialParameterResource_EveryFieldForcesReplace(t *testi
 			mods = append(mods, m)
 		}
 
-		if !hasRequiresReplace(mods) {
-			t.Errorf("%s has no RequiresReplace plan modifier", name)
+		if got := hasRequiresReplace(mods); got != wantReplace {
+			t.Errorf("%s: RequiresReplace = %v, want %v", name, got, wantReplace)
 		}
 	}
 }
 
-func TestPartnerUserCredentialParameterResource_Update_AlwaysErrors(t *testing.T) {
-	r := NewPartnerUserCredentialParameterResource()
+// userCredentialTestRequest builds a plan and a configuration carrying the
+// write-only password, the way Terraform hands them to Create and Update.
+func userCredentialTestRequest(t *testing.T, s schema.Schema, m partnerUserCredentialParameterModel, password string) (tfsdk.Plan, tfsdk.Config) {
+	t.Helper()
+	ctx := context.Background()
 
-	var resp resource.UpdateResponse
-	r.Update(context.Background(), resource.UpdateRequest{}, &resp)
+	plan := tfsdk.Plan{Schema: s, Raw: newTestState(t, s).Raw}
+	if diags := plan.Set(ctx, m); diags.HasError() {
+		t.Fatalf("building plan: %v", diags)
+	}
+
+	m.PasswordWO = types.StringValue(password)
+	cfg := newTestState(t, s)
+	if diags := cfg.Set(ctx, m); diags.HasError() {
+		t.Fatalf("building config: %v", diags)
+	}
+	return plan, tfsdk.Config{Schema: s, Raw: cfg.Raw}
+}
+
+func sampleUserCredentialParameter() partnerUserCredentialParameterModel {
+	return partnerUserCredentialParameterModel{
+		ID:                types.StringUnknown(),
+		PartnerID:         types.StringValue("Receiver_1"),
+		ParameterID:       types.StringValue("USER"),
+		User:              types.StringValue("commuser2"),
+		PasswordWO:        types.StringNull(),
+		PasswordWOVersion: types.StringValue("2"),
+		RuntimeLocationID: types.StringValue("edge1"),
+	}
+}
+
+func TestPartnerUserCredentialParameterResource_Update_PostsUserAndPassword(t *testing.T) {
+	var gotMethod, gotPath string
+	var gotBody map[string]string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath = r.Method, r.URL.Path
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Errorf("decoding body: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"d":{"Pid":"Receiver_1","Id":"USER","User":"commuser2","Password":null}}`))
+	}))
+	defer server.Close()
+
+	r := &partnerUserCredentialParameterResource{client: partnerdirectory.New(http.DefaultClient, server.URL)}
+	s := partnerUserCredentialParameterSchema(t).Schema
+	ctx := context.Background()
+
+	plan, cfg := userCredentialTestRequest(t, s, sampleUserCredentialParameter(), "new-secret")
+	resp := &resource.UpdateResponse{State: newTestState(t, s)}
+	r.Update(ctx, resource.UpdateRequest{Plan: plan, Config: cfg}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Update() produced diagnostics: %v", resp.Diagnostics)
+	}
+
+	if gotMethod != http.MethodPost || gotPath != "/location/edge1/api/v1/UserCredentialParameters" {
+		t.Errorf("request = %s %s, want POST to the entity set", gotMethod, gotPath)
+	}
+	if gotBody["User"] != "commuser2" || gotBody["Password"] != "new-secret" {
+		t.Errorf("body = %v, want the new user and password", gotBody)
+	}
+
+	var got partnerUserCredentialParameterModel
+	resp.Diagnostics.Append(resp.State.Get(ctx, &got)...)
+	if !got.PasswordWO.IsNull() {
+		t.Error("password_wo must never reach state")
+	}
+	if got.PasswordWOVersion.ValueString() != "2" || got.RuntimeLocationID.ValueString() != "edge1" {
+		t.Errorf("state = version %q location %q, want 2 and edge1", got.PasswordWOVersion.ValueString(), got.RuntimeLocationID.ValueString())
+	}
+}
+
+// SAP's POST overwrites an existing credential, so Create must stop when
+// one is already there instead of replacing a password it does not own.
+func TestPartnerUserCredentialParameterResource_Create_RefusesExisting(t *testing.T) {
+	posted := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			posted = true
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"d":{"Pid":"Receiver_1","Id":"USER","User":"someone","Password":null}}`))
+	}))
+	defer server.Close()
+
+	r := &partnerUserCredentialParameterResource{client: partnerdirectory.New(http.DefaultClient, server.URL)}
+	s := partnerUserCredentialParameterSchema(t).Schema
+
+	plan, cfg := userCredentialTestRequest(t, s, sampleUserCredentialParameter(), "secret")
+	resp := &resource.CreateResponse{State: newTestState(t, s)}
+	r.Create(context.Background(), resource.CreateRequest{Plan: plan, Config: cfg}, resp)
 	if !resp.Diagnostics.HasError() {
-		t.Error("Update() did not produce a diagnostic; every field is RequiresReplace so Update should be unreachable")
+		t.Fatal("expected Create to fail for an existing credential")
+	}
+	if posted {
+		t.Error("Create sent a POST and overwrote the existing credential")
 	}
 }
 

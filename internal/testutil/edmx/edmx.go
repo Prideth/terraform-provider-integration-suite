@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -22,6 +23,7 @@ const defaultRelativePath = ".specs/cloudintegration-metadata.xml"
 type Property struct {
 	Name       string
 	Type       string
+	MaxLength  string
 	Navigation bool
 }
 
@@ -60,8 +62,9 @@ type xmlSchema struct {
 			Name string `xml:"Name,attr"`
 		} `xml:"Key>PropertyRef"`
 		Properties []struct {
-			Name string `xml:"Name,attr"`
-			Type string `xml:"Type,attr"`
+			Name      string `xml:"Name,attr"`
+			Type      string `xml:"Type,attr"`
+			MaxLength string `xml:"MaxLength,attr"`
 		} `xml:"Property"`
 		Navigation []struct {
 			Name string `xml:"Name,attr"`
@@ -102,7 +105,7 @@ func Parse(data []byte) (*Model, error) {
 				t.Key = append(t.Key, k.Name)
 			}
 			for _, p := range et.Properties {
-				t.Properties[p.Name] = Property{Name: p.Name, Type: p.Type}
+				t.Properties[p.Name] = Property{Name: p.Name, Type: p.Type, MaxLength: p.MaxLength}
 			}
 			for _, n := range et.Navigation {
 				t.Properties[n.Name] = Property{Name: n.Name, Navigation: true}
@@ -311,4 +314,22 @@ func (m *Model) resolveBase(et *EntityType, seen map[string]bool) error {
 	}
 	et.BaseType = ""
 	return nil
+}
+
+// AssertMaxLength checks the MaxLength facet of a property of the entity
+// set's type, including inherited properties.
+func (m *Model) AssertMaxLength(t *testing.T, entitySet, property string, want int) {
+	t.Helper()
+	et := m.EntityTypeOf(t, entitySet)
+	if et == nil {
+		return
+	}
+	p, ok := et.Properties[property]
+	if !ok {
+		t.Errorf("%s has no property %q", et.Name, property)
+		return
+	}
+	if got := strconv.Itoa(want); p.MaxLength != got {
+		t.Errorf("%s.%s MaxLength = %q, want %q", et.Name, property, p.MaxLength, got)
+	}
 }

@@ -137,7 +137,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Partner Directory Binary Parameter | ✅ | Resource + Data Source |
 | Partner | 👁️ | Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
 | Partner Directory String Parameter | ✅ | Resource + Data Source |
-| Partner Directory User Credential Parameter | ⚠️ | Resource — see [feature-support.md](docs/feature-support.md#all-features) |
+| Partner Directory User Credential Parameter | ✅ | Resource |
 
 ### Classic API Management
 
@@ -223,7 +223,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Trading Partner Management Partner Directory Generation | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Trading Partner Management Partner Profile | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 
-18 supported · 12 partial · 4 read-only · 2 experimental · 53 unsupported · 2 planned as a separate provider, out of 91 evaluated Integration Suite features.
+19 supported · 11 partial · 4 read-only · 2 experimental · 53 unsupported · 2 planned as a separate provider, out of 91 evaluated Integration Suite features.
 
 <!-- END GENERATED FEATURE SUPPORT -->
 

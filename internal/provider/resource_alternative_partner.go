@@ -179,11 +179,12 @@ func (r *alternativePartnerResource) Update(ctx context.Context, req resource.Up
 	id := alternativePartnerID(plan.Agency.ValueString(), plan.Scheme.ValueString(), plan.ExternalID.ValueString())
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, alternativePartnerModel{
-		ID:         types.StringValue(id),
-		Agency:     plan.Agency,
-		Scheme:     plan.Scheme,
-		ExternalID: plan.ExternalID,
-		PartnerID:  plan.PartnerID,
+		ID:                types.StringValue(id),
+		Agency:            plan.Agency,
+		Scheme:            plan.Scheme,
+		ExternalID:        plan.ExternalID,
+		PartnerID:         plan.PartnerID,
+		RuntimeLocationID: plan.RuntimeLocationID,
 	})...)
 }
 

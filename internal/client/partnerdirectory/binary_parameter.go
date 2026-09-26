@@ -11,17 +11,15 @@ import (
 
 const binaryParametersEntitySet = "BinaryParameters"
 
-// MaxBinaryParameterValueBytes is the maximum size SAP documents for a
-// Binary Parameter's decoded (raw, not base64-encoded) Value: 260 KB. SAP
-// recommends storing XML/XSL/XSD content larger than this uncompressed as
-// a zip archive instead (Content-Type "zip" is automatically unzipped by
-// the XML Validator and XSLT Mapping steps), rather than raising this
-// limit. This provider does not enforce it by refusing a request outright
-// (SAP's own API is the authority on the exact current limit), but
-// resource Create/Update use it to raise an early, specific plan-time
-// diagnostic instead of letting an obviously oversized payload fail with a
-// generic API error after the request has already been sent.
-const MaxBinaryParameterValueBytes = 260 * 1024
+// MaxBinaryParameterValueBytes is the largest decoded (raw, not
+// base64-encoded) Value a Binary Parameter can hold: the tenant $metadata
+// declares BinaryParameter.Value as Edm.Binary with MaxLength 1572864
+// (1.5 MiB), matching the "maximum size of 1,5 MB" on SAP's entity types
+// page. Other SAP pages still state 260 KB or 262144 bytes; the service's
+// own metadata is taken as authoritative, and SAP rejects anything its
+// actual limit does not allow. Resources check this before uploading so an
+// oversized file fails early with a clear message.
+const MaxBinaryParameterValueBytes = 1572864
 
 // DocumentedBinaryParameterContentTypes lists the Content-Type values SAP's
 // own documentation names for Binary Parameters. This is documentation,

@@ -5,6 +5,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 
 	"github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/partnerdirectory"
 )
@@ -35,7 +36,8 @@ func (d *partnerAuthorizedUserDataSource) Schema(_ context.Context, _ datasource
 			},
 			"user": schema.StringAttribute{
 				Required:    true,
-				Description: "The communication user to look up.",
+				Description: "The communication user to look up, in lowercase, the form SAP stores it in.",
+				Validators:  []validator.String{lowercaseUserValidator{}},
 			},
 			"partner_id": schema.StringAttribute{
 				Computed:    true,

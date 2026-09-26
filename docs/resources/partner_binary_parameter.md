@@ -3,12 +3,12 @@
 page_title: "sapintegrationsuite_partner_binary_parameter Resource - sapintegrationsuite"
 subcategory: ""
 description: |-
-  Manages a single Partner Directory binary parameter, a named binary value (for example an XSD schema or a certificate) scoped to a partner ID (Pid), uploaded from a local content file. Backed by the public Partner Directory OData V2 API (BinaryParameters). Partner Directory data is stored unencrypted: do not put passwords, secrets, private keys, tokens, or other sensitive information in a binary parameter's content — see docs/guides/partner-directory.md. SAP documents a maximum decoded value size of 260 KB; larger XML/XSL/XSD content should be stored zipped instead (content_type "zip" is automatically unzipped by the XML Validator and XSLT Mapping steps).
+  Manages a single Partner Directory binary parameter, a named binary value (for example an XSD schema or a certificate) scoped to a partner ID (Pid), uploaded from a local content file. Backed by the public Partner Directory OData V2 API (BinaryParameters). Partner Directory data is stored unencrypted: do not put passwords, secrets, private keys, tokens, or other sensitive information in a binary parameter's content — see docs/guides/partner-directory.md. The tenant's $metadata allows values up to 1.5 MiB (1572864 bytes); larger XML/XSL/XSD content can be stored zipped (content_type "zip" is automatically unzipped by the XML Validator and XSLT Mapping steps).
 ---
 
 # sapintegrationsuite_partner_binary_parameter (Resource)
 
-Manages a single Partner Directory binary parameter, a named binary value (for example an XSD schema or a certificate) scoped to a partner ID (Pid), uploaded from a local content file. Backed by the public Partner Directory OData V2 API (BinaryParameters). Partner Directory data is stored unencrypted: do not put passwords, secrets, private keys, tokens, or other sensitive information in a binary parameter's content — see docs/guides/partner-directory.md. SAP documents a maximum decoded value size of 260 KB; larger XML/XSL/XSD content should be stored zipped instead (content_type "zip" is automatically unzipped by the XML Validator and XSLT Mapping steps).
+Manages a single Partner Directory binary parameter, a named binary value (for example an XSD schema or a certificate) scoped to a partner ID (Pid), uploaded from a local content file. Backed by the public Partner Directory OData V2 API (BinaryParameters). Partner Directory data is stored unencrypted: do not put passwords, secrets, private keys, tokens, or other sensitive information in a binary parameter's content — see docs/guides/partner-directory.md. The tenant's $metadata allows values up to 1.5 MiB (1572864 bytes); larger XML/XSL/XSD content can be stored zipped (content_type "zip" is automatically unzipped by the XML Validator and XSLT Mapping steps).
 
 ## Example Usage
 

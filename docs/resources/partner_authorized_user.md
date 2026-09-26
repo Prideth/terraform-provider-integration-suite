@@ -25,7 +25,7 @@ resource "sapintegrationsuite_partner_authorized_user" "commuser" {
 ### Required
 
 - `partner_id` (String) The Partner ID (Pid) this user is authorized for. Mutable in place: SAP documents PUT for repointing an existing mapping at a different Pid.
-- `user` (String) The communication user this mapping authorizes. Whether SAP normalizes this value's case internally has not been confirmed; this provider passes it through exactly as configured.
+- `user` (String) The communication user this mapping authorizes, in lowercase. SAP stores authorized users lowercased, so the provider rejects uppercase letters instead of letting the stored value differ from the configuration.
 
 ### Optional
 

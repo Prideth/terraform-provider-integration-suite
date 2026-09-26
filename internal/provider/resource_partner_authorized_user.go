@@ -3,11 +3,14 @@ package provider
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/apierror"
@@ -54,12 +57,13 @@ func (r *partnerAuthorizedUserResource) Schema(_ context.Context, _ resource.Sch
 			},
 			"user": schema.StringAttribute{
 				Required: true,
-				Description: "The communication user this mapping authorizes. Whether SAP " +
-					"normalizes this value's case internally has not been confirmed; this provider " +
-					"passes it through exactly as configured.",
+				Description: "The communication user this mapping authorizes, in lowercase. SAP " +
+					"stores authorized users lowercased, so the provider rejects uppercase letters " +
+					"instead of letting the stored value differ from the configuration.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
+				Validators: []validator.String{lowercaseUserValidator{}},
 			},
 			"partner_id": schema.StringAttribute{
 				Required: true,
@@ -155,9 +159,10 @@ func (r *partnerAuthorizedUserResource) Update(ctx context.Context, req resource
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, partnerAuthorizedUserModel{
-		ID:        plan.User,
-		User:      plan.User,
-		PartnerID: plan.PartnerID,
+		ID:                plan.User,
+		User:              plan.User,
+		PartnerID:         plan.PartnerID,
+		RuntimeLocationID: plan.RuntimeLocationID,
 	})...)
 }
 
@@ -191,6 +196,32 @@ func (r *partnerAuthorizedUserResource) ImportState(ctx context.Context, req res
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRoot("user"), parts[0])...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRootID(), parts[0])...)
 	setImportedRuntimeLocation(ctx, loc, resp.State.SetAttribute, &resp.Diagnostics)
+}
+
+// lowercaseUserValidator rejects authorized user names with uppercase
+// letters. SAP stores them lowercased (Locale.English): its example request
+// creates "MyUser" and returns "myuser", and filters must use lowercase. A
+// mixed-case value would therefore never match what SAP reports back.
+type lowercaseUserValidator struct{}
+
+func (lowercaseUserValidator) Description(context.Context) string {
+	return "value must not contain uppercase letters"
+}
+
+func (v lowercaseUserValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (lowercaseUserValidator) ValidateString(_ context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	v := req.ConfigValue.ValueString()
+	if lower := strings.ToLower(v); lower != v {
+		resp.Diagnostics.AddAttributeError(req.Path, "Authorized user must be lowercase",
+			fmt.Sprintf("SAP stores Partner Directory authorized users in lowercase, so %q would be "+
+				"saved as %q. Use %q.", v, lower, lower))
+	}
 }
 
 func authorizedUserToModel(au *partnerdirectory.AuthorizedUser) partnerAuthorizedUserModel {

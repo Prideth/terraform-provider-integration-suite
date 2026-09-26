@@ -133,7 +133,7 @@ func TestReadAndValidateBinaryParameterContent_RejectsOversizedContent(t *testin
 
 	_, err := readAndValidateBinaryParameterContent(path, hash)
 	if err == nil {
-		t.Fatal("expected an error for content exceeding the 260 KB SAP limit")
+		t.Fatal("expected an error for content exceeding the 1.5 MiB SAP limit")
 	}
 }
 

@@ -38,16 +38,16 @@ to share the same `partner_id`.
 
 ## Partner IDs (Pid) have no resource
 
-A **Pid** is the internal Partner Directory identifier a partner's entities are scoped to. SAP
-documents no confirmed create operation for the `Partners` entity itself, and states that Pid
-uniqueness "is ensured by the tenant owner application" — in other words, a Pid comes into
-existence implicitly the first time a string parameter, binary parameter, alternative partner,
-authorized user, or user credential parameter is created that references it. There is nothing
-to `POST` to create a Partner on its own.
+A **Pid** is the internal Partner Directory identifier a partner's entities are scoped to. For
+the `Partners` entity set, SAP's API offers exactly two operations: "You can read all partners or
+delete a partner from the Partner Directory." There is no create. SAP states that Pid uniqueness
+"is ensured by the tenant owner application", meaning the caller chooses the value, and a Pid
+comes into existence the first time a string parameter, binary parameter, alternative partner,
+authorized user or user credential parameter references it. The tenant `$metadata` confirms
+this: `Partner` has the key `Pid` and no other property.
 
-SAP additionally documents that deleting a Pid can remove every entity belonging to it in a
-single call. Combined with the lack of a confirmed create operation, this is why Partners is
-modeled only as read-only data sources:
+Deleting a partner removes it "and all its entities", as SAP describes the *Delete Partner*
+operation. That is why Partners is modeled only as read-only data sources:
 
 - `data.sapintegrationsuite_partner` confirms whether a given Pid exists.
 - `data.sapintegrationsuite_partners` lists every Pid known to the tenant — the primary
@@ -92,15 +92,21 @@ terraform import sapintegrationsuite_partner_binary_parameter.order_schema Partn
 
 ### Binary parameter content types and size
 
-`content_type` accepts any value — it is not restricted to a fixed list, because SAP's
-documentation names common values (`xml`, `xsl`, `xsd`, `json`, `text`, `zip`, `gz`, `zlib`,
-`crt`) while also accepting encoding-suffixed variants such as `xml;encoding=UTF-8` that a short
-fixed list would incorrectly reject.
+SAP lists these `content_type` values: `xml`, `xsl`, `xsd`, `json`, `text`, `zip`, `gz` (GZIP),
+`zlib` and `crt` (a DER-encoded X.509 certificate). For the text types (`xml`, `xsl`, `xsd`,
+`json`, `text`) an encoding can be appended after a semicolon, for example `xml;encoding=UTF-8`.
+The UI's separate *Encoding* field ends up there as well; the API has no property of its own
+for it. The provider does not restrict `content_type` to a fixed list, so these combinations
+pass through unchanged.
 
-SAP documents a **260 KB maximum** for a binary parameter's decoded value. This provider checks
-that limit locally before ever sending the request, so an oversized file fails fast with a clear
-message rather than an opaque API error. For XML/XSL/XSD content larger than that uncompressed,
-SAP recommends storing it as a `zip` — the XML Validator and XSLT Mapping steps automatically
+**Size.** SAP's pages disagree about the limit. The API examples say 260 KB, and the entity type
+overview says both 262,144 bytes and 1.5 MB. The tenant's `$metadata` declares
+`BinaryParameter.Value` with `MaxLength="1572864"`, exactly 1.5 MiB. The provider follows the
+service's own metadata: it rejects files above 1,572,864 bytes before uploading and leaves
+anything below to SAP. The contract tests check this number against the `$metadata`. If your
+tenant still enforces a lower limit, SAP rejects the upload with its own error.
+
+Larger XML/XSL/XSD content can be stored as `zip`. The XML Validator and XSLT Mapping steps
 unzip a binary parameter whose `content_type` is `zip`.
 
 ### Do not store secrets here
@@ -158,18 +164,23 @@ resource "sapintegrationsuite_partner_authorized_user" "commuser" {
 ```
 
 This resource manages only the Partner Directory mapping — never the underlying BTP user,
-OAuth client, or communication user credential itself. Whether SAP normalizes `user`'s case
-internally was not confirmed against a primary source during this feature's research, so this
-provider passes the value through exactly as configured rather than guessing at a normalization
-rule. If your tenant does normalize case and you see persistent drift, configure `user` in
-whatever case SAP actually stores.
+OAuth client, or communication user credential itself.
+
+**Write `user` in lowercase.** SAP stores authorized users lowercased. Its own example creates
+`"User": "MyUser"` and gets back `myuser`, and SAP notes that filters on `User` must use
+lowercase characters (Locale.English). A mixed-case value would be stored differently from what
+the configuration says, and Terraform would report an inconsistent result after apply. The
+provider therefore rejects uppercase letters at plan time and names the lowercase form to use.
+The same applies to the `user` argument of the data source. Integration flows see the lowercase
+form too: SAP's scripting API returns authorized users "with lower case characters".
 
 ## User credential parameters: a special, security-sensitive case
 
 `sapintegrationsuite_partner_user_credential_parameter` manages a communication
 username/password credential scoped to a `partner_id`, consumed by an integration flow through
-the generated security artifact alias `pd:<partner_id>:<parameter_id>:UserCredential`. This is
-treated differently from every other Partner Directory resource in this provider:
+the generated security artifact alias `pd:<partner_id>:<parameter_id>:UserCredential`. SAP
+shows it in the monitor under *Security Material* by that name. This is treated differently
+from every other Partner Directory resource in this provider:
 
 ```hcl
 variable "receiver_communication_password" {
@@ -188,29 +199,30 @@ resource "sapintegrationsuite_partner_user_credential_parameter" "receiver" {
 ```
 
 - **`password_wo` is write-only** (requires Terraform CLI 1.11+): Terraform never stores it in
-  plan or state artifacts. This provider also never requests or reads a password back from SAP,
-  which does not document an API for returning one.
+  plan or state artifacts. SAP returns `Password` as `null` on reads. It can return a SHA-256
+  hash with the query option `returnHashedPassword=SHA256`, but the provider never asks for it:
+  storing a hash of the password in state would be a leak of its own.
 - **`password_wo_version`** is a plain, stored marker you change whenever the password itself
   changes. Terraform can only detect a rotation by diffing something it actually keeps in
   state — the write-only value itself never round-trips, so nothing about it alone would ever
   show up in a plan.
-- **No in-place update.** No public API for changing an existing credential's password was
-  confirmed, so every field — including `password_wo_version` — forces replacement: rotating a
-  password deletes the old credential and creates a new one, rather than guessing at a
-  `PUT`/`PATCH` this provider could not verify.
-- **Never batched.** SAP documents that `UserCredentialParameter` (and `CertificateUserMapping`)
-  cannot be combined with other Partner Directory entity types in a single OData ChangeSet
-  request; this provider always issues it as a standalone request.
-- **Import has a real gap.** Importing recovers `partner_id`, `parameter_id`, and `user`, but
-  never the password — there is nothing to recover it from. The first `terraform apply` after
-  import, once you supply `password_wo` and `password_wo_version`, plans as a replacement even
-  though nothing has actually changed server-side. This is an inherent limitation of adopting a
-  write-only-secret resource, not a bug.
+- **Rotation happens in place.** SAP documents that "you can also use the POST request to update
+  a User Credentials parameter with the same values for PID and Id", and that PUT is not
+  supported. Changing `password_wo_version` or `user` therefore sends that POST with the
+  configured user and password. The credential is never deleted in between, so integration
+  flows that use it do not fail during a rotation. Only `partner_id` and `parameter_id` force a
+  replacement.
+- **Create never overwrites.** Because the same POST also overwrites, the provider first checks
+  whether the credential exists. If it does, create stops with an error that asks for an import
+  instead of replacing a password this configuration does not own.
+- **Never batched.** SAP documents that a change set containing a `UserCredentialParameter`
+  request may contain only that one request; this provider always issues it on its own.
+- **Import.** Importing recovers `partner_id`, `parameter_id` and `user`, never the password.
+  The first `terraform apply` after the import plans an in-place update that sends the
+  configured password, which also makes sure SAP holds the value the configuration names.
 
-This is reflected in the feature catalog as **partial** support, not full: the write and delete
-lifecycle is solid, but there is no update and no read-back, and that is a deliberate, permanent
-property of this resource's security model — not something a future release is expected to
-"complete."
+SAP records the technical user of the last POST in `CreatedBy` and `LastModifiedBy`; for this
+entity both fields and both timestamps always describe the most recent write.
 
 ## Permissions
 
@@ -227,16 +239,30 @@ follow SAP's server-driven paging (`__next` links) to return the complete result
 the first page — Partner Directory entity sets, String Parameters especially, are documented as
 capable of holding large numbers of entries per tenant.
 
+## Changes reach integration flows with a delay
+
+String parameters, binary parameters and authorized users are cached on the runtime nodes.
+SAP invalidates a cache entry when it is updated or deleted, but "this invalidation can take a
+few minutes", longer when many entries change at once. An `apply` that changes these values
+is complete in the Partner Directory right away; integration flows may read the old value for
+a few more minutes. Plan tests and cut-overs accordingly.
+
+## Limits
+
+SAP gives tenant-wide maximums: 3,000,000 string parameters, 400,000 binary parameters,
+1,000,000 alternative partners and 500,000 authorized users (sized for 10,000 partners). A
+string parameter holds up to 4,000 characters. A Pid, like a parameter ID, may contain `A-Z`,
+`a-z`, `0-9` and the special characters `-`, `.`, `_`, `~`, `<`, `>` and `@`.
+
 ## Known limitations
 
 - No `sapintegrationsuite_partner` resource — see above.
-- `sapintegrationsuite_partner_user_credential_parameter` has no in-place update and no
-  read-back of its password — see above.
-- Whether `AuthorizedUsers.User` is case-normalized by SAP internally is unconfirmed; this
-  provider does not normalize it.
-- The exact wire-format casing rules for `BinaryParameters.ContentType` beyond SAP's documented
-  example values are unconfirmed; this provider does not restrict the attribute to a fixed list
-  because of this.
+- `sapintegrationsuite_partner_user_credential_parameter` never reads its password back — see
+  above.
+- The provider does not use the OData `$batch` mass operations SAP offers. Each resource is one
+  request, which keeps failures attributable to a single resource.
+- The optional `user` query option SAP describes for audit logging is not sent; SAP records the
+  technical user of the OAuth client instead.
 - CSRF token handling for Partner Directory writes (and every other write this provider makes)
   is handled transparently by the shared HTTP client — see `docs/sap-api-references.md` — and
   requires no configuration.

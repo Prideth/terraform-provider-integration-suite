@@ -20,8 +20,7 @@ import (
 // reasons documented on maxIntegrationFlowContentBytes. It is deliberately
 // larger than partnerdirectory.MaxBinaryParameterValueBytes: this bounds a
 // local file read (a basic safety limit against an operator mistake), while
-// the SAP-documented 260 KB limit is checked separately, after base64
-// encoding, against the actual value SAP will receive.
+// SAP's 1.5 MiB value limit is checked separately against the raw content.
 const maxPartnerBinaryParameterContentBytes = 8 * 1024 * 1024 // 8 MiB
 
 // NewPartnerBinaryParameterResource returns a fresh resource.Resource
@@ -55,9 +54,9 @@ func (r *partnerBinaryParameterResource) Schema(_ context.Context, _ resource.Sc
 			"from a local content file. Backed by the public Partner Directory OData V2 API " +
 			"(BinaryParameters). Partner Directory data is stored unencrypted: do not put " +
 			"passwords, secrets, private keys, tokens, or other sensitive information in a binary " +
-			"parameter's content — see docs/guides/partner-directory.md. SAP documents a maximum " +
-			"decoded value size of 260 KB; larger XML/XSL/XSD content should be stored zipped " +
-			"instead (content_type \"zip\" is automatically unzipped by the XML Validator and XSLT " +
+			"parameter's content — see docs/guides/partner-directory.md. The tenant's $metadata " +
+			"allows values up to 1.5 MiB (1572864 bytes); larger XML/XSL/XSD content can be stored " +
+			"zipped (content_type \"zip\" is automatically unzipped by the XML Validator and XSLT " +
 			"Mapping steps).",
 		Attributes: map[string]schema.Attribute{
 			"runtime_location_id": runtimeLocationResourceAttribute(),
@@ -123,9 +122,8 @@ func (r *partnerBinaryParameterResource) Configure(_ context.Context, req resour
 
 // readAndValidateBinaryParameterContent reads the local content file and
 // checks it before any network call: first the content hash (a
-// configuration mistake caught early), then SAP's documented 260 KB limit
-// on the raw (pre-base64) value, so an obviously oversized payload never
-// reaches the API at all.
+// configuration mistake caught early), then SAP's 1.5 MiB limit on the raw
+// (pre-base64) value, so an oversized payload never reaches the API.
 func readAndValidateBinaryParameterContent(path, expectedHash string) ([]byte, error) {
 	content, err := readBoundedFile(path, maxPartnerBinaryParameterContentBytes)
 	if err != nil {
@@ -136,7 +134,7 @@ func readAndValidateBinaryParameterContent(path, expectedHash string) ([]byte, e
 	}
 	if len(content) > partnerdirectory.MaxBinaryParameterValueBytes {
 		return nil, fmt.Errorf(
-			"content is %d bytes, which exceeds SAP's documented 260 KB (%d byte) limit for a Partner Directory binary parameter value; store larger XML/XSL/XSD content zipped instead",
+			"content is %d bytes, which exceeds the %d byte (1.5 MiB) limit SAP's $metadata sets for a Partner Directory binary parameter value; store larger XML/XSL/XSD content zipped instead",
 			len(content), partnerdirectory.MaxBinaryParameterValueBytes,
 		)
 	}
@@ -222,12 +220,13 @@ func (r *partnerBinaryParameterResource) Update(ctx context.Context, req resourc
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, partnerBinaryParameterModel{
-		ID:          types.StringValue(plan.PartnerID.ValueString() + "/" + plan.ParameterID.ValueString()),
-		PartnerID:   plan.PartnerID,
-		ParameterID: plan.ParameterID,
-		ContentType: plan.ContentType,
-		Content:     plan.Content,
-		ContentHash: plan.ContentHash,
+		ID:                types.StringValue(plan.PartnerID.ValueString() + "/" + plan.ParameterID.ValueString()),
+		PartnerID:         plan.PartnerID,
+		ParameterID:       plan.ParameterID,
+		ContentType:       plan.ContentType,
+		Content:           plan.Content,
+		ContentHash:       plan.ContentHash,
+		RuntimeLocationID: plan.RuntimeLocationID,
 	})...)
 }
 
