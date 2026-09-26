@@ -99,7 +99,8 @@ var Catalog = []Feature{
 			"Metadata update only applies to customer-created packages; SAP-provided packages are read-only by SAP's own design, not a provider limitation.",
 			"Verified on a tenant (September 2026): create needs ShortText (\"Property 'ShortText' " +
 				"cannot be empty\"), so short_text is required; an update is a PUT, because PATCH " +
-				"answers 501; SAP stores the description as HTML and wraps plain text in <p>...</p>, " +
+				"answers 501, and it carries the current Version, Vendor and tag fields, since a PUT " +
+				"without them resets them; SAP stores the description as HTML and wraps plain text in <p>...</p>, " +
 				"which the provider removes when reading.",
 		},
 		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},

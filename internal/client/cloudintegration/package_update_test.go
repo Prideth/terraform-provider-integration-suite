@@ -8,11 +8,18 @@ import (
 	"testing"
 )
 
-// A tenant answered PATCH on IntegrationPackages with 501 and accepted a PUT
-// of {Id, Name, Description, ShortText} (September 2026).
+// A tenant answered PATCH on IntegrationPackages with 501, accepted a PUT of
+// {Id, Name, Description, ShortText}, and reset Version and Vendor that the
+// PUT left out (September 2026). The update reads the package first and
+// sends the fields it does not manage back unchanged.
 func TestClient_UpdatePackage(t *testing.T) {
 	var body map[string]string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"d":{"Id":"UTILITIES","Name":"Old","Description":"<p>old</p>","ShortText":"old","Version":"1.2.3","Vendor":"ACME","Keywords":"k1"}}`))
+			return
+		}
 		if r.Method != http.MethodPut {
 			t.Errorf("expected PUT, got %s", r.Method)
 		}
@@ -30,7 +37,10 @@ func TestClient_UpdatePackage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpdatePackage() error: %v", err)
 	}
-	want := map[string]string{"Id": "UTILITIES", "Name": "Utilities", "Description": "updated", "ShortText": "short"}
+	want := map[string]string{
+		"Id": "UTILITIES", "Name": "Utilities", "Description": "updated", "ShortText": "short",
+		"Version": "1.2.3", "Vendor": "ACME", "Keywords": "k1", "Products": "", "Countries": "", "Industries": "", "LineOfBusiness": "",
+	}
 	if len(body) != len(want) {
 		t.Fatalf("body = %v, want %v", body, want)
 	}

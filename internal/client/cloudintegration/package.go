@@ -16,17 +16,22 @@ import (
 
 // Package is the wire representation of an IntegrationPackages entity.
 type Package struct {
-	ID           string `json:"Id"`
-	Name         string `json:"Name"`
-	Description  string `json:"Description,omitempty"`
-	ShortText    string `json:"ShortText,omitempty"`
-	Version      string `json:"Version,omitempty"`
-	Vendor       string `json:"Vendor,omitempty"`
-	Mode         string `json:"Mode,omitempty"`
-	CreatedBy    string `json:"CreatedBy,omitempty"`
-	CreationDate string `json:"CreationDate,omitempty"`
-	ModifiedBy   string `json:"ModifiedBy,omitempty"`
-	ModifiedDate string `json:"ModifiedDate,omitempty"`
+	ID             string `json:"Id"`
+	Name           string `json:"Name"`
+	Description    string `json:"Description,omitempty"`
+	ShortText      string `json:"ShortText,omitempty"`
+	Version        string `json:"Version,omitempty"`
+	Vendor         string `json:"Vendor,omitempty"`
+	Products       string `json:"Products,omitempty"`
+	Keywords       string `json:"Keywords,omitempty"`
+	Countries      string `json:"Countries,omitempty"`
+	Industries     string `json:"Industries,omitempty"`
+	LineOfBusiness string `json:"LineOfBusiness,omitempty"`
+	Mode           string `json:"Mode,omitempty"`
+	CreatedBy      string `json:"CreatedBy,omitempty"`
+	CreationDate   string `json:"CreationDate,omitempty"`
+	ModifiedBy     string `json:"ModifiedBy,omitempty"`
+	ModifiedDate   string `json:"ModifiedDate,omitempty"`
 }
 
 const integrationPackagesEntitySet = "IntegrationPackages"
@@ -79,12 +84,42 @@ type packageWriteRequest struct {
 	ShortText   string `json:"ShortText"`
 }
 
+// packageUpdateRequest is the PUT body. SAP's PUT replaces the entity: a
+// tenant test showed Version and Vendor reset to empty after a PUT that
+// left them out. The fields the provider does not manage are therefore
+// read first and sent back unchanged.
+type packageUpdateRequest struct {
+	packageWriteRequest
+	Version        string `json:"Version"`
+	Vendor         string `json:"Vendor"`
+	Products       string `json:"Products"`
+	Keywords       string `json:"Keywords"`
+	Countries      string `json:"Countries"`
+	Industries     string `json:"Industries"`
+	LineOfBusiness string `json:"LineOfBusiness"`
+}
+
 // UpdatePackage changes an integration package's name, description and short
 // text. The same tenant test showed that PATCH answers 501 Not Implemented
-// and PUT answers 202 with the change read back, so this is a PUT. The
-// package ID is immutable.
+// and PUT answers 202 with the change read back, so this is a PUT. Because
+// the PUT replaces the entity, the current package is read first and its
+// version, vendor and tag fields are sent back unchanged. The package ID is
+// immutable.
 func (c *Client) UpdatePackage(ctx context.Context, id string, pkg Package) error {
-	payload, err := json.Marshal(packageWriteRequest{ID: id, Name: pkg.Name, Description: pkg.Description, ShortText: pkg.ShortText})
+	current, err := c.GetPackage(ctx, id)
+	if err != nil {
+		return err
+	}
+	payload, err := json.Marshal(packageUpdateRequest{
+		packageWriteRequest: packageWriteRequest{ID: id, Name: pkg.Name, Description: pkg.Description, ShortText: pkg.ShortText},
+		Version:             current.Version,
+		Vendor:              current.Vendor,
+		Products:            current.Products,
+		Keywords:            current.Keywords,
+		Countries:           current.Countries,
+		Industries:          current.Industries,
+		LineOfBusiness:      current.LineOfBusiness,
+	})
 	if err != nil {
 		return fmt.Errorf("cloudintegration: encoding package: %w", err)
 	}

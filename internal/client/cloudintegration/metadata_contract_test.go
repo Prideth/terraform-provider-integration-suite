@@ -28,6 +28,8 @@ func TestWireContractAgainstMetadata(t *testing.T) {
 		{numberRangesEntitySet, numberRangeWireModel{}},
 		{numberRangesEntitySet, NumberRangeState{}},
 		{integrationPackagesEntitySet, Package{}},
+		{integrationPackagesEntitySet, packageWriteRequest{}},
+		{integrationPackagesEntitySet, packageUpdateRequest{}},
 		{runtimeArtifactsEntitySet, RuntimeArtifact{}},
 		{scriptCollectionDesigntimeArtifactsEntitySet, ScriptCollection{}},
 		{serviceEndpointsEntitySet, ServiceEndpoint{}},

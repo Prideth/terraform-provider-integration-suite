@@ -56,7 +56,10 @@ All notable changes to this project are documented in this file.
 - **Breaking:** `sapintegrationsuite_integration_package` has a new required
   `short_text`. Creating a package failed on a real tenant because SAP
   requires it ("Property 'ShortText' cannot be empty"), and updating one
-  failed because SAP answers PATCH with 501; updates now use PUT. SAP stores
+  failed because SAP answers PATCH with 501; updates now use PUT. Because
+  that PUT replaces the package, the provider reads it first and sends its
+  version, vendor and tag fields back unchanged; a PUT without them reset
+  Version and Vendor to empty on a tenant. SAP stores
   the description as HTML and wraps plain text in `<p>...</p>`; the provider
   removes that wrapper when reading, so plain descriptions no longer show
   as drift. The package data source returns `short_text` as well.
