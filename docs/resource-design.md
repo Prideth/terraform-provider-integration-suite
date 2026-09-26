@@ -107,11 +107,11 @@ see `docs/sap-api-references.md` for the evidence.*
   is the portable identifier across landscapes. The data source can resolve it to an ID, but
   the resource keys on the ID because that is what every write addresses.
 - **Create**: `POST AccessPolicies` with `RoleName` and `Description`.
-- **Update**: `PUT AccessPolicies(<id>L)` with `RoleName` and `Description`. This replaces
-  the former `PATCH` with only `Description`. SAP's own tooling uses PUT with both fields, and
-  under OData V2 PUT semantics leaving `RoleName` out risks clearing it. `role_name` keeps
-  `RequiresReplace()`: it appears in the PUT body, but no source says whether a different
-  value renames the policy or is rejected.
+- **Update**: `PATCH AccessPolicies(<id>L)` with `Description` only. The re-audit briefly
+  switched to `PUT` with `RoleName` and `Description`, as SAP's CI/CD upload action contains;
+  a tenant answered that `PUT` with `501`, while `PATCH` and `MERGE` answered `204` and the
+  change was read back (September 2026). `role_name` keeps `RequiresReplace()`: it is the
+  policy's identity, and renaming in place was not tested.
 - **Delete**: `DELETE AccessPolicies(<id>L)`. SAP deletes the policy's artifact references
   with it, including references Terraform never managed. This is the one place where
   destroying a Terraform resource reaches objects outside its own state, and the guide calls

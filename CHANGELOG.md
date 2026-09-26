@@ -16,9 +16,6 @@ All notable changes to this project are documented in this file.
 - Access policies and references are now addressed with `Edm.Int64` keys
   (`AccessPolicies(1901L)`) instead of quoted string keys. References are
   created and deleted through the top-level `ArtifactReferences` entity set.
-- Updating an access policy's description now sends a `PUT` with `RoleName`
-  and `Description`, matching SAP's tooling, instead of a `PATCH` with only
-  the description.
 - **Breaking:** `sapintegrationsuite_integration_adapter` and its data source
   no longer have `type` and `application`. A tenant `$metadata` document
   shows that `IntegrationAdapterDesigntimeArtifact` has no such properties;

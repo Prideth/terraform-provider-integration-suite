@@ -658,9 +658,12 @@ var Catalog = []Feature{
 			"role_name is matched by SAP against the Values attribute of a BTP custom role. That role " +
 				"and the role collection granting it belong to the SAP/btp provider; this provider only " +
 				"passes the string through.",
-			"role_name forces replacement: SAP's API accepts RoleName in the PUT payload, but no " +
-				"documentation confirms that changing it renames the policy rather than being rejected. " +
-				"Replacing a policy also deletes its artifact references on SAP's side.",
+			"The full lifecycle was verified on a tenant (September 2026): create (201 with the new " +
+				"ID), read by Int64 key, lookup by role name with $filter, a description change with " +
+				"PATCH (PUT answers 501), reference create with the AccessPolicy link (201), reference " +
+				"and policy delete (204).",
+			"role_name forces replacement: it is the policy's identity, and renaming in place was not " +
+				"tested. Replacing a policy also deletes its artifact references on SAP's side.",
 		},
 		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},
 	},

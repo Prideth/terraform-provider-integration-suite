@@ -50,7 +50,7 @@ func TestClient_CreateAccessPolicy(t *testing.T) {
 }
 
 func TestClient_GetUpdateDeleteAccessPolicy_UseInt64Key(t *testing.T) {
-	var putBody map[string]any
+	var patchBody map[string]any
 	var methods []string
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -61,8 +61,8 @@ func TestClient_GetUpdateDeleteAccessPolicy_UseInt64Key(t *testing.T) {
 		switch r.Method {
 		case http.MethodGet:
 			_, _ = w.Write([]byte(`{"d": {"Id": "1901", "RoleName": "UTILITIES_ARCHITECT", "Description": ""}}`))
-		case http.MethodPut:
-			putBody = decodeBody(t, r)
+		case http.MethodPatch:
+			patchBody = decodeBody(t, r)
 			w.WriteHeader(http.StatusNoContent)
 		case http.MethodDelete:
 			w.WriteHeader(http.StatusNoContent)
@@ -86,15 +86,16 @@ func TestClient_GetUpdateDeleteAccessPolicy_UseInt64Key(t *testing.T) {
 	if err := client.UpdateAccessPolicy(ctx, "1901", AccessPolicy{RoleName: "UTILITIES_ARCHITECT", Description: "new"}); err != nil {
 		t.Fatalf("UpdateAccessPolicy() error: %v", err)
 	}
-	if len(putBody) != 2 || putBody["RoleName"] != "UTILITIES_ARCHITECT" || putBody["Description"] != "new" {
-		t.Errorf("PUT body = %v, want exactly RoleName and Description (OData V2 PUT replaces the entity)", putBody)
+	// A tenant answered PUT with 501; PATCH of Description alone succeeded.
+	if len(patchBody) != 1 || patchBody["Description"] != "new" {
+		t.Errorf("PATCH body = %v, want only Description", patchBody)
 	}
 
 	if err := client.DeleteAccessPolicy(ctx, "1901"); err != nil {
 		t.Fatalf("DeleteAccessPolicy() error: %v", err)
 	}
 
-	want := []string{http.MethodGet, http.MethodPut, http.MethodDelete}
+	want := []string{http.MethodGet, http.MethodPatch, http.MethodDelete}
 	if len(methods) != len(want) {
 		t.Fatalf("methods = %v, want %v", methods, want)
 	}

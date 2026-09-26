@@ -122,11 +122,13 @@ returns a numeric ID, which becomes the resource `id`. Each reference is then cr
 own POST that points back at the policy. Terraform orders these correctly as long as the
 reference uses `sapintegrationsuite_access_policy.<name>.id`.
 
-**Update.** Changing a policy's `description` is an in-place update. The provider sends a PUT
-with both `RoleName` and `Description`, the same payload SAP's own tooling uses, because an
-OData V2 PUT replaces the whole entity. Changing `role_name` replaces the policy. SAP's API
-includes `RoleName` in that PUT, but nothing documents whether sending a different value
-renames the policy or is rejected, so the provider takes the safe route. Replacing a policy
+**Update.** Changing a policy's `description` is an in-place update: the provider sends a
+`PATCH` with only `Description`. A tenant test (September 2026) settled the method. `PUT`
+answers `501 Not Implemented`, with or without `Id` in the body, even though SAP's CI/CD
+upload action contains a `PUT` branch; `PATCH` and `MERGE` answer `204` and the new
+description is read back. SAP's own update action sidesteps the question by deleting and
+recreating the policy. Changing `role_name` replaces the policy, because the role name is the
+policy's identity and renaming it in place was not tested. Replacing a policy
 has a knock-on effect: SAP deletes a policy's references along with it, and because the new
 policy has a new ID, Terraform also replaces every reference that points at it. Expect the
 plan to show all of them.

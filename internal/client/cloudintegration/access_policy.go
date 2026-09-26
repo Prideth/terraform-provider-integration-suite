@@ -144,22 +144,26 @@ func (c *Client) CreateAccessPolicy(ctx context.Context, policy AccessPolicy) (*
 	return &created, nil
 }
 
-// UpdateAccessPolicy replaces the policy's writable fields with a PUT of
-// RoleName and Description, the same payload SAP's own upload action sends.
-// OData V2 PUT replaces the whole entity, so RoleName is always resent
-// unchanged rather than omitted.
+// UpdateAccessPolicy changes the policy's description with a PATCH of
+// Description alone. A tenant test (September 2026) settled the method:
+// PUT answers 501 Not Implemented, with or without Id in the body, although
+// SAP's CI/CD upload action contains a PUT branch; PATCH and MERGE answer
+// 204 and the new description is read back. RoleName is the policy's
+// identity and is never changed in place.
 func (c *Client) UpdateAccessPolicy(ctx context.Context, id string, policy AccessPolicy) error {
 	path, err := accessPolicyPath(id)
 	if err != nil {
 		return err
 	}
 
-	payload, err := json.Marshal(AccessPolicy{RoleName: policy.RoleName, Description: policy.Description})
+	payload, err := json.Marshal(struct {
+		Description string `json:"Description"`
+	}{Description: policy.Description})
 	if err != nil {
 		return fmt.Errorf("cloudintegration: encoding access policy: %w", err)
 	}
 
-	_, err = c.odata.Put(ctx, path, payload)
+	_, err = c.odata.Patch(ctx, path, payload)
 	return err
 }
 

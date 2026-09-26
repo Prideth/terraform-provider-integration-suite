@@ -697,7 +697,7 @@ property names, key format and payloads.
 |---|---|---|
 | List / find by role | `GET /AccessPolicies?$filter=RoleName eq '<name>'` | data source lookup by `role_name` |
 | Create policy | `POST /AccessPolicies` with `{"RoleName", "Description"}`, answers `201` with `d.Id` | Create |
-| Update policy | `PUT /AccessPolicies(<Id>L)` with `{"RoleName", "Description"}`, answers `200`/`204` | Update |
+| Update policy | SAP's tooling: `PUT /AccessPolicies(<Id>L)` with `{"RoleName", "Description"}`. **A tenant answered this `PUT` with `501`** (September 2026); `PATCH` with `{"Description"}` answered `204` | Update (`PATCH`) |
 | Delete policy | `DELETE /AccessPolicies(<Id>L)`, deletes the policy "incl. all Artifact References" | Delete |
 | List references | `GET /AccessPolicies(<Id>L)/ArtifactReferences` | Read, data source |
 | Create reference | `POST /ArtifactReferences` with `{"Name", "Description", "Type", "ConditionAttribute", "ConditionValue", "ConditionType", "AccessPolicy": {"Id": "<Id>"}}`, answers `201` | Create |
@@ -787,8 +787,10 @@ structs and keys against this document whenever it is available locally.
 - Whether `AccessPolicyRuntimeAssignments` can be written (their structure is now known, see
   above), the values `TransferStatus` takes, and which runtimes a policy created through the
   API is assigned to by default.
-- Whether `PUT` with a different `RoleName` renames a policy, and whether `ArtifactReferences`
-  supports `PUT`/`MERGE`.
+- Whether `ArtifactReferences` supports `PATCH`/`MERGE` (the provider replaces references
+  instead), and whether `PATCH` with a different `RoleName` renames a policy. A tenant test
+  settled the rest: `PUT` on `AccessPolicies` answers `501`, `PATCH` and `MERGE` of
+  `Description` answer `204`, and create, `$filter`, reads and deletes behave as in the table.
 
 `$metadata` cannot settle any of these. They need the Security Content API specification on
 the Business Accelerator Hub (login required) or read requests against a tenant with existing
