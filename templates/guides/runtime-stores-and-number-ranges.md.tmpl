@@ -143,9 +143,9 @@ your tenant has active Edge Integration Cell nodes and you need Number Ranges de
 specifically, use the Monitor UI for that.
 
 SAP's *Add a Number Ranges Object* page does name the Edge Integration Cell service root,
-`/location/<runtime location id>/api/v1/NumberRanges`, the same root the provider's other
-Edge-capable resources use through `runtime_location_id`. Number ranges do not offer
-`runtime_location_id` yet because that path has not been tried on a tenant.
+`/location/<runtime location id>/api/v1/NumberRanges`. Number ranges do not offer
+`runtime_location_id`, because Edge Integration Cell targeting is not supported by this
+provider (see the Edge Integration Cell guide).
 
 ### Numeric fields are strings, on purpose
 

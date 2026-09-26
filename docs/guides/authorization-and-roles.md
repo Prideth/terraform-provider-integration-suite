@@ -50,8 +50,8 @@ Integration*:
 | Partner Directory resources and data sources | `AuthGroup_TenantPartnerDirectoryConfigurator` |
 | `sapintegrationsuite_custom_tag_configuration` | `WebToolingSettingsProductProfiles.savetenantconfiguration`, which SAP's Integration Content page places in the `PI_Administrator` role collection |
 
-The same roles apply when a resource targets an Edge Integration Cell through
-`runtime_location_id`: the request still goes to the cloud tenant host and is authorized there.
+Edge Integration Cell targeting (`runtime_location_id`) is not supported; see the Edge
+Integration Cell guide.
 
 Classic API Management client (plan `apiportal-apiaccess`):
 

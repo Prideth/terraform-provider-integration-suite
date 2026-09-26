@@ -534,7 +534,7 @@ var Catalog = []Feature{
 				"on an existing name does. Names must not contain hyphens: a tenant rejected one with " +
 				"a 500 while the same request with a plain name succeeded.",
 			"SAP documents an Edge Integration Cell path (/location/<id>/api/v1/NumberRanges); " +
-				"runtime_location_id is not offered yet because it has not been tried on a tenant.",
+				"runtime_location_id is not offered; Edge Integration Cell targeting is not supported.",
 		},
 		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},
 	},
@@ -938,8 +938,8 @@ var Catalog = []Feature{
 				"and every update; SAP returns SecureParam as null. Import recovers the name and " +
 				"description only, so the first apply after an import sends the configured value.",
 			"Create stops when the name already exists, because SAP does not document what a create " +
-				"on an existing name does. Edge Integration Cell targeting is not offered, as it has " +
-				"not been tried for this artifact.",
+				"on an existing name does. Edge Integration Cell targeting is not supported and not " +
+				"offered for this resource.",
 		},
 		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},
 	},
@@ -1717,52 +1717,22 @@ var Catalog = []Feature{
 		Name:   "Edge Integration Cell Runtime Targeting",
 		Description: "Addressing an Edge Integration Cell instead of the cloud runtime: deploying " +
 			"content to it and managing its security material, selected with runtime_location_id.",
-		SupportStatus: StatusExperimental,
+		SupportStatus: StatusUnsupported,
 		SupportReason: ReasonPublicAPIIncomplete,
-		ResourceTypes: []string{
-			"sapintegrationsuite_integration_flow_deployment",
-			"sapintegrationsuite_message_mapping_deployment",
-			"sapintegrationsuite_script_collection_deployment",
-			"sapintegrationsuite_value_mapping_deployment",
-			"sapintegrationsuite_integration_adapter_deployment",
-			"sapintegrationsuite_user_credential",
-			"sapintegrationsuite_oauth2_client_credential",
-			"sapintegrationsuite_certificate",
-			"sapintegrationsuite_key_pair",
-			"sapintegrationsuite_partner_string_parameter",
-			"sapintegrationsuite_partner_binary_parameter",
-			"sapintegrationsuite_partner_user_credential_parameter",
-			"sapintegrationsuite_partner_authorized_user",
-			"sapintegrationsuite_alternative_partner",
-		},
-		DataSourceTypes: []string{
-			"sapintegrationsuite_user_credential",
-			"sapintegrationsuite_oauth2_client_credential",
-			"sapintegrationsuite_keystore_entry",
-			"sapintegrationsuite_keystore_entries",
-			"sapintegrationsuite_partner",
-			"sapintegrationsuite_partners",
-			"sapintegrationsuite_partner_string_parameter",
-			"sapintegrationsuite_partner_string_parameters",
-			"sapintegrationsuite_partner_binary_parameter",
-			"sapintegrationsuite_partner_authorized_user",
-			"sapintegrationsuite_alternative_partner",
-		},
-		PublicAPI:   true,
-		APIProtocol: "OData V2",
+		PublicAPI:     true,
+		APIProtocol:   "OData V2",
 		Limitations: []string{
-			"SAP Help's Integration Content, Security Content and Partner Directory pages (version " +
-				"of 2026-07-10) document https://<host>/location/<runtime location id>/api/v1/<path> for " +
-				"calling the same APIs against an Edge Integration Cell. The pattern is documented once " +
-				"for all operations, with no per-operation example, and SAP's own CI/CD tooling still " +
-				"called the path unpublished in May 2026. It has not been verified against a tenant with " +
-				"an Edge Integration Cell, hence experimental.",
-			"The runtime location ID is shown in the Integration Suite monitoring URL after selecting " +
-				"the Edge Integration Cell as runtime. Moving an object between runtimes replaces it.",
-			"Import IDs take the location as an explicit prefix, location:<id>/<regular import ID>, " +
-				"which stays unambiguous for keystore aliases that contain \"/\".",
+			"Not supported. SAP Help's Integration Content, Security Content and Partner Directory " +
+				"pages (version of 2026-07-10) document https://<host>/location/<runtime location id>/" +
+				"api/v1/<path> for calling the same APIs against an Edge Integration Cell, once for all " +
+				"operations and without per-operation examples, and SAP's own CI/CD tooling still called " +
+				"the path unpublished in May 2026. It has not been verified against a tenant with an " +
+				"Edge Integration Cell, and verifying it is out of this provider's scope.",
+			"The deployment, credential, certificate, key pair and Partner Directory resources and " +
+				"their data sources still carry an optional runtime_location_id that sends requests to " +
+				"that path, and import IDs accept a location:<id>/ prefix. Both are untested and " +
+				"unsupported; leave runtime_location_id unset.",
 		},
-		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true, Deploy: true, Undeploy: true},
 	},
 	{
 		Key:    "edge_integration_cell.access_policy_replication",

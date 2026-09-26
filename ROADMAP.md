@@ -30,10 +30,11 @@ chiefly the Classic API Management `$metadata`, the Hub specifications for the T
 and Data Space Integration, service-key access for API Composition and Integration Assessment,
 and tenant checks that need additional role templates.
 
-API Composition's business data graph and Edge Integration Cell targeting are implemented as
-experimental. SAP documents their contracts, but parts are inferred (API Composition's PATCH
-body and delete request) or unverified on a live system. See `docs/guides/api-composition.md`
-and `docs/guides/edge-integration-cell.md`.
+API Composition's business data graph is implemented as experimental: SAP documents its
+contract, but the PATCH body and delete request are inferred and unverified on a live system
+(see `docs/guides/api-composition.md`). Edge Integration Cell targeting is **not supported**:
+an untested `runtime_location_id` remains on several resources, but verifying it is outside
+this provider's scope (see `docs/guides/edge-integration-cell.md`).
 
 Future work follows newly published SAP APIs and incoming feature requests, not a fixed backlog.
 The clearest concrete opportunities already identified, in case SAP's documented API surface

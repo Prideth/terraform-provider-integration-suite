@@ -96,13 +96,14 @@ All notable changes to this project are documented in this file.
   `sapintegrationsuite_script_collection` saves uploaded content under an
   explicit version through SAP's documented `…SaveAsVersion` function
   imports. A new version is saved only when the value changes.
-- Experimental Edge Integration Cell targeting: the deployment resources,
-  the user and OAuth2 credentials, certificates, key pairs and the Partner
-  Directory resources, plus their data sources, accept an optional
-  `runtime_location_id`. Requests then go to `/location/<id>/api/v1` on the
-  tenant host, the service root SAP Help documents for Edge Integration
-  Cells. Import IDs take the location as an explicit prefix,
-  `location:<id>/<regular import ID>`.
+- An optional `runtime_location_id` on the deployment resources, the user
+  and OAuth2 credentials, certificates, key pairs and the Partner Directory
+  resources, plus their data sources, sends requests to
+  `/location/<id>/api/v1`, the service root SAP Help documents for Edge
+  Integration Cells; import IDs accept a `location:<id>/` prefix. **Edge
+  Integration Cell targeting is not supported:** it has never been tested
+  against a tenant with an Edge Integration Cell and is outside the
+  provider's supported scope. Leave the attribute unset.
 - `sapintegrationsuite_integration_flow_configuration` sets externalized
   parameters of an integration flow through SAP's documented
   `$links/Configurations` update. Only the listed keys are managed, each

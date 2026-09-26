@@ -42,13 +42,16 @@ Edge Integration Cell specifically.
 
 ## What this provider manages here today
 
-Two things, both through the cloud tenant's own APIs:
+One thing, through the cloud tenant's own API:
 
-- **Content and security material on a specific Edge Integration Cell**, selected with
-  `runtime_location_id` on the deployment and credential resources. This is experimental; see
-  [Targeting an Edge Integration Cell](#targeting-an-edge-integration-cell).
 - **Which runtimes an access policy has reached**, read with
   `sapintegrationsuite_access_policy_runtime_assignments`.
+
+**Targeting an Edge Integration Cell is not supported.** Several resources carry an optional
+`runtime_location_id` that sends requests to the Edge Integration Cell service root SAP
+documents, but it has never been tested against a tenant with an Edge Integration Cell and is
+outside the supported scope; see
+[Targeting an Edge Integration Cell](#targeting-an-edge-integration-cell). Leave it unset.
 
 Everything else about Edge Integration Cell resolves to either "no public API" or "a public API
 exists, but it belongs to Kubernetes/Helm infrastructure or to monitoring, not to this provider".
@@ -157,6 +160,9 @@ in `docs/feature-support.md` records this three-part reasoning.
 
 ## Targeting an Edge Integration Cell
 
+> **Not supported.** What follows describes the documented mechanism and the untested attribute
+> that uses it. Leave `runtime_location_id` unset.
+
 Earlier research looked for a *parameter* on the deploy actions that selects an Edge Integration
 Cell, and found none. The answer turned out to be the URL instead. Since mid-2026, SAP Help's
 Integration Content, Security Content and Partner Directory pages document a second service root
@@ -212,10 +218,13 @@ keystore and partner lookups, take it as well.
 deployment. Without the prefix, the cloud runtime is assumed. The prefix is explicit rather
 than positional because keystore aliases may themselves contain `/`.
 
-**Why experimental.** SAP documents the prefix once for all operations, with no per-operation
+**Not supported.** SAP documents the prefix once for all operations, with no per-operation
 examples, and SAP's own CI/CD tooling still described the path as unpublished in May 2026. It
-has not yet been verified against a tenant with an Edge Integration Cell.
-`edge_integration_cell.deployment_target` in `docs/feature-support.md` tracks the status.
+has not been verified against a tenant with an Edge Integration Cell, and that verification is
+outside this provider's scope. The attribute and the import prefix remain in the code, untested:
+if you set `runtime_location_id`, you do so at your own risk, and problems with it are not
+treated as provider bugs. `edge_integration_cell.deployment_target` in
+`docs/feature-support.md` records this as unsupported.
 
 ## Access Policy replication: readable, not writable
 
