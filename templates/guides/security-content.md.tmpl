@@ -241,9 +241,23 @@ resource "sapintegrationsuite_certificate" "backend_ca" {
 
 `certificate` is PEM content and is **never marked `Sensitive`** — a public X.509 certificate is
 not a secret, and conflating it with private key material (which this resource never handles at
-all) would be a mistake. Create and Update both use the same confirmed SAP operation (`PUT
-CertificateResources('<hexalias>')/$value`, which SAP's own documentation explicitly notes
-creates a new entity despite the PUT verb).
+all) would be a mistake. Create and Update both use `PUT
+CertificateResources('<hexalias>')/$value` with the PEM as body, which SAP's own documentation
+notes creates a new entity despite the PUT verb.
+
+**Configuring a certificate means trusting it.** When you import a self-signed or otherwise
+untrusted certificate in the UI, SAP shows its fingerprint and asks you to confirm it. The API
+does the same: on a tenant in September 2026, the plain request answered a self-signed
+certificate with `409` and the status `notImported`. The provider therefore always sends
+`fingerprintVerified=true`, so the certificate in your configuration is imported as it is.
+Check `certificate_sha256` against the fingerprint your partner gave you, ideally before the
+first apply (for example with `openssl x509 -noout -fingerprint -sha256 -in cert.pem`).
+
+**Replacing a certificate keeps its alias.** Changing `certificate` updates the entry in place
+with `update=true`; without it SAP refuses with `400 Entry with alias ... already exists`. A
+new alias, in contrast, replaces the resource. Creating a certificate under an alias that
+already exists on the tenant fails for the same reason; import that entry instead
+(`terraform import sapintegrationsuite_certificate.backend_ca backend-root-ca`).
 
 **Drift detection compares a canonical fingerprint, not raw PEM text.** Two PEM encodings of the
 identical certificate can differ in line endings, wrapping, or a trailing newline without

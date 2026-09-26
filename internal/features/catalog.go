@@ -817,12 +817,13 @@ var Catalog = []Feature{
 		APIProtocol:   "OData V2",
 		Planned:       true,
 		Limitations: []string{
-			"Create/Update both confirmed via SAP's own \"Import and Update Certificate\" " +
-				"documentation: PUT CertificateResources('<hexalias>')/$value, raw PEM body — SAP's " +
-				"documentation explicitly flags the PUT-creates-an-entity quirk. SAP's documented " +
-				"example body is enclosed in literal square brackets; this project treats those as " +
-				"documentation formatting, not literal bytes to send, since no other example in SAP's " +
-				"documentation uses that convention.",
+			"Create and update use PUT CertificateResources('<hexalias>')/$value with a plain PEM " +
+				"body (Content-Type application/pkix-cert), verified on a tenant in September 2026. " +
+				"Both send fingerprintVerified=true: without it SAP answered a self-signed " +
+				"certificate with 409 and did not import it. Update adds update=true: without it SAP " +
+				"answered 400 \"Entry with alias ... already exists\". Configuring a certificate is " +
+				"therefore the decision to trust it; compare certificate_sha256 with the fingerprint " +
+				"you expect.",
 			"Delete uses the documented keystore mass-deletion operation (PUT " +
 				"KeystoreResources('system')?deleteEntries=true) with exactly the one alias this " +
 				"resource owns — there is no documented per-entry DELETE for this entity.",

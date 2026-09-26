@@ -963,10 +963,14 @@ punctuation, semicolon, slash, and backslash cases — see
   either API family this project reviewed uses that convention for an inline value example, so
   this is treated as documentation formatting, not literal bytes to send — this client's
   `PutCertificate` sends the caller's PEM content exactly as given, with no bracket wrapping.
-  This project could not independently confirm the request `Content-Type`; the documented GET
-  response's `application/pkix-cert` is reused for the PUT as well, on the assumption that a
-  `$value` endpoint's read and write representations are ordinarily the same media type — not an
-  independently confirmed fact, flagged in code (`certificate.go`).
+  **Tenant test, September 2026:** `Content-Type: application/pkix-cert` with a plain PEM body
+  (no brackets) is accepted. The plain request answered a self-signed certificate with `409`,
+  the parsed certificate as body and `Status: notImported`;
+  `?fingerprintVerified=true&returnKeystoreEntries=false` imported it (`204`). Replacing the
+  certificate of an existing alias answered `400 Entry with alias "…" already exists in
+  keystore "system"` with and without `fingerprintVerified=true`, and `204` once `update=true`
+  was added; the new serial number read back. The option names match a community blog; the SAP
+  Help page itself could not be read without a browser.
 - No per-entity `DELETE` is documented for `CertificateResources` or `KeystoreEntries`. Delete
   uses the same confirmed `KeystoreResources('system')?deleteEntries=true` mass-deletion
   operation described below, with exactly the one alias the resource owns.

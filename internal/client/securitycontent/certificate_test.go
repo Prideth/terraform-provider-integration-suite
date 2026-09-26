@@ -15,12 +15,13 @@ J++y5pvlBMtzQ571O7itrSQ32praT6whMlCBy9pAnJIKzVM4IDM5H1drHc6shhuo
 -----END CERTIFICATE-----
 `
 
-func TestClient_PutCertificate(t *testing.T) {
-	var gotPath, gotMethod, gotContentType string
+func TestClient_ImportCertificate(t *testing.T) {
+	var gotPath, gotQuery, gotMethod, gotContentType string
 	var gotBody []byte
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
+		gotQuery = r.URL.RawQuery
 		gotMethod = r.Method
 		gotContentType = r.Header.Get("Content-Type")
 		body, err := io.ReadAll(r.Body)
@@ -34,9 +35,9 @@ func TestClient_PutCertificate(t *testing.T) {
 
 	client := New(http.DefaultClient, server.URL)
 
-	err := client.PutCertificate(context.Background(), "mycertificate", []byte(testCertificatePEM))
+	err := client.ImportCertificate(context.Background(), "mycertificate", []byte(testCertificatePEM))
 	if err != nil {
-		t.Fatalf("PutCertificate() error: %v", err)
+		t.Fatalf("ImportCertificate() error: %v", err)
 	}
 
 	if gotMethod != http.MethodPut {
@@ -48,6 +49,11 @@ func TestClient_PutCertificate(t *testing.T) {
 	if gotPath != wantPath {
 		t.Errorf("path = %q, want %q", gotPath, wantPath)
 	}
+	// Without fingerprintVerified=true a tenant answered a self-signed
+	// certificate with 409 notImported (September 2026).
+	if gotQuery != "fingerprintVerified=true&returnKeystoreEntries=false" {
+		t.Errorf("query = %q, want the fingerprint confirmation without update=true", gotQuery)
+	}
 	if gotContentType != "application/pkix-cert" {
 		t.Errorf("Content-Type = %q, want application/pkix-cert", gotContentType)
 	}
@@ -56,7 +62,7 @@ func TestClient_PutCertificate(t *testing.T) {
 	}
 }
 
-func TestClient_PutCertificate_Conflict(t *testing.T) {
+func TestClient_ImportCertificate_Conflict(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusConflict)
 		_, _ = w.Write([]byte(`{"error": {"code": "409", "message": {"value": "Conflict"}}}`))
@@ -65,13 +71,13 @@ func TestClient_PutCertificate_Conflict(t *testing.T) {
 
 	client := New(http.DefaultClient, server.URL)
 
-	err := client.PutCertificate(context.Background(), "dup", []byte(testCertificatePEM))
+	err := client.ImportCertificate(context.Background(), "dup", []byte(testCertificatePEM))
 	if err == nil {
-		t.Fatal("PutCertificate() error = nil, want an error for a 409 response")
+		t.Fatal("ImportCertificate() error = nil, want an error for a 409 response")
 	}
 }
 
-func TestClient_PutCertificate_Forbidden(t *testing.T) {
+func TestClient_ImportCertificate_Forbidden(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
 		_, _ = w.Write([]byte(`{"error": {"code": "403", "message": {"value": "Forbidden - SAP-owned entry"}}}`))
@@ -80,9 +86,9 @@ func TestClient_PutCertificate_Forbidden(t *testing.T) {
 
 	client := New(http.DefaultClient, server.URL)
 
-	err := client.PutCertificate(context.Background(), "sap_owned", []byte(testCertificatePEM))
+	err := client.ImportCertificate(context.Background(), "sap_owned", []byte(testCertificatePEM))
 	if err == nil {
-		t.Fatal("PutCertificate() error = nil, want an error for a 403 response")
+		t.Fatal("ImportCertificate() error = nil, want an error for a 403 response")
 	}
 }
 
@@ -124,5 +130,30 @@ func TestClient_GetCertificate_NotFound(t *testing.T) {
 
 	if _, err := client.GetCertificate(context.Background(), "missing"); err == nil {
 		t.Fatal("GetCertificate() error = nil, want an error for a 404 response")
+	}
+}
+
+// Replacing the certificate of an existing alias answered 400 "Entry with
+// alias ... already exists" on a tenant unless update=true was sent.
+func TestClient_UpdateCertificate(t *testing.T) {
+	var gotPath, gotQuery string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotQuery = r.URL.RawQuery
+		if r.Method != http.MethodPut {
+			t.Errorf("method = %q, want PUT", r.Method)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	if err := New(http.DefaultClient, server.URL).UpdateCertificate(context.Background(), "mycertificate", []byte(testCertificatePEM)); err != nil {
+		t.Fatalf("UpdateCertificate() error: %v", err)
+	}
+	if want := "/api/v1/CertificateResources('6d796365727469666963617465')/$value"; gotPath != want {
+		t.Errorf("path = %q, want %q", gotPath, want)
+	}
+	if gotQuery != "fingerprintVerified=true&returnKeystoreEntries=false&update=true" {
+		t.Errorf("query = %q, want the fingerprint confirmation with update=true", gotQuery)
 	}
 }

@@ -41,9 +41,13 @@ func (r *certificateResource) Schema(_ context.Context, _ resource.SchemaRequest
 	resp.Schema = schema.Schema{
 		Description: "Manages a trusted X.509 certificate (keystore entry) in the tenant keystore. " +
 			"Backed by the public Security Content OData V2 API: PUT " +
-			"CertificateResources('<hexalias>')/$value both imports a new certificate and updates " +
-			"an existing one, confirmed directly by SAP's own documentation, which explicitly notes " +
-			"the PUT-creates-an-entity quirk. certificate content is X.509 public certificate data, " +
+			"CertificateResources('<hexalias>')/$value imports a certificate, and the same request " +
+			"with update=true replaces the certificate of an existing alias. Both confirm the " +
+			"certificate's fingerprint (fingerprintVerified=true), which the UI asks for when you " +
+			"import a self-signed or otherwise untrusted certificate: listing a certificate here is " +
+			"the decision to trust it, so compare certificate_sha256 with the fingerprint your " +
+			"partner gave you before you apply. Creating fails if the alias already exists on the " +
+			"tenant; import it instead. certificate content is X.509 public certificate data, " +
 			"not a secret, and is never marked Sensitive — never store a private key here; SAP " +
 			"generates and retains private key material separately and this provider never " +
 			"requests or exposes it (see sapintegrationsuite_key_pair). Deleting this resource uses " +
@@ -155,7 +159,7 @@ func (r *certificateResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
-	if err := client.PutCertificate(ctx, alias, content); err != nil {
+	if err := client.ImportCertificate(ctx, alias, content); err != nil {
 		resp.Diagnostics.AddError("Failed to import SAP Integration Suite certificate", diagnosticDetail(err))
 		return
 	}
@@ -227,7 +231,7 @@ func (r *certificateResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
-	if err := client.PutCertificate(ctx, alias, content); err != nil {
+	if err := client.UpdateCertificate(ctx, alias, content); err != nil {
 		resp.Diagnostics.AddError("Failed to update SAP Integration Suite certificate", diagnosticDetail(err))
 		return
 	}

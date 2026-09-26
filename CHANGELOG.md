@@ -104,6 +104,15 @@ All notable changes to this project are documented in this file.
   as soon as SAP includes that link. The status read now leaves it out, and
   a failed deployment reports SAP's error text from
   `IntegrationRuntimeArtifacts('<id>')/ErrorInformation/$value`.
+- `sapintegrationsuite_certificate` could not import a self-signed or
+  otherwise untrusted certificate, and could not change any certificate
+  after creating it. On a tenant, SAP answered the import with `409` and
+  status `notImported` until the fingerprint was confirmed, and answered a
+  replacement with `400 Entry with alias ... already exists` unless
+  `update=true` was sent. The import now sends `fingerprintVerified=true`,
+  and an update additionally sends `update=true`. Listing a certificate in
+  the configuration is therefore the decision to trust it; compare
+  `certificate_sha256` with the fingerprint you expect.
 
 ### Added
 
