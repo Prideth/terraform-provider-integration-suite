@@ -47,7 +47,9 @@ All notable changes to this project are documented in this file.
   because the credential existed. The Security Content creates (OAuth2 and
   user credentials) and the Partner Directory creates now read the entry
   back when the response has no body, and other creates report an empty
-  response clearly instead of a JSON parse error.
+  response clearly instead of a JSON parse error. Access policy creates do
+  the same: a policy is found by its role name, a reference by its content
+  in the policy's reference list, since SAP assigns both IDs.
 - Updating a `sapintegrationsuite_number_range` without changing
   `current_value_wo_version` failed on a real tenant. The update left out
   `CurrentValue` to avoid resetting the counter, but SAP rejects a PUT

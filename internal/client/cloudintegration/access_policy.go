@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	v2 "github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/odata/v2"
 )
@@ -122,6 +123,18 @@ func (c *Client) CreateAccessPolicy(ctx context.Context, policy AccessPolicy) (*
 	body, err := c.odata.Post(ctx, accessPoliciesEntitySet, payload)
 	if err != nil {
 		return nil, err
+	}
+	// Other Cloud Integration entity sets answer writes with 202 and no body.
+	// SAP assigns the ID, so find the new policy by its unique role name.
+	if v2.EmptyBody(body) {
+		found, err := c.FindAccessPolicyByRoleName(ctx, policy.RoleName)
+		if err != nil {
+			return nil, err
+		}
+		if found == nil {
+			return nil, fmt.Errorf("cloudintegration: SAP accepted the access policy %q but it cannot be found", policy.RoleName)
+		}
+		return found, nil
 	}
 
 	var created AccessPolicy
@@ -246,12 +259,44 @@ func (c *Client) CreateAccessPolicyReference(ctx context.Context, policyID strin
 	if err != nil {
 		return nil, err
 	}
+	// Without a response body the new reference is found in the policy's
+	// list: the one with the same content and the highest ID.
+	if v2.EmptyBody(body) {
+		return c.findCreatedReference(ctx, policyID, ref)
+	}
 
 	var created AccessPolicyReference
 	if err := v2.DecodeEntity(body, &created); err != nil {
 		return nil, err
 	}
 	return &created, nil
+}
+
+func (c *Client) findCreatedReference(ctx context.Context, policyID string, want AccessPolicyReference) (*AccessPolicyReference, error) {
+	refs, err := c.ListAccessPolicyReferences(ctx, policyID)
+	if err != nil {
+		return nil, err
+	}
+	var best *AccessPolicyReference
+	var bestID int64 = -1
+	for i := range refs {
+		r := refs[i]
+		if r.Name != want.Name || r.Type != want.Type || r.ConditionAttribute != want.ConditionAttribute ||
+			r.ConditionType != want.ConditionType || r.ConditionValue != want.ConditionValue {
+			continue
+		}
+		id, err := strconv.ParseInt(r.ID, 10, 64)
+		if err != nil {
+			continue
+		}
+		if id > bestID {
+			bestID, best = id, &refs[i]
+		}
+	}
+	if best == nil {
+		return nil, fmt.Errorf("cloudintegration: SAP accepted the artifact reference %q but it cannot be found in access policy %s", want.Name, policyID)
+	}
+	return best, nil
 }
 
 // DeleteAccessPolicyReference removes a single artifact reference.

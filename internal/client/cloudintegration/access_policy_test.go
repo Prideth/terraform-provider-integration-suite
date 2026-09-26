@@ -299,3 +299,59 @@ func TestClient_ListAccessPolicyRuntimeAssignments_RejectsNonNumericID(t *testin
 		t.Error("expected an error for a non-numeric policy ID")
 	}
 }
+
+// Other Cloud Integration entity sets answer creates with 202 and no body. If
+// AccessPolicies does the same, the new policy must be found by its role
+// name, since SAP assigns the ID.
+func TestCreateAccessPolicy_FindsPolicyAfterEmptyResponse(t *testing.T) {
+	var gotFilter string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			w.WriteHeader(http.StatusAccepted)
+			return
+		}
+		gotFilter = r.URL.Query().Get("$filter")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"d":{"results":[{"Id":"7","RoleName":"MyRole","Description":"d"}]}}`))
+	}))
+	defer server.Close()
+
+	created, err := New(http.DefaultClient, server.URL).CreateAccessPolicy(context.Background(), AccessPolicy{RoleName: "MyRole", Description: "d"})
+	if err != nil {
+		t.Fatalf("CreateAccessPolicy() error: %v", err)
+	}
+	if created.ID != "7" {
+		t.Errorf("ID = %q, want 7", created.ID)
+	}
+	if gotFilter != "RoleName eq 'MyRole'" {
+		t.Errorf("$filter = %q, want the role name lookup", gotFilter)
+	}
+}
+
+func TestCreateAccessPolicyReference_FindsReferenceAfterEmptyResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			w.WriteHeader(http.StatusAccepted)
+			return
+		}
+		if r.URL.Path != "/api/v1/AccessPolicies(7L)/ArtifactReferences" {
+			t.Errorf("path = %q, want the policy's reference list", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"d":{"results":[
+			{"Id":"3","Name":"flows","Type":"INTEGRATION_FLOW","ConditionAttribute":"Name","ConditionType":"exactString","ConditionValue":"A"},
+			{"Id":"9","Name":"flows","Type":"INTEGRATION_FLOW","ConditionAttribute":"Name","ConditionType":"exactString","ConditionValue":"A"},
+			{"Id":"12","Name":"other","Type":"INTEGRATION_FLOW","ConditionAttribute":"Name","ConditionType":"exactString","ConditionValue":"B"}]}}`))
+	}))
+	defer server.Close()
+
+	created, err := New(http.DefaultClient, server.URL).CreateAccessPolicyReference(context.Background(), "7", AccessPolicyReference{
+		Name: "flows", Type: "INTEGRATION_FLOW", ConditionAttribute: "Name", ConditionType: "exactString", ConditionValue: "A",
+	})
+	if err != nil {
+		t.Fatalf("CreateAccessPolicyReference() error: %v", err)
+	}
+	if created.ID != "9" {
+		t.Errorf("ID = %q, want 9, the newest matching reference", created.ID)
+	}
+}
