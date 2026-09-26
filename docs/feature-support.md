@@ -227,6 +227,7 @@ Grouped by why, not just that. A feature can be `partial` and reachable via one 
   - Update is implemented as a full PUT redeploy, matching SAP's documented "Edit" action for Credentials artifacts, and resends password_wo on every apply that touches this resource (SAP documents re-entering the secret on every edit for the sibling OAuth2 Client Credentials artifact; this provider assumes the same requirement here since it could not find a documented exception for User Credentials).
   - The Kind and CompanyId field names are corroborated by a documented third-party example payload, not by this project's own inspection of a live tenant's OData $metadata; verify against your tenant before relying on kind="SuccessFactors"/"OpenConnectors" in production. See docs/guides/security-content.md.
   - Deployment status (SAP's UI shows Stored/Deployed/Error) is not exposed: this project could not confirm the OData property name for it, and would rather omit a computed attribute than expose one that is silently always empty.
+  - Verified on a tenant (September 2026): SAP rejects a create without Kind ("must not be empty or null") or with Description null, and reports a generic credential's kind as "default". kind therefore defaults to "default", and Kind, Description and CompanyId are always sent. Create, read, update (PUT) and delete were exercised.
 
 ### Public lifecycle insufficient for safe Terraform management
 
@@ -257,6 +258,7 @@ Grouped by why, not just that. A feature can be `partial` and reachable via one 
 - **`partner_directory.partner`** — A Partner ID (Pid) known to the tenant's Partner Directory.
   - No resource: SAP's API reads all partners and deletes a partner, but has no create operation. A Pid comes into existence implicitly the first time a StringParameter, BinaryParameter, AlternativePartner, AuthorizedUser, or UserCredentialParameter references it.
   - Deleting a partner removes the partner and all its entities (SAP's Delete Partner description). A Partner resource's destroy could therefore erase content owned by other Terraform resources or modules, which is the other reason this stays read-only.
+  - SAP refuses to read a single partner by key ("Reading of single partner entities is not supported", tenant test September 2026); the data source filters the collection by Pid instead. A partner exists only while it has entries: after its last entry is deleted, DELETE Partners('<pid>') answers 404.
 - **`security.key_pair`** — An SAP-generated key pair keystore entry (private key plus X.509 certificate), as opposed to one uploaded from outside the tenant. (partial support already implemented — see Limitations below)
   - Create confirmed field-for-field via SAP's own "Generate a Key Pair" documentation: POST KeyPairGenerationRequests. The private key never leaves SAP — this resource has no field for it and never requests one.
   - No update operation is documented for a generated key pair: every attribute that defines the generated key material is RequiresReplace.

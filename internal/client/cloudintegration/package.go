@@ -8,6 +8,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
+	"strings"
 
 	v2 "github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/odata/v2"
 )
@@ -46,9 +48,10 @@ func (c *Client) GetPackage(ctx context.Context, id string) (*Package, error) {
 	return &pkg, nil
 }
 
-// CreatePackage creates a new integration package.
+// CreatePackage creates a new integration package. ShortText is required by
+// SAP.
 func (c *Client) CreatePackage(ctx context.Context, pkg Package) (*Package, error) {
-	payload, err := json.Marshal(pkg)
+	payload, err := json.Marshal(packageWriteRequest{ID: pkg.ID, Name: pkg.Name, Description: pkg.Description, ShortText: pkg.ShortText})
 	if err != nil {
 		return nil, fmt.Errorf("cloudintegration: encoding package: %w", err)
 	}
@@ -65,21 +68,46 @@ func (c *Client) CreatePackage(ctx context.Context, pkg Package) (*Package, erro
 	return &created, nil
 }
 
-// UpdatePackage updates the mutable fields of an existing integration
-// package (SAP only supports updating a subset of fields; the package ID is
-// immutable). This uses PATCH rather than PUT: Terraform's schema only ever
-// supplies name/description, and a PUT's full-replace semantics would risk
-// resetting fields the schema does not track (ShortText, Vendor, Mode, ...)
-// to their defaults.
+// packageWriteRequest is the body of create and update. A tenant test
+// (September 2026) settled it: create without ShortText fails with
+// "Property 'ShortText' cannot be empty", and {Id, Name, Description,
+// ShortText} is accepted by both POST (201) and PUT (202).
+type packageWriteRequest struct {
+	ID          string `json:"Id"`
+	Name        string `json:"Name"`
+	Description string `json:"Description"`
+	ShortText   string `json:"ShortText"`
+}
+
+// UpdatePackage changes an integration package's name, description and short
+// text. The same tenant test showed that PATCH answers 501 Not Implemented
+// and PUT answers 202 with the change read back, so this is a PUT. The
+// package ID is immutable.
 func (c *Client) UpdatePackage(ctx context.Context, id string, pkg Package) error {
-	payload, err := json.Marshal(pkg)
+	payload, err := json.Marshal(packageWriteRequest{ID: id, Name: pkg.Name, Description: pkg.Description, ShortText: pkg.ShortText})
 	if err != nil {
 		return fmt.Errorf("cloudintegration: encoding package: %w", err)
 	}
 
 	path := v2.BuildPath(integrationPackagesEntitySet, v2.KeyPredicate(id), "")
-	_, err = c.odata.Patch(ctx, path, payload)
+	_, err = c.odata.Put(ctx, path, payload)
 	return err
+}
+
+// PlainDescription undoes the HTML wrapping SAP applies to package
+// descriptions: a tenant stored "tf-acc probe" and returned
+// "<p>tf-acc probe</p>", and an empty description as "<p></p>". A single
+// surrounding paragraph without further markup is removed and its entities
+// decoded; any other value is returned unchanged.
+func PlainDescription(s string) string {
+	if !strings.HasPrefix(s, "<p>") || !strings.HasSuffix(s, "</p>") {
+		return s
+	}
+	inner := s[len("<p>") : len(s)-len("</p>")]
+	if strings.ContainsAny(inner, "<>") {
+		return s
+	}
+	return html.UnescapeString(inner)
 }
 
 // DeletePackage deletes an integration package. A 404 is returned to the

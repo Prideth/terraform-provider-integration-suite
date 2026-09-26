@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -77,12 +78,15 @@ func (r *userCredentialResource) Schema(_ context.Context, _ resource.SchemaRequ
 			},
 			"kind": schema.StringAttribute{
 				Optional: true,
+				Computed: true,
+				Default:  stringdefault.StaticString(securitycontent.DefaultUserCredentialKind),
 				Description: "The credential's system-specific type, as selected by SAP's \"Type\" " +
-					"UI field: unset (or empty) for a generic Basic/username-token credential, " +
-					"\"SuccessFactors\", or \"OpenConnectors\". Immutable: SAP's UI does not document " +
-					"changing an artifact's kind via Edit, only via delete and recreate, and this " +
-					"provider is conservative about a field that changes which other fields (for " +
-					"example company_id) are meaningful.",
+					"UI field: \"default\" (the default) for a generic Basic/username-token " +
+					"credential, \"SuccessFactors\", or \"OpenConnectors\". SAP rejects a credential " +
+					"without a kind and reports a generic one as \"default\". Immutable: SAP's UI " +
+					"does not document changing an artifact's kind via Edit, only via delete and " +
+					"recreate, and this provider is conservative about a field that changes which " +
+					"other fields (for example company_id) are meaningful.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},

@@ -28,6 +28,7 @@ type integrationPackageModel struct {
 	ID          types.String `tfsdk:"id"`
 	Name        types.String `tfsdk:"name"`
 	Description types.String `tfsdk:"description"`
+	ShortText   types.String `tfsdk:"short_text"`
 	Version     types.String `tfsdk:"version"`
 }
 
@@ -53,8 +54,15 @@ func (r *integrationPackageResource) Schema(_ context.Context, _ resource.Schema
 				Description: "The package's display name.",
 			},
 			"description": schema.StringAttribute{
-				Optional:    true,
-				Description: "A free-text description of the package.",
+				Optional: true,
+				Description: "A free-text description of the package. SAP stores it as HTML and wraps " +
+					"plain text in a paragraph (<p>...</p>); the provider removes that wrapper when " +
+					"reading, so a plain-text value round-trips unchanged.",
+			},
+			"short_text": schema.StringAttribute{
+				Required: true,
+				Description: "The package's short description, shown in the package list. Required by " +
+					"SAP: a create without it fails with \"Property 'ShortText' cannot be empty\".",
 			},
 			"version": schema.StringAttribute{
 				Computed:    true,
@@ -93,6 +101,7 @@ func (r *integrationPackageResource) Create(ctx context.Context, req resource.Cr
 		ID:          plan.ID.ValueString(),
 		Name:        plan.Name.ValueString(),
 		Description: plan.Description.ValueString(),
+		ShortText:   plan.ShortText.ValueString(),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to create SAP Integration Suite integration package", diagnosticDetail(err))
@@ -134,6 +143,7 @@ func (r *integrationPackageResource) Update(ctx context.Context, req resource.Up
 		ID:          plan.ID.ValueString(),
 		Name:        plan.Name.ValueString(),
 		Description: plan.Description.ValueString(),
+		ShortText:   plan.ShortText.ValueString(),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to update SAP Integration Suite integration package", diagnosticDetail(err))
@@ -174,7 +184,8 @@ func packageToModel(pkg *cloudintegration.Package) integrationPackageModel {
 	return integrationPackageModel{
 		ID:          types.StringValue(pkg.ID),
 		Name:        types.StringValue(pkg.Name),
-		Description: stringOrNull(pkg.Description),
+		Description: stringOrNull(cloudintegration.PlainDescription(pkg.Description)),
+		ShortText:   stringOrNull(pkg.ShortText),
 		Version:     types.StringValue(pkg.Version),
 	}
 }

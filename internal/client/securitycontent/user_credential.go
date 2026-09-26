@@ -46,11 +46,11 @@ type UserCredential struct {
 // password out of an API response into it.
 type userCredentialWriteRequest struct {
 	Name        string `json:"Name"`
-	Kind        string `json:"Kind,omitempty"`
-	Description string `json:"Description,omitempty"`
+	Kind        string `json:"Kind"`
+	Description string `json:"Description"`
 	User        string `json:"User"`
 	Password    string `json:"Password"`
-	CompanyID   string `json:"CompanyId,omitempty"`
+	CompanyID   string `json:"CompanyId"`
 }
 
 func userCredentialPath(name string) string {
@@ -79,7 +79,7 @@ func (c *Client) GetUserCredential(ctx context.Context, name string) (*UserCrede
 func (c *Client) CreateUserCredential(ctx context.Context, cred UserCredential, password string) (*UserCredential, error) {
 	payload, err := json.Marshal(userCredentialWriteRequest{ //nolint:gosec // G117: this deliberately marshals the password into the request body sent to SAP's Create API -- that is the whole purpose of this call, not a leak; see the write-only handling in resource_user_credential.go for why it never reaches Terraform state or a log line
 		Name:        cred.Name,
-		Kind:        cred.Kind,
+		Kind:        credentialKind(cred.Kind),
 		Description: cred.Description,
 		User:        cred.User,
 		Password:    password,
@@ -125,7 +125,7 @@ func (c *Client) CreateUserCredential(ctx context.Context, cred UserCredential, 
 func (c *Client) UpdateUserCredential(ctx context.Context, cred UserCredential, password string) error {
 	payload, err := json.Marshal(userCredentialWriteRequest{ //nolint:gosec // G117: deliberately marshals the password into the redeploy request body, the same documented Create-time requirement — see CreateUserCredential above
 		Name:        cred.Name,
-		Kind:        cred.Kind,
+		Kind:        credentialKind(cred.Kind),
 		Description: cred.Description,
 		User:        cred.User,
 		Password:    password,
@@ -142,4 +142,20 @@ func (c *Client) UpdateUserCredential(ctx context.Context, cred UserCredential, 
 // DeleteUserCredential deletes a user credential artifact by its Name.
 func (c *Client) DeleteUserCredential(ctx context.Context, name string) error {
 	return c.odata.Delete(ctx, userCredentialPath(name))
+}
+
+// DefaultUserCredentialKind is the Kind of a generic basic/username-token
+// credential, the value a tenant returned for one (September 2026).
+const DefaultUserCredentialKind = "default"
+
+// credentialKind fills in the default Kind. A tenant rejected a create
+// without Kind ("Property 'Kind' must not be empty or null") and one with
+// Description null ("Property 'Description' must not be null"); with Kind
+// "default" and every property present, even as an empty string, create
+// answered 202 and a PUT update 202.
+func credentialKind(kind string) string {
+	if kind == "" {
+		return DefaultUserCredentialKind
+	}
+	return kind
 }

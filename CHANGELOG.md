@@ -53,6 +53,20 @@ All notable changes to this project are documented in this file.
   without it (500, nothing changed). The update now reads the live counter
   right before the PUT and sends it back unchanged. Names with hyphens,
   which SAP also rejects with a 500, are refused at plan time.
+- **Breaking:** `sapintegrationsuite_integration_package` has a new required
+  `short_text`. Creating a package failed on a real tenant because SAP
+  requires it ("Property 'ShortText' cannot be empty"), and updating one
+  failed because SAP answers PATCH with 501; updates now use PUT. SAP stores
+  the description as HTML and wraps plain text in `<p>...</p>`; the provider
+  removes that wrapper when reading, so plain descriptions no longer show
+  as drift. The package data source returns `short_text` as well.
+- Creating a `sapintegrationsuite_user_credential` without `kind` failed on
+  a real tenant: SAP requires `Kind` and a non-null `Description`. `kind`
+  now defaults to `default`, the value SAP reports for a generic
+  credential, and `Kind`, `Description` and `CompanyId` are always sent.
+- `data.sapintegrationsuite_partner` failed on every real tenant: SAP does
+  not support reading a single partner by key. It now filters the partner
+  list by Pid.
 - The size check for `sapintegrationsuite_partner_binary_parameter` allows
   values up to 1,572,864 bytes, the `MaxLength` the tenant `$metadata`
   declares for `BinaryParameter.Value`, instead of 260 KB. Older SAP pages

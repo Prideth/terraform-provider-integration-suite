@@ -16,6 +16,7 @@ Manages a Cloud Integration package: the container for integration flows, value 
 resource "sapintegrationsuite_integration_package" "utilities" {
   id          = "UTILITIES"
   name        = "Utilities Integration"
+  short_text  = "Utilities integration content"
   description = "Integration content for the utilities line of business"
 }
 ```
@@ -27,10 +28,11 @@ resource "sapintegrationsuite_integration_package" "utilities" {
 
 - `id` (String) The package's technical ID. Immutable: changing it replaces the package.
 - `name` (String) The package's display name.
+- `short_text` (String) The package's short description, shown in the package list. Required by SAP: a create without it fails with "Property 'ShortText' cannot be empty".
 
 ### Optional
 
-- `description` (String) A free-text description of the package.
+- `description` (String) A free-text description of the package. SAP stores it as HTML and wraps plain text in a paragraph (<p>...</p>); the provider removes that wrapper when reading, so a plain-text value round-trips unchanged.
 
 ### Read-Only
 

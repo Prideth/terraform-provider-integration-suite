@@ -1,6 +1,7 @@
 resource "sapintegrationsuite_integration_package" "adapters" {
-  id   = "CUSTOM_ADAPTERS"
-  name = "Custom Adapters"
+  id         = "CUSTOM_ADAPTERS"
+  name       = "Custom Adapters"
+  short_text = "Custom adapters"
 }
 
 resource "sapintegrationsuite_integration_adapter" "sftp_extension" {

@@ -31,6 +31,7 @@ output "utilities_package_name" {
 
 ### Read-Only
 
-- `description` (String) A free-text description of the package.
+- `description` (String) A free-text description of the package, without the paragraph SAP wraps plain text in.
 - `name` (String) The package's display name.
+- `short_text` (String) The package's short description.
 - `version` (String) The package version reported by SAP.

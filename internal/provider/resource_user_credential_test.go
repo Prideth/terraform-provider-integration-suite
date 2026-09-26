@@ -28,7 +28,7 @@ func TestUserCredentialResource_SchemaRequiredComputed(t *testing.T) {
 		required, computed bool
 	}{
 		{"id", true, false},
-		{"kind", false, false},
+		{"kind", false, true},
 		{"description", false, false},
 		{"user", true, false},
 		{"company_id", false, false},

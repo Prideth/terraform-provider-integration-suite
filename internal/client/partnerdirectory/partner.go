@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/apierror"
 	v2 "github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/odata/v2"
 )
 
@@ -12,7 +13,7 @@ const partnersEntitySet = "Partners"
 // Partner is the wire representation of a Partners entity: the read-only
 // view of one Partner ID (Pid) known to the Partner Directory.
 //
-// Partners has no confirmed public create operation: a Pid comes into
+// Partners has no public create operation: a Pid comes into
 // existence implicitly the first time a caller creates a child entity
 // (a StringParameter, BinaryParameter, AlternativePartner, AuthorizedUser,
 // or UserCredentialParameter) referencing it, and SAP's own documentation
@@ -30,22 +31,30 @@ type Partner struct {
 	Pid string `json:"Pid"`
 }
 
-// GetPartner reads a single partner by its Pid. This only confirms the Pid
-// is known to the Partner Directory; Partners carries no other documented
-// properties.
+// GetPartner looks up a single partner by its Pid. This only confirms the
+// Pid is known to the Partner Directory; Partners carries no other
+// properties. SAP refuses a read by key ("Reading of single partner
+// entities is not supported", 400, tenant test September 2026), so the
+// lookup filters the collection by Pid, which the same test answered with
+// 200. A Pid with no entries is reported as a 404 *apierror.Error.
 func (c *Client) GetPartner(ctx context.Context, pid string) (*Partner, error) {
-	path := v2.BuildPath(partnersEntitySet, v2.KeyPredicate(pid), "")
+	query := v2.Query{Filter: v2.FilterEquals("Pid", pid)}.Encode()
 
-	body, err := c.odata.Get(ctx, path)
+	body, err := c.odata.Get(ctx, v2.BuildPath(partnersEntitySet, "", query))
 	if err != nil {
 		return nil, err
 	}
 
-	var p Partner
-	if err := v2.DecodeEntity(body, &p); err != nil {
+	var partners []Partner
+	if err := v2.DecodeCollection(body, &partners); err != nil {
 		return nil, err
 	}
-	return &p, nil
+	for i := range partners {
+		if partners[i].Pid == pid {
+			return &partners[i], nil
+		}
+	}
+	return nil, &apierror.Error{StatusCode: 404, Message: "partner " + pid + " is not in the Partner Directory"}
 }
 
 // ListPartners returns every partner ID known to the Partner Directory,

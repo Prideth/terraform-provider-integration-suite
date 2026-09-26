@@ -97,6 +97,10 @@ var Catalog = []Feature{
 		APIProtocol:     "OData V2",
 		Limitations: []string{
 			"Metadata update only applies to customer-created packages; SAP-provided packages are read-only by SAP's own design, not a provider limitation.",
+			"Verified on a tenant (September 2026): create needs ShortText (\"Property 'ShortText' " +
+				"cannot be empty\"), so short_text is required; an update is a PUT, because PATCH " +
+				"answers 501; SAP stores the description as HTML and wraps plain text in <p>...</p>, " +
+				"which the provider removes when reading.",
 		},
 		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},
 	},
@@ -724,6 +728,10 @@ var Catalog = []Feature{
 			"Deployment status (SAP's UI shows Stored/Deployed/Error) is not exposed: this project could " +
 				"not confirm the OData property name for it, and would rather omit a computed attribute " +
 				"than expose one that is silently always empty.",
+			"Verified on a tenant (September 2026): SAP rejects a create without Kind (\"must not " +
+				"be empty or null\") or with Description null, and reports a generic credential's kind " +
+				"as \"default\". kind therefore defaults to \"default\", and Kind, Description and " +
+				"CompanyId are always sent. Create, read, update (PUT) and delete were exercised.",
 		},
 		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},
 	},
@@ -1051,6 +1059,10 @@ var Catalog = []Feature{
 			"Deleting a partner removes the partner and all its entities (SAP's Delete Partner " +
 				"description). A Partner resource's destroy could therefore erase content owned by " +
 				"other Terraform resources or modules, which is the other reason this stays read-only.",
+			"SAP refuses to read a single partner by key (\"Reading of single partner entities is " +
+				"not supported\", tenant test September 2026); the data source filters the collection " +
+				"by Pid instead. A partner exists only while it has entries: after its last entry is " +
+				"deleted, DELETE Partners('<pid>') answers 404.",
 		},
 		Operations: Operations{Read: true},
 	},

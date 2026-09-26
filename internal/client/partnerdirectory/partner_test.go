@@ -2,20 +2,24 @@ package partnerdirectory
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/apierror"
 )
 
+// SAP refuses a read of Partners by key (400, tenant test September 2026),
+// so GetPartner filters the collection by Pid.
 func TestClient_GetPartner(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		want := "/api/v1/Partners('PartnerZ')"
-		if r.URL.Path != want {
-			t.Errorf("path = %q, want %q", r.URL.Path, want)
+		if r.URL.Path != "/api/v1/Partners" || r.URL.Query().Get("$filter") != "Pid eq 'PartnerZ'" {
+			t.Errorf("request = %s?%s, want a $filter on Pid", r.URL.Path, r.URL.RawQuery)
 		}
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"d": {"Pid": "PartnerZ"}}`))
+		_, _ = w.Write([]byte(`{"d": {"results": [{"Pid": "PartnerZ"}]}}`))
 	}))
 	defer server.Close()
 
@@ -70,5 +74,19 @@ func TestClient_ListPartners_FollowsPagination(t *testing.T) {
 	}
 	if requests != 2 {
 		t.Errorf("expected 2 requests across pages, got %d", requests)
+	}
+}
+
+// An empty filter result is a missing partner, reported as a 404.
+func TestClient_GetPartner_EmptyResultIsNotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"d": {"results": []}}`))
+	}))
+	defer server.Close()
+
+	_, err := New(http.DefaultClient, server.URL).GetPartner(context.Background(), "Missing")
+	var apiErr *apierror.Error
+	if !errors.As(err, &apiErr) || !apiErr.IsNotFound() {
+		t.Fatalf("error = %v, want a 404 apierror.Error", err)
 	}
 }

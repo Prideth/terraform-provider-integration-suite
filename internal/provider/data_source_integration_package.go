@@ -37,7 +37,11 @@ func (d *integrationPackageDataSource) Schema(_ context.Context, _ datasource.Sc
 			},
 			"description": schema.StringAttribute{
 				Computed:    true,
-				Description: "A free-text description of the package.",
+				Description: "A free-text description of the package, without the paragraph SAP wraps plain text in.",
+			},
+			"short_text": schema.StringAttribute{
+				Computed:    true,
+				Description: "The package's short description.",
 			},
 			"version": schema.StringAttribute{
 				Computed:    true,

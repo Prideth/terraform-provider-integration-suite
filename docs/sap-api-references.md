@@ -1739,6 +1739,17 @@ hyphens in the name are rejected. A `PUT` that set `CurrentValue` to 5 succeeded
 as 5); a following `PUT` without `CurrentValue` failed with a bodiless `500` and changed nothing
 (counter and description as before), so an update must always carry the counter.
 
+A further write test (September 2026), with SAP's error messages captured, found three more
+contract gaps and confirmed the Partner Directory writes:
+
+| Entity set | Finding |
+|---|---|
+| `IntegrationPackages` | `POST` without `ShortText`: `400` "Property 'ShortText' cannot be empty"; with it `201`. `PATCH`: `501` "Not implemented"; `PUT` of `{Id, Name, Description, ShortText}`: `202`. `Description` is returned as HTML (`<p>text</p>`, empty as `<p></p>`). |
+| `UserCredentials` | `POST` without `Kind`: `500` "Property 'Kind' must not be empty or null"; with `Kind` but without `Description`: `500` "Property 'Description' must not be null"; with `Kind` `default`, `Description` and `CompanyId` `""`: `202`. Read returns `Kind` `default`. `PUT` update `202`. |
+| `OAuth2ClientCredentials` | `PUT` update with the secret resent: `202`. |
+| `Partners` | Read by key: `400` "Reading of single partner entitities is not supported"; collection and `$filter=Pid eq '<pid>'`: `200`. `DELETE Partners('<pid>')` after the partner's last entry was deleted: `404` "Partner not found". |
+| `StringParameters`, `BinaryParameters`, `AlternativePartners` (hex key), `AuthorizedUsers`, `UserCredentialParameters` | Create `201`, read `200`, `PUT` update (for credential parameters a second `POST`) `204`/`201`, delete `204`; repointing an alternative partner or authorized user to another Pid with `PUT {Pid}` works. |
+
 On the API portal, a key with `APIPortal.Administrator` read `APIProviders`, `APIProxies`,
 `APIProducts`, `CertificateStoreReferences`, `GenericKeyMapEntries` and `VirtualHosts` (200),
 while `Configuration.svc` and its `VirtualHostRequests` answered 403: virtual host changes need
