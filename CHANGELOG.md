@@ -155,6 +155,15 @@ All notable changes to this project are documented in this file.
   resource; the entry explains why. API Composition's protocol is recorded
   as OData V4, and the Classic API Proxy entry names the official Transport
   APIs listed on the Business Accelerator Hub.
+- The Classic API Management client is checked against an API portal's
+  `Management.svc/$metadata` by a contract test; every property and key it
+  uses exists. The same document confirms the virtual host read schema,
+  which the catalog listed as the gap, and the API proxy entity. Seven
+  entity sets the catalog did not cover yet (certificate stores and
+  certificates, applications and developers, key value maps across proxies,
+  cache resources, rate plans, policy templates, product access control)
+  have catalog entries with what the `$metadata` and the Business
+  Accelerator Hub say about them.
 - Trading Partner Management, Integration Advisor and Migration Assessment
   were re-audited against the current documentation and the complete
   Business Accelerator Hub package list. Their classification is unchanged;

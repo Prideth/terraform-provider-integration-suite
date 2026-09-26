@@ -173,6 +173,11 @@ curl -H "Authorization: Bearer <token>" \
 ```
 
 Add `.specs/` to `.git/info/exclude`, then run `go test ./internal/client/...`.
+The Classic API Management client is checked the same way against the API
+portal's `/apiportal/api/1.0/Management.svc/$metadata`, stored as
+`.specs/apim-management-metadata.xml` (or named by
+`SAP_API_PORTAL_METADATA_FILE`); it needs a service key of plan
+`apiportal-apiaccess`.
 The helper also honors `SAP_INTEGRATION_SUITE_METADATA_FILE`. Without a
 document the contract tests skip, which is why CI stays green without tenant
 access. A skipped contract test is not evidence, so mention in the PR

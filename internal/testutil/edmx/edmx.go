@@ -145,13 +145,22 @@ func unqualified(name string) string {
 // .specs/cloudintegration-metadata.xml in the working directory and its parents.
 func Load(t *testing.T) *Model {
 	t.Helper()
+	return LoadFrom(t, EnvMetadataFile, defaultRelativePath)
+}
 
-	path := os.Getenv(EnvMetadataFile)
+// LoadFrom is Load for another service's $metadata document: it reads the
+// file named by the environment variable env, or rel (a path relative to
+// the working directory or one of its parents), and skips the test when
+// neither exists.
+func LoadFrom(t *testing.T, env, rel string) *Model {
+	t.Helper()
+
+	path := os.Getenv(env)
 	if path == "" {
-		path = findUpwards(defaultRelativePath)
+		path = findUpwards(rel)
 	}
 	if path == "" {
-		t.Skipf("no $metadata document found; set %s or place it at %s", EnvMetadataFile, defaultRelativePath)
+		t.Skipf("no $metadata document found; set %s or place it at %s", env, rel)
 	}
 
 	data, err := os.ReadFile(path) //nolint:gosec // G304: path comes from the developer's own environment

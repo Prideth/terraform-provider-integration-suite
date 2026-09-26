@@ -60,7 +60,7 @@ items below still say "waiting for a tenant check".
 | Archiving (Cloud Integration, B2B) | New catalog entry, no resource | Activation is a one-way function import without deactivation; per-flow settings are UI-only |
 | Edge Integration Cell | Experimental | `runtime_location_id` on deployments, credentials, certificates, key pairs and Partner Directory resources, using the documented `/location/<id>/api/v1` service root |
 | Partner Directory | Supported, fixes | User credential parameters updated in place (documented POST upsert) and never overwritten on create; authorized users must be lowercase; binary parameter limit follows the `$metadata` (1.5 MiB); `runtime_location_id` kept in state |
-| Classic API Management | Unchanged, one open check | Client SDK 3.0.6 and virtual host findings; the Hub lists *API Portal - Transport (CF)* as the official ZIP import and export API |
+| Classic API Management | Contract confirmed | Client checked against the API portal's `Management.svc/$metadata` by a contract test; virtual host read schema and seven further entity sets catalogued; the Hub lists *API Portal - Transport (CF)* as the official ZIP import and export API |
 | API Composition | Experimental resource | Business data graph resource and data source; schema follows SAP's configuration file format; asynchronous processing with timeouts; the Hub lists the API as OData V4 |
 | Integration Assessment | Public API, contract unknown | Both APIs are OData per the Hub; the `$metadata` fetched with a service key would unblock Landscape Configuration |
 | Data Space Integration | Public API, contract unknown | One REST API (`DSIAPI` 2.0.0); SAP documents only consumer runtime calls; new guide |
@@ -96,7 +96,8 @@ must be numeric.
 
 | Item | Blocked on | How to close it |
 |---|---|---|
-| Classic API Management wire structs, virtual host read schema, further CF APIs (key store, trust store, applications, developers, rules, access control) | `Management.svc/$metadata` | Download `/apiportal/api/1.0/Management.svc/$metadata` with an API portal service key (plan `apiportal-apiaccess`); add a contract test |
+| Classic API Management virtual host resource | A key with `APIManagement.SelfService.Administrator` | Read schema confirmed by `Management.svc/$metadata`; the write path (`Configuration.svc/VirtualHostRequests`) returned 403 with an `APIPortal.Administrator` key |
+| Classic certificate stores, applications, key value maps across proxies, cache resources, rate plans, policy templates, product access control | Documented update and delete | Entity schemas confirmed by `Management.svc/$metadata`; the Hub describes several only as "create and view" |
 | API Proxy content upload | Transport API specification | Download *API Portal - Transport (CF)* from the Hub with an SAP login |
 | API Composition PATCH body, delete, service key fields | Configuration API `$metadata`, a live test | Service key of the `configuration` plan |
 | Integration Assessment Landscape Configuration | `EntitiesAPI` `$metadata` | Service key of *Integration Assessment APIs* |

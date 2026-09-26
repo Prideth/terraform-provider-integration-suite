@@ -1210,6 +1210,9 @@ var Catalog = []Feature{
 		APIProtocol:   "OData V2 (Management.svc/APIProxies)",
 		Planned:       true,
 		Limitations: []string{
+			"The APIProxy entity is confirmed by the Management.svc $metadata (key name; " +
+				"provider_name, state, status_code, version, revisionID, isPublished and navigations to " +
+				"endpoints, policies, resources and the API provider). Its GET returned 200 on a tenant.",
 			"The APIProxies entity set, its GET, and its DELETE are confirmed (SAP's own " +
 				"documentation and worked examples reference \"Management.svc/APIProxies\" and " +
 				"\"APIProxies('<name>')\" directly), and the proxy content bundle's ZIP structure is " +
@@ -1287,11 +1290,13 @@ var Catalog = []Feature{
 				"for an alias), isDefaultVirtualHostRequest, isForCustomDomain, keyStoreName, " +
 				"keyStoreAlias, trustStore, isClientAuthEnabled and virtualHostId. The response carries " +
 				"virtualHostId and allocationStatus.",
-			"Reading is the gap: SAP only says virtualHostId can be taken from " +
-				"Management.svc/VirtualHosts and documents none of that entity's properties (SAP's SDK " +
-				"confirms only id and isDefault). Without them the provider cannot detect drift, and " +
-				"whether allocationStatus can be anything other than COMPLETE is not documented. " +
-				"Management.svc/$metadata from an API Portal tenant would close this.",
+			"Reading is confirmed by an API Portal tenant's Management.svc $metadata (September " +
+				"2026): VirtualHosts has the key id and the properties name, virtual_host, " +
+				"virtual_port, isDefault, isSSL, isForCustomDomain, isClientAuthEnabled, keyStoreName, " +
+				"keyStoreAlias, trustStore and projectPath, which covers every field the write request " +
+				"sets. A GET with an APIPortal.Administrator key returned 200. Whether " +
+				"allocationStatus can be anything other than COMPLETE is still not documented, and the " +
+				"write path has not been exercised.",
 			"Needs a service key with the APIManagement.SelfService.Administrator role, separate from " +
 				"APIPortal.Administrator. Deletion is refused while proxies (deployed, draft or in a " +
 				"revision) reference the host or while it is the default.",
@@ -1368,6 +1373,123 @@ var Catalog = []Feature{
 				"isEncrypted = false and rejects a configuration that sets encrypted = true.",
 		},
 		Operations: Operations{Create: true, Read: true, Delete: true, Import: true},
+	},
+	{
+		Key:    "api_management.classic.certificate_store",
+		Domain: "api_management_classic",
+		Name:   "API Management Certificate Store and Certificate (Classic)",
+		Description: "Key stores and trust stores of the API Portal and the certificates in them, " +
+			"used for TLS towards backends and for virtual hosts.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonPublicAPIIncomplete,
+		PublicAPI:     true,
+		APIProtocol:   "OData V2 (Management.svc/CertificateStores, Certificates)",
+		Limitations: []string{
+			"Management.svc $metadata: CertificateStores (key name; storeType) and Certificates " +
+				"(key name and storeName; content as Edm.Binary, format, password, validity and " +
+				"issuer fields). The Business Accelerator Hub describes the KeyStore and TrustStore " +
+				"APIs as \"create and view\"; update and delete are not described, so a Terraform " +
+				"lifecycle cannot be confirmed yet. certificate_store_reference covers pointing at an " +
+				"existing store.",
+		},
+	},
+	{
+		Key:    "api_management.classic.application",
+		Domain: "api_management_classic",
+		Name:   "API Management Application and Developer (Classic)",
+		Description: "Consumer applications subscribed to API products, with their generated " +
+			"application key and secret, and the developers who own them.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonPublicAPIIncomplete,
+		PublicAPI:     true,
+		APIProtocol:   "OData V2 (Management.svc/Applications, Developers)",
+		Limitations: []string{
+			"Management.svc $metadata: Applications (key id; app_key, app_secret, callbackurl, " +
+				"status_code, validity, subscribedRatePlan, navigation to apiProducts and developer) " +
+				"and Developers (key id; emailId, firstName, lastName, country). The Hub describes the " +
+				"CF Applications API as \"view all available applications\"; creating applications " +
+				"through the API is described only for the Developer API. The generated app_secret " +
+				"would have to be kept out of state or treated as sensitive.",
+		},
+	},
+	{
+		Key:    "api_management.classic.environment_key_value_map",
+		Domain: "api_management_classic",
+		Name:   "API Management Key Value Map across API Proxies (Classic)",
+		Description: "Key value maps shared across API proxies (KeyMapEntries), as opposed to the " +
+			"generic, scoped key value maps sapintegrationsuite_api_key_value_map manages.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonPublicAPIIncomplete,
+		PublicAPI:     true,
+		APIProtocol:   "OData V2 (Management.svc/KeyMapEntries, KeyMapEntryValues)",
+		Limitations: []string{
+			"Management.svc $metadata: KeyMapEntries (key name; encrypted, scope) with " +
+				"KeyMapEntryValues (key map_name and name; value). The Hub lists \"Key Value Maps " +
+				"(CF)\" (\"create key value pairs across the API proxies\") next to the generic key " +
+				"value maps this provider implements. How the two relate, and which one SAP " +
+				"recommends, is not documented.",
+		},
+	},
+	{
+		Key:           "api_management.classic.cache_resource",
+		Domain:        "api_management_classic",
+		Name:          "API Management Cache Resource (Classic)",
+		Description:   "A named cache used by response cache and lookup cache policies.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonPublicAPIIncomplete,
+		PublicAPI:     true,
+		APIProtocol:   "OData V2 (Management.svc/CacheResources)",
+		Limitations: []string{
+			"Management.svc $metadata: CacheResources (key name; sizes, compression, overflow and " +
+				"expiry settings). The Hub documents create, view, update and delete only for the Neo " +
+				"version of this API; no Cloud Foundry version is listed.",
+		},
+	},
+	{
+		Key:           "api_management.classic.rate_plan",
+		Domain:        "api_management_classic",
+		Name:          "API Management Rate Plan (Classic)",
+		Description:   "Monetization rate plans attached to API products.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonPublicAPIIncomplete,
+		PublicAPI:     true,
+		APIProtocol:   "OData V2 (Management.svc/RatePlans)",
+		Limitations: []string{
+			"Management.svc $metadata: RatePlans (key id; rate, currency, frequency, type, " +
+				"validity, isActive, isPublished). The Hub lists only billing and metering APIs for " +
+				"monetization, no rate plan API.",
+		},
+	},
+	{
+		Key:           "api_management.classic.policy_template",
+		Domain:        "api_management_classic",
+		Name:          "API Management Policy Template (Classic)",
+		Description:   "Reusable policy templates that can be applied to API proxies.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonPublicAPIIncomplete,
+		PublicAPI:     true,
+		APIProtocol:   "OData V2 (Management.svc/PolicyTemplateContainers)",
+		Limitations: []string{
+			"Management.svc $metadata: PolicyTemplateContainers (key name; proxy and target " +
+				"endpoint XML, navigations to policies and file resources). The token scopes include " +
+				"import, export and apply for policy templates, but the Hub lists no policy template " +
+				"API and SAP Help describes only the UI.",
+		},
+	},
+	{
+		Key:           "api_management.classic.product_access_control",
+		Domain:        "api_management_classic",
+		Name:          "API Management Product Access Control (Classic)",
+		Description:   "Rules that grant user groups access to API products in the Developer Hub.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonPublicAPIIncomplete,
+		PublicAPI:     true,
+		APIProtocol:   "OData V2 (Management.svc/ACLProductLinkages)",
+		Limitations: []string{
+			"Management.svc $metadata: ACLProductLinkages (key ruleId; entityId, entityType, " +
+				"permissionSet, operation, isPublished). The Hub describes the Access Control Service " +
+				"(CF) as \"view and create rules\"; update and delete are not described.",
+		},
 	},
 
 	// --- Current API Management (API Artifacts / MCP Servers / Integration Cell) — distinct

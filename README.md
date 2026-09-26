@@ -148,9 +148,16 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | API Provider (classic API Management) | ⚠️ | Resource + Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
 | API Proxy (classic API Management) | ❌ | Planned — API details unconfirmed — see [feature-support.md](docs/feature-support.md#all-features) |
 | API Proxy Deployment (classic API Management) | ❌ | Planned — API details unconfirmed — see [feature-support.md](docs/feature-support.md#all-features) |
+| API Management Application and Developer (Classic) | ❌ | Planned — API details unconfirmed — see [feature-support.md](docs/feature-support.md#all-features) |
+| API Management Cache Resource (Classic) | ❌ | Planned — API details unconfirmed — see [feature-support.md](docs/feature-support.md#all-features) |
+| API Management Certificate Store and Certificate (Classic) | ❌ | Planned — API details unconfirmed — see [feature-support.md](docs/feature-support.md#all-features) |
 | Certificate Store Reference (classic API Management) | ✅ | Resource + Data Source |
+| API Management Key Value Map across API Proxies (Classic) | ❌ | Planned — API details unconfirmed — see [feature-support.md](docs/feature-support.md#all-features) |
 | Key Value Map (classic API Management) | ⚠️ | Resource + Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
 | Policy (classic API Management) | ❌ | Planned — API details unconfirmed — see [feature-support.md](docs/feature-support.md#all-features) |
+| API Management Policy Template (Classic) | ❌ | Planned — API details unconfirmed — see [feature-support.md](docs/feature-support.md#all-features) |
+| API Management Product Access Control (Classic) | ❌ | Planned — API details unconfirmed — see [feature-support.md](docs/feature-support.md#all-features) |
+| API Management Rate Plan (Classic) | ❌ | Planned — API details unconfirmed — see [feature-support.md](docs/feature-support.md#all-features) |
 | API Management Virtual Host (Classic) | ❌ | Planned — API details unconfirmed — see [feature-support.md](docs/feature-support.md#all-features) |
 
 ### Current API Management / API Artifacts
@@ -224,7 +231,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Trading Partner Management Partner Directory Generation | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Trading Partner Management Partner Profile | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 
-19 supported · 11 partial · 4 read-only · 2 experimental · 54 unsupported · 2 planned as a separate provider, out of 92 evaluated Integration Suite features.
+19 supported · 11 partial · 4 read-only · 2 experimental · 61 unsupported · 2 planned as a separate provider, out of 99 evaluated Integration Suite features.
 
 <!-- END GENERATED FEATURE SUPPORT -->
 
