@@ -1698,6 +1698,32 @@ across the whole provider, not something to keep re-verifying capability-by-capa
   for the full three-group classification (master data / landscape configuration / assessment
   workflow) this research produced.
 
+## Tenant probe results (September 2026)
+
+A read-only probe against a development tenant, with the Cloud Integration client holding the
+full set of role templates, answered questions the `$metadata` cannot:
+
+| Entity set | Bare `GET` | `$format=json` only | `$top` only | `$select` (with or without `$expand`) |
+|---|---|---|---|---|
+| `OAuth2ClientCredentials` | 200 | 200 | 501 | 501 |
+| `SecureParameters` | 200 | 200 | 501 | 501 |
+| `UserCredentials` | 200 | 200 | 501 | 501 |
+| `NumberRanges` | 200 | 200 | 501 | — |
+| `KeystoreEntries` | 200 | **400** | 400 | 400 |
+
+The provider's clients send no query options (the OData client negotiates JSON through the
+`Accept` header), so their reads correspond to the bare column. A regression test in
+`internal/client/securitycontent` fails if a read ever adds a query string. `KeystoreEntries`
+returned all 14 SAP-delivered entries in one response without `__next`, with `Type` values
+`Certificate` and `Key Pair`, `Owner` `SAP`, `Status` `unchanged`, an empty `Validity`, and
+dates as `/Date(ms)/`. `GET NumberRanges` answering 200 is the first evidence that number
+ranges can be read; reading one by key and deleting it still need a write test.
+
+On the API portal, a key with `APIPortal.Administrator` read `APIProviders`, `APIProxies`,
+`APIProducts`, `CertificateStoreReferences`, `GenericKeyMapEntries` and `VirtualHosts` (200),
+while `Configuration.svc` and its `VirtualHostRequests` answered 403: virtual host changes need
+`APIManagement.SelfService.Administrator`.
+
 ## Business Accelerator Hub catalog (re-audit September 2026)
 
 The Hub's own catalog service, `https://api.sap.com/odata/1.0/catalog.svc`, answers anonymously

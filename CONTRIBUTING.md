@@ -183,6 +183,14 @@ document the contract tests skip, which is why CI stays green without tenant
 access. A skipped contract test is not evidence, so mention in the PR
 whether you ran them.
 
+Do not add query options to reads without checking them on a tenant. Several
+Cloud Integration entity sets reject options the `$metadata` does not warn
+about: `OAuth2ClientCredentials`, `SecureParameters`, `UserCredentials` and
+`NumberRanges` answer `$top` and `$select` with 501, and `KeystoreEntries`
+answers any option, even `$format=json`, with 400. The OData client asks for
+JSON through the `Accept` header for that reason (see
+`docs/sap-api-references.md`, "Tenant probe results").
+
 `$metadata` settles property names, keys, types, length facets such as
 `MaxLength`, and navigation. It does not settle enum values (they are plain
 `Edm.String`) or whether SAP actually accepts a create or update on an entity

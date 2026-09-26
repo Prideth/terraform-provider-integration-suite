@@ -522,9 +522,10 @@ var Catalog = []Feature{
 		Planned:       true,
 		Limitations: []string{
 			"The tenant $metadata (September 2026) defines NumberRanges keyed by Name, with " +
-				"DeployedBy and DeployedOn alongside the writable fields. That makes GET by key and " +
-				"DELETE plausible, but neither is documented, so Read and Delete stay as described " +
-				"below until they are verified against a tenant.",
+				"DeployedBy and DeployedOn alongside the writable fields, and a tenant answered a bare " +
+				"GET on the collection with 200 ($top is rejected with 501). GET by key and DELETE " +
+				"are still unverified, so Read and Delete stay as described below until a write test " +
+				"confirms them.",
 			"SAP documents no GET operation for this entity anywhere — unlike every sibling entity " +
 				"in the same Message Stores API family (DataStores, DataStoreEntries, Variables all " +
 				"have documented GET examples), NumberRanges has none in SAP's curated \"Message " +

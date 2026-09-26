@@ -164,6 +164,12 @@ All notable changes to this project are documented in this file.
   cache resources, rate plans, policy templates, product access control)
   have catalog entries with what the `$metadata` and the Business
   Accelerator Hub say about them.
+- A tenant probe showed that several Security Content and Message Store
+  entity sets reject query options (`$top` and `$select` with 501,
+  `KeystoreEntries` even `$format` with 400). The provider's reads send
+  none; a regression test now keeps it that way, and CONTRIBUTING warns
+  about it. The keystore entry data sources describe the values SAP
+  actually returns for `entry_type`, `owner`, `status` and `validity`.
 - Trading Partner Management, Integration Advisor and Migration Assessment
   were re-audited against the current documentation and the complete
   Business Accelerator Hub package list. Their classification is unchanged;

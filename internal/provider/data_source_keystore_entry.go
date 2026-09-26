@@ -48,11 +48,13 @@ func keystoreEntryAttributes(aliasRequired bool) map[string]schema.Attribute {
 		},
 		"hex_alias": computed("Lowercase hex encoding of the alias's UTF-8 bytes, which SAP uses as " +
 			"the OData key. Informational; you never need to supply it."),
-		"entry_type": computed("Kind of entry as SAP reports it in Type, for example a certificate " +
-			"or a key pair."),
-		"owner": computed("Who owns the entry as SAP reports it. SAP-owned entries are managed by " +
-			"SAP and should not be changed by tenant automation."),
-		"status":              computed("Status SAP reports for the entry."),
+		"entry_type": computed("Kind of entry as SAP reports it in Type, observed on a tenant as " +
+			"\"Certificate\" or \"Key Pair\" (with a space)."),
+		"owner": computed("Who owns the entry as SAP reports it, \"SAP\" for the root certificates " +
+			"and the key pair SAP delivers. SAP-owned entries are managed by SAP and should not be " +
+			"changed by tenant automation."),
+		"status": computed("Status SAP reports for the entry, for example \"unchanged\" for " +
+			"SAP-delivered entries nobody modified."),
 		"key_type":            computed("Key type, for example \"RSA\", \"DSA\" or \"EC\"."),
 		"key_size":            schema.Int64Attribute{Computed: true, Description: "Key size in bits."},
 		"elliptic_curve":      computed("Curve name for EC keys, or null."),
@@ -61,7 +63,7 @@ func keystoreEntryAttributes(aliasRequired bool) map[string]schema.Attribute {
 		"subject_dn":          computed("Subject distinguished name of the certificate."),
 		"issuer_dn":           computed("Issuer distinguished name of the certificate."),
 		"certificate_version": schema.Int64Attribute{Computed: true, Description: "X.509 version of the certificate."},
-		"validity":            computed("Validity state SAP derives from the validity period."),
+		"validity":            computed("Validity state SAP derives from the validity period. Observed empty (null) on a tenant for valid entries."),
 		"valid_not_before":    computed("Start of the certificate's validity period, RFC 3339 in UTC."),
 		"valid_not_after":     computed("End of the certificate's validity period, RFC 3339 in UTC."),
 		"fingerprint_sha1":    computed("SHA-1 fingerprint of the certificate as SAP reports it."),

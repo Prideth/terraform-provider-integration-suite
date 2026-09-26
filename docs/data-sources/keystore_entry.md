@@ -39,7 +39,7 @@ output "backend_ca_valid_until" {
 - `created_by` (String) User who created the entry.
 - `created_time` (String) When the entry was created, RFC 3339 in UTC.
 - `elliptic_curve` (String) Curve name for EC keys, or null.
-- `entry_type` (String) Kind of entry as SAP reports it in Type, for example a certificate or a key pair.
+- `entry_type` (String) Kind of entry as SAP reports it in Type, observed on a tenant as "Certificate" or "Key Pair" (with a space).
 - `fingerprint_sha1` (String) SHA-1 fingerprint of the certificate as SAP reports it.
 - `fingerprint_sha256` (String) SHA-256 fingerprint of the certificate as SAP reports it.
 - `fingerprint_sha512` (String) SHA-512 fingerprint of the certificate as SAP reports it.
@@ -49,11 +49,11 @@ output "backend_ca_valid_until" {
 - `key_type` (String) Key type, for example "RSA", "DSA" or "EC".
 - `last_modified_by` (String) User who last changed the entry.
 - `last_modified_time` (String) When the entry was last changed, RFC 3339 in UTC.
-- `owner` (String) Who owns the entry as SAP reports it. SAP-owned entries are managed by SAP and should not be changed by tenant automation.
+- `owner` (String) Who owns the entry as SAP reports it, "SAP" for the root certificates and the key pair SAP delivers. SAP-owned entries are managed by SAP and should not be changed by tenant automation.
 - `serial_number` (String) Serial number of the certificate.
 - `signature_algorithm` (String) Signature algorithm of the certificate.
-- `status` (String) Status SAP reports for the entry.
+- `status` (String) Status SAP reports for the entry, for example "unchanged" for SAP-delivered entries nobody modified.
 - `subject_dn` (String) Subject distinguished name of the certificate.
 - `valid_not_after` (String) End of the certificate's validity period, RFC 3339 in UTC.
 - `valid_not_before` (String) Start of the certificate's validity period, RFC 3339 in UTC.
-- `validity` (String) Validity state SAP derives from the validity period.
+- `validity` (String) Validity state SAP derives from the validity period. Observed empty (null) on a tenant for valid entries.
