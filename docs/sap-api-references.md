@@ -1490,8 +1490,9 @@ the registered OData services") and `APIFullAccess` ("Access the registered ODat
 runtime"). The service instance (Serverless Runtime `xfs-runtime`, plan `odpruntime`, no
 parameters) and its key serve runtime calls to registered services. Registration, destinations,
 on/off status, multi-origin error tolerance and metadata/cache settings are documented only as UI
-procedures, and a package search of the Business Accelerator Hub catalog finds no OData
-Provisioning package. Reclassified `no_public_api`.
+procedures, and the complete package list of the Business Accelerator Hub catalog (1,971
+packages, read page by page; the catalog ignores `$filter`, so filtered searches are not
+evidence) contains no OData Provisioning package. Reclassified `no_public_api`.
 
 ### Event Mesh — reclassified from a guess to a confirmed separate-provider candidate
 
@@ -1696,6 +1697,38 @@ across the whole provider, not something to keep re-verifying capability-by-capa
   entity descriptions and documented limits alone. See `docs/guides/integration-assessment.md`
   for the full three-group classification (master data / landscape configuration / assessment
   workflow) this research produced.
+
+## Business Accelerator Hub catalog (re-audit September 2026)
+
+The Hub's own catalog service, `https://api.sap.com/odata/1.0/catalog.svc`, answers anonymously
+at package level. `ContentEntities.ContentPackages` lists every package (1,971 in September 2026,
+read by following `__next`), and `ContentPackages('<name>')/Artifacts` lists a package's APIs
+with name, type (`ODATA`, `ODATAV4`, `REST`), version and a one-line description. Two
+limitations: the service ignores `$filter`, so a filtered query returns an unrelated page and
+proves nothing; and everything below package level (`APIContent.APIs(...)`, an artifact's
+`$value`, the specification files) redirects to the Hub's OAuth flow and ends at a login page.
+
+What the package and artifact lists add:
+
+| Package | API | Finding |
+|---|---|---|
+| `CloudIntegrationAPI` | Integration Content, Security Content, Partner Directory, Message Stores, Log Files, Message Processing Logs, **B2B Scenarios** | B2B Scenarios is B2B monitoring (business documents, interchanges, reprocessing), confirmed by the tenant `$metadata` |
+| `APIMgmt` | 29 APIs, among them API Portal API Proxy, API Provider, Product, Key Value Maps, Generic Key Value Maps, Certificate Store Reference, KeyStore, TrustStore, Virtual Host Request, Rules, Access Control Service, Applications, Developer, Endpoint (all OData, CF), **Transport (CF)** and **Content Archive Transport (CF)** (REST, zip import and export), Analytics (OData V4) | The transport APIs are the official route for proxy content; the other CF APIs are to be checked against `Management.svc/$metadata` |
+| `APIMgmt` | `Graph_ConfigurationAPI` | API Composition's Configuration API is OData V4 |
+| `SAPIntegrationAssessment` | `EntitiesAPI`, `ManagementAPI` | Both OData |
+| `dataspaceintegration` | `DSIAPI` 2.0.0 | REST |
+| `com.sap.integration.dsi` | — | Integration content (flows, scripts) for Data Space Integration, no API |
+| `ICAPrepackagedContent` | — | Integration Advisor EDI templates, integration content, no API |
+
+No package in the full list covers OData Provisioning, Migration Assessment, Trading Partner
+Management configuration (profiles, agreements) or Integration Advisor's design-time content.
+
+**Archiving** was found through Trading Partner Management's documentation and was missing from
+the catalog: the tenant `$metadata` has `activateArchivingConfiguration` and
+`activateB2BArchivingConfiguration` (POST, no parameters), read-only `ArchivingConfigurations`
+and `B2BArchivingConfigurations` (`Id`, `Active`), and KPI entity sets. There is no
+deactivation, and per-flow settings are UI-only; see the catalog entry
+`cloud_integration.archiving`.
 
 ## Deferred APIs (tracked, not yet implemented)
 

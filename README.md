@@ -81,6 +81,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 
 | Feature | Status | Terraform Support |
 |---|:---:|---|
+| Archiving Configuration | ❌ | No safe Terraform lifecycle confirmed — see [feature-support.md](docs/feature-support.md#all-features) |
 | Custom Tag Configuration | ⚠️ | Resource + Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
 | Data Store | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Data Store Entry | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
@@ -223,7 +224,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Trading Partner Management Partner Directory Generation | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Trading Partner Management Partner Profile | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 
-19 supported · 11 partial · 4 read-only · 2 experimental · 53 unsupported · 2 planned as a separate provider, out of 91 evaluated Integration Suite features.
+19 supported · 11 partial · 4 read-only · 2 experimental · 54 unsupported · 2 planned as a separate provider, out of 92 evaluated Integration Suite features.
 
 <!-- END GENERATED FEATURE SUPPORT -->
 

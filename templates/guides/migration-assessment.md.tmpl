@@ -63,6 +63,11 @@ Assessment's own source-system registration and requests are entirely separate f
 Integration content (`sapintegrationsuite_integration_flow` and siblings) this provider already
 manages, which is what the *actual* migration tooling — a distinct feature — eventually produces.
 
+## Re-audit September 2026
+
+The 11 pages of the current documentation and the complete package list of the SAP Business
+Accelerator Hub show no Migration Assessment API. The conclusion stands.
+
 ## Revisiting this decision
 
 Re-check for a dedicated API-access documentation page before assuming this conclusion has

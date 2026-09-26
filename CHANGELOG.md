@@ -149,6 +149,16 @@ All notable changes to this project are documented in this file.
   management API instead of needing research. The `ODPAPIAccess` role that
   earlier suggested one grants access to registered services at run time;
   registering and configuring services is documented only in the UI.
+- The feature catalog has a new entry, `cloud_integration.archiving`, for
+  message processing log and B2B payload archiving. Activation exists in the
+  API only as a one-way switch without deactivation, so there is no
+  resource; the entry explains why. API Composition's protocol is recorded
+  as OData V4, and the Classic API Proxy entry names the official Transport
+  APIs listed on the Business Accelerator Hub.
+- Trading Partner Management, Integration Advisor and Migration Assessment
+  were re-audited against the current documentation and the complete
+  Business Accelerator Hub package list. Their classification is unchanged;
+  the guides say what was checked.
 
 ### Documentation
 

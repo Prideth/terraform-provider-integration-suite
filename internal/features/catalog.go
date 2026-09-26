@@ -623,6 +623,31 @@ var Catalog = []Feature{
 				"desired infrastructure state — see docs/provider-scope.md.",
 		},
 	},
+	{
+		Key:    "cloud_integration.archiving",
+		Domain: "cloud_integration",
+		Name:   "Archiving Configuration",
+		Description: "Archiving of message processing logs (and, for Trading Partner Management, " +
+			"B2B interchange payloads) to an external CMIS repository.",
+		SupportStatus: StatusUnsupported,
+		SupportReason: ReasonUnsafeTerraformLifecycle,
+		PublicAPI:     true,
+		APIProtocol:   "OData V2 (function imports)",
+		Limitations: []string{
+			"Tenant-wide activation is a one-way switch: the tenant $metadata has " +
+				"activateArchivingConfiguration and activateB2BArchivingConfiguration (POST, no " +
+				"parameters) and read-only ArchivingConfigurations/B2BArchivingConfigurations (Id, " +
+				"Active), but no deactivation. SAP's \"Enable Archiving\" page adds that the CMS " +
+				"metadata properties cannot be changed once archiving is enabled. A resource could " +
+				"never implement destroy, so none is offered.",
+			"Per-integration-flow settings (sender and receiver channel messages, persisted " +
+				"messages, log attachments) are documented only in the Integration Content Monitor; the " +
+				"Archiving* flags in the $metadata sit on MessageProcessingLog and record what was " +
+				"active when a message ran.",
+			"The destination (CloudIntegration_Archive / CloudIntegration_B2BArchive) is a BTP " +
+				"destination, outside this provider. The KPI entity sets are monitoring data.",
+		},
+	},
 
 	// --- Security ---
 	{
@@ -1194,9 +1219,12 @@ var Catalog = []Feature{
 				"3.0.6 imports a proxy with POST /apiportal/api/1.0/Transport.svc/APIProxies and the raw " +
 				"ZIP as application/octet-stream, and exports with GET " +
 				"Transport.svc/APIProxies?name=<name>. A community description of the same endpoint " +
-				"sends a base64 string and a virtualhost GUID instead. SAP Help documents Transport.svc " +
-				"nowhere, only UI import/export and transport through SAP Cloud Transport Management, " +
-				"and nothing documents whether an import overwrites an existing proxy or deploys it. " +
+				"sends a base64 string and a virtualhost GUID instead. SAP Help documents only UI " +
+				"import/export and SAP Cloud Transport Management, but the Business Accelerator Hub " +
+				"lists \"API Portal - Transport (CF)\" (REST, \"Export and Import API Proxy via zip " +
+				"bundle\") and \"Content Archive Transport (CF)\" as official APIs; their specifications " +
+				"need an SAP login. Nothing public says whether an import overwrites an existing proxy " +
+				"or deploys it. " +
 				"The SDK's JSON create path (/api/1.0/apis/ with isFromCli) is an internal endpoint and " +
 				"not a candidate.",
 			"Depends on api_management.classic.api_provider already existing: SAP's own sample " +
@@ -1718,7 +1746,7 @@ var Catalog = []Feature{
 		ResourceTypes:   []string{"sapintegrationsuite_business_data_graph"},
 		DataSourceTypes: []string{"sapintegrationsuite_business_data_graph"},
 		PublicAPI:       true,
-		APIProtocol:     "OData service with plain JSON bodies (Configuration API)",
+		APIProtocol:     "OData V4 (Configuration API)",
 		Limitations: []string{
 			"Needs its own credentials in provider.api_composition: a service key of an API " +
 				"Composition service instance with plan \"configuration\". SAP does not document that " +
@@ -1753,7 +1781,8 @@ var Catalog = []Feature{
 			"Re-audit September 2026: registering OData services, adding destinations, switching a " +
 				"service on or off, error tolerance for multi-origin composition, and metadata " +
 				"validation and cache settings are documented only in the UI (Configure > OData " +
-				"Services). The Business Accelerator Hub has no OData Provisioning package.",
+				"Services). The complete Business Accelerator Hub package list has no OData " +
+				"Provisioning package.",
 			"ODPAPIAccess, earlier read as a sign of a management API, grants access to the service " +
 				"document of registered services; APIFullAccess grants runtime access and ODPManage " +
 				"the UI. The service key (Serverless Runtime, plan odpruntime) is for calling the " +
@@ -1795,6 +1824,9 @@ var Catalog = []Feature{
 				"against the destination Cloud Integration tenant for artifact injection (Process " +
 				"Integration Runtime service, plan api), not a credential for Integration Advisor's " +
 				"own design-time content management.",
+			"Re-audit September 2026: all 80 pages of the current documentation checked again, and " +
+				"the full Business Accelerator Hub package list (1971 packages) contains only " +
+				"integration content for Integration Advisor (EDI Integration Templates), no API.",
 		},
 	},
 	{
@@ -1830,6 +1862,13 @@ var Catalog = []Feature{
 				"present, confirmed a real public API for Classic API Management and Integration " +
 				"Assessment. Content is downloadable as JSON through a UI Download button only " +
 				"(company.json), never through a documented REST endpoint.",
+			"Re-audit September 2026: all 93 pages checked again. The Business Accelerator Hub's " +
+				"Cloud Integration package has a \"B2B Scenarios\" OData API, but the tenant $metadata " +
+				"shows what it covers: BusinessDocuments, interchanges, payloads, events and the " +
+				"reprocessing functions singleInterchangeProcess/massInterchangeProcess, all B2B " +
+				"monitoring data. Profiles, agreement templates and agreements still have no API. " +
+				"The only TPM configuration call SAP documents is B2B archiving activation, see " +
+				"cloud_integration.archiving.",
 		},
 	},
 	{
@@ -1995,6 +2034,8 @@ var Catalog = []Feature{
 				"Orchestration APIs (via Cloud Connector/Destination service) to extract data — the " +
 				"opposite direction from a public API this provider could manage Migration " +
 				"Assessment's own objects through.",
+			"Re-audit September 2026: the 11 current pages and the full Business Accelerator Hub " +
+				"package list show no Migration Assessment API.",
 		},
 	},
 	{

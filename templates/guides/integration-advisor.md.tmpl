@@ -66,6 +66,12 @@ Nothing new. `sapintegrationsuite_integration_flow` already manages the Cloud In
 an Integration Advisor injection would modify; nothing about researching Integration Advisor
 changes that resource's existing scope.
 
+## Re-audit September 2026
+
+All 80 pages of the current documentation were checked again. The complete package list of the
+SAP Business Accelerator Hub contains Integration Advisor only as integration content (*EDI
+Integration Templates for SAP Integration Advisor*), not as an API. The conclusion stands.
+
 ## Revisiting this decision
 
 Re-check for a dedicated API-access documentation page (the signal that has worked for Classic

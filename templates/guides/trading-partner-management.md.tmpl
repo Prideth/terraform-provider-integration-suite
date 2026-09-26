@@ -83,6 +83,24 @@ Nothing new. Existing Partner Directory support (see `docs/guides/partner-direct
 covers the runtime store TPM happens to write into; nothing about researching TPM changed that
 guide's conclusions or scope.
 
+## Re-audit September 2026
+
+All 93 pages of the current documentation were checked again, together with the complete package
+list of the SAP Business Accelerator Hub. Two things came up, neither of which changes the
+conclusion:
+
+- The Hub's Cloud Integration package contains a **B2B Scenarios** OData API. The tenant
+  `$metadata` shows what it covers: business documents, orphaned interchanges, payloads, processing
+  events, and the reprocessing functions `singleInterchangeProcess` and `massInterchangeProcess`.
+  That is B2B monitoring, the same category as message processing logs, not configuration.
+- TPM's page *Archiving Payload Data* documents one configuration call:
+  `POST /api/v1/activateB2BArchivingConfiguration`. It switches B2B payload archiving on for the
+  whole tenant and has no counterpart to switch it off, so it cannot be a Terraform resource.
+  The catalog entry `cloud_integration.archiving` covers it together with message processing log
+  archiving.
+
+Company profiles, partner profiles, agreement templates and agreements still have no API.
+
 ## Revisiting this decision
 
 Re-check for a dedicated API-access documentation page (the same signal that worked for Classic

@@ -195,9 +195,12 @@ SAP's page *Configuration API Specification and Usage* documents the service roo
 .../GraphConfiguration`), reading (`GET .../GraphConfiguration/{id}`), updating (`PATCH
 .../GraphConfiguration/{id}`) and the status model. The field-level details of data sources, the
 locating policy, cues and key mappings come from the *Business Data Graph Configuration File*
-page. The API also serves OData metadata at `/configuration/v1/sap.graph/$metadata`, but that
-document is only reachable with credentials and is not published. No part of this resource has
-been checked against a live system yet.
+page. The Business Accelerator Hub lists the API as *Graph - Configuration*
+(`Graph_ConfigurationAPI`) of type OData V4. It serves its metadata at
+`/configuration/v1/sap.graph/$metadata`, but that document is only reachable with credentials
+and is not published; fetching it with a service key of the `configuration` plan would confirm
+the property names and the PATCH semantics. No part of this resource has been checked against
+a live system yet.
 
 The following parts are the provider's own inference:
 
