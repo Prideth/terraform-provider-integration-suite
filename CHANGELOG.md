@@ -161,6 +161,11 @@ All notable changes to this project are documented in this file.
   their specifications still need an SAP login, and a `$metadata` document
   fetched with a service key is the step that would unblock an
   implementation. CONTRIBUTING describes how to fetch it.
+- New guide "Data Space Integration": which objects would suit Terraform
+  (assets, policies, contract definitions, company policies, contract
+  references), what SAP's API documentation covers (only consumer runtime
+  flows under `/api/dsi/v1`), the one-credential-set-per-connector rule, and
+  what would unblock an implementation.
 
 ### Removed
 

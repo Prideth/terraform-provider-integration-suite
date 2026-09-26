@@ -1515,6 +1515,21 @@ complex enough that this audit intentionally did not attempt a shallow implement
 `research_required`, flagged as a second strong candidate (after Landscape Configuration in
 Integration Assessment) for a future dedicated phase.
 
+**Re-audit September 2026.** All 48 pages of `docs/ISuite_Data_Space_Integration/` were read.
+The Hub's public catalog lists a single API in the package, `DSIAPI` ("Data Space
+Integration", "Manage Data Space Integration resources via API"), `SubType: REST`, version
+2.0.0, modified July 2026; the earlier "OData" label came from boilerplate on SAP's API page.
+Concrete requests appear only for consumer runtime flows: `POST /api/dsi/v1/catalog`
+(`counterPartyAddress`, `counterPartyId`, `filterExpression`), `POST
+/api/dsi/v1/contract-negotiation` with `…/{id}/state` and `…/{id}/agreement`, `POST
+/api/dsi/v1/transfer-process` with `…/{id}/edr`, and the Convenient Data Request API.
+Assets, policies, contract definitions, company policies and contract references are
+documented as UI procedures only; the role table grants `DataspaceProvider` "create assets,
+policies, and contract definitions" without saying whether that covers the API. UI
+lifecycle facts relevant to a future design: asset IDs are immutable, contract definitions
+are editable only while unused, SAP-delivered company policies are read-only, and asset data
+addresses carry credentials. See `docs/guides/data-space-integration.md`.
+
 ### Open Connectors — a deliberate scope judgment, not a research gap
 
 Confirmed to be a catalog of 170+ independent third-party connector types (the former standalone

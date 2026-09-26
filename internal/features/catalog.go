@@ -2023,20 +2023,18 @@ var Catalog = []Feature{
 		SupportReason: ReasonResearchRequired,
 		PublicAPI:     true,
 		Limitations: []string{
-			"Confirmed real: a dedicated \"Data Space Integration API Access\" service instance " +
-				"(plan api, roles AuthGroup_DataspaceConsumer/AuthGroup_DataspaceProvider, " +
-				"client_credentials grant) is documented, and its OData REST APIs are confirmed " +
-				"listed on SAP Business Accelerator Hub at api.sap.com/package/dataspaceintegration/" +
-				"rest — unreachable to this project without an SAP support login, the same " +
-				"limitation hit repeatedly for other packages, so no field-level schema was " +
-				"confirmed during this audit pass.",
-			"A genuinely complex, multi-persona object model (per-connector service instances, " +
-				"Assets, Policies, Contract Definitions, Contract Negotiations, Contract Agreements) " +
-				"built on an external standard (the Dataspace Protocol / International Data Spaces " +
-				"initiative) — this audit intentionally did not attempt a shallow implementation and " +
-				"instead flags this as a candidate needing its own dedicated future research phase, " +
-				"the same treatment Classic API Management and Integration Assessment each received " +
-				"as standalone phases.",
+			"A dedicated \"Data Space Integration API Access\" service instance (plan api, roles " +
+				"AuthGroup_DataspaceConsumer/AuthGroup_DataspaceProvider, client_credentials grant, " +
+				"one instance per connector) gives API access. The Business Accelerator Hub lists one " +
+				"REST API, DSIAPI 2.0.0; its specification needs an SAP login.",
+			"Re-audit September 2026: SAP's Help shows requests only for consumer runtime flows " +
+				"under /api/dsi/v1 (catalog, contract negotiation, transfer process). Assets, " +
+				"policies, contract definitions, company policies and contract references, the " +
+				"objects Terraform could manage, are documented only through the UI, so their API " +
+				"contract is not confirmed.",
+			"Being a REST API, it has no OData $metadata to read the contract from; the Hub " +
+				"specification or new SAP documentation is needed. See the Data Space Integration " +
+				"guide.",
 		},
 	},
 	{
