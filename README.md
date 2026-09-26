@@ -215,7 +215,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Integration Advisor Runtime Artifact Injection | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Migration Assessment Extraction and Scenario Evaluation | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Migration Assessment Source System | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
-| OData Provisioning | ❌ | Research required — see [feature-support.md](docs/feature-support.md#all-features) |
+| OData Provisioning | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 | Open Connectors | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Trading Partner Management Agreement | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 | Trading Partner Management Agreement Template | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |

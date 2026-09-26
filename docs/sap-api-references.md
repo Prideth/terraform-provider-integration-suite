@@ -1478,14 +1478,20 @@ Implemented as the experimental `sapintegrationsuite_business_data_graph` resour
 source; see `docs/guides/api-composition.md` and the catalog entry
 `api_composition.business_data_graph`.
 
-### OData Provisioning — a positive signal, not yet confirmed
+### OData Provisioning — no public management API (re-audited September 2026)
 
 Exposes SAP Business Suite backend OData services (SAP Gateway back-end enablement) through
-Integration Suite without an on-premise SAP Gateway hub. `register-odata-services-9dfa56a.md`
-documents an `ODPAPIAccess` role as a registration prerequisite — a role name that is itself a
-positive signal a management API exists — but this audit pass did not locate a worked request/
-response example or a dedicated API-access page for it. Classified `research_required`, the same
-category and confidence level as Integration Assessment before its own dedicated phase.
+Integration Suite without an on-premise SAP Gateway hub. The first audit read the role
+`ODPAPIAccess` as a sign of a management API. The re-audit of all pages in
+`docs/ISuite_OData_Provisioning/` corrects that: `runtime-access-and-role-assignment-for-odata-provisioning-b46816c.md`
+defines `ODPManage` ("View and register OData services. Monitor errors, manage metadata validation
+and cache settings"), `ODPAPIAccess` ("Access the service document from a link against each of
+the registered OData services") and `APIFullAccess` ("Access the registered OData services via the
+runtime"). The service instance (Serverless Runtime `xfs-runtime`, plan `odpruntime`, no
+parameters) and its key serve runtime calls to registered services. Registration, destinations,
+on/off status, multi-origin error tolerance and metadata/cache settings are documented only as UI
+procedures, and a package search of the Business Accelerator Hub catalog finds no OData
+Provisioning package. Reclassified `no_public_api`.
 
 ### Event Mesh — reclassified from a guess to a confirmed separate-provider candidate
 

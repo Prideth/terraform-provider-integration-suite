@@ -33,14 +33,15 @@ Future work follows newly published SAP APIs and incoming feature requests, not 
 The clearest concrete opportunities already identified, in case SAP's documented API surface
 moves first, are listed in the "Confirmed-but-not-yet-implemented capabilities" section of
 `docs/provider-scope.md` — Classic API Management's API Proxy content upload, Data Space
-Integration, OData Provisioning, and Integration Assessment's Landscape Configuration.
+Integration, and Integration Assessment's Landscape Configuration.
 
 The remaining Integration Suite capability audit is done. Two capability areas had no prior
 catalog entry at all and were added: **API Composition** (Business Data Graph, activated
 alongside Developer Hub as a sub-capability of API Management) was, at the time of this audit,
 the strongest confirmed-but-unimplemented finding of the whole provider; it has since been
-implemented, see "Implemented" below — and **OData Provisioning**, where a positive signal (an
-`ODPAPIAccess` role) exists without yet a confirmed schema. Three previously-placeholder entries
+implemented, see "Implemented" below — and **OData Provisioning**, which the September 2026
+re-audit found to have no public management API (the `ODPAPIAccess` role grants runtime access
+to registered services, not management). Three previously-placeholder entries
 were reclassified with real evidence: **Event Mesh**
 is now `separate_provider` (a genuine, well-documented Solace PubSub+ broker API, deliberately
 excluded because it predates Integration Suite and belongs to a different provider's boundary,
@@ -281,7 +282,6 @@ already shipped (see "Implemented" below).
 - Data Space Integration (Connector/Asset/Policy/Contract Definition/Contract Negotiation), once
   its field-level wire contract is confirmed — see `docs/sap-api-references.md` (**Research
   required**)
-- OData Provisioning, once its field-level wire contract is confirmed (**Research required**)
 
 ## v0.3.x
 

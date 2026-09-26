@@ -1747,14 +1747,19 @@ var Catalog = []Feature{
 			"(SAP Gateway back-end-enablement) through SAP Integration Suite, without requiring an " +
 			"on-premise SAP Gateway hub.",
 		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonResearchRequired,
-		PublicAPI:     true,
+		SupportReason: ReasonNoPublicAPI,
+		PublicAPI:     false,
 		Limitations: []string{
-			"A role literally named ODPAPIAccess is documented as a prerequisite for registering " +
-				"OData services, a positive signal that a management API exists, but this audit pass " +
-				"did not locate a worked request/response example or a dedicated API-access page for " +
-				"it — the same kind of gap already documented for Integration Assessment, requiring " +
-				"the same depth of follow-up research before any implementation decision.",
+			"Re-audit September 2026: registering OData services, adding destinations, switching a " +
+				"service on or off, error tolerance for multi-origin composition, and metadata " +
+				"validation and cache settings are documented only in the UI (Configure > OData " +
+				"Services). The Business Accelerator Hub has no OData Provisioning package.",
+			"ODPAPIAccess, earlier read as a sign of a management API, grants access to the service " +
+				"document of registered services; APIFullAccess grants runtime access and ODPManage " +
+				"the UI. The service key (Serverless Runtime, plan odpruntime) is for calling the " +
+				"registered services, not for configuring them.",
+			"Registered services would suit Terraform (named configuration with destinations and " +
+				"settings) if SAP publishes a management API.",
 		},
 	},
 	{

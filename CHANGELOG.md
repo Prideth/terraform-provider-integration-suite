@@ -145,6 +145,10 @@ All notable changes to this project are documented in this file.
   Because that POST also overwrites, create now fails when the credential
   already exists and asks for an import. The catalog lists the resource as
   supported.
+- The feature catalog classifies OData Provisioning as having no public
+  management API instead of needing research. The `ODPAPIAccess` role that
+  earlier suggested one grants access to registered services at run time;
+  registering and configuring services is documented only in the UI.
 
 ### Documentation
 

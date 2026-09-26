@@ -130,18 +130,21 @@ Kubernetes and Helm providers directly.
 ## Confirmed-but-not-yet-implemented capabilities
 
 Two capabilities have confirmed real public APIs but are not yet implemented, distinct from
-both the "separate provider" and "out of scope" categories above — nothing rules them out, they
-simply have not had a dedicated implementation phase yet. (API Composition's business data graph,
+both the "separate provider" and "out of scope" categories above. Nothing rules them out; what
+is missing is a public field-level contract for the objects Terraform would manage, and the
+provider does not build resources from guessed field names. (API Composition's business data graph,
 previously listed here, is now implemented as the experimental
 `sapintegrationsuite_business_data_graph`; see `docs/guides/api-composition.md`.)
 
-- **Data Space Integration** — a confirmed, separately credentialed OData REST API, but a
-  genuinely complex, multi-persona object model (Connectors, Assets, Policies, Contract
-  Definitions/Negotiations/Agreements) built on an external standard, warranting its own
-  dedicated research phase rather than a shallow pass.
-- **OData Provisioning** and **Integration Assessment's Landscape Configuration** — a positive
-  signal (a role named `ODPAPIAccess`; a confirmed service and entity inventory, respectively)
-  without yet a confirmed field-level schema.
+- **Data Space Integration** — a confirmed, separately credentialed REST API (`DSIAPI`), but
+  SAP documents API requests only for consumer runtime flows; the provider-side objects
+  (assets, policies, contract definitions) have no public field-level contract. See
+  `docs/guides/data-space-integration.md`.
+- **Integration Assessment's Landscape Configuration** — a confirmed OData service and entity
+  inventory without a public field-level schema; the service's `$metadata` would settle it.
+
+OData Provisioning, previously listed here, has no public management API: registering and
+configuring OData services is documented only in the UI.
 
 See `docs/sap-api-references.md` and `internal/features/catalog.go` for the full evidence behind
 each of these.
