@@ -56,6 +56,14 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- `sapintegrationsuite_number_range` reads, deletes and imports. SAP
+  documents only create and update, but a tenant test confirmed
+  `GET NumberRanges('<name>')` and `DELETE`. Read now detects drift in the
+  static fields and removes number ranges deleted outside Terraform, the new
+  `current_value`, `deployed_by` and `deployed_on` attributes report what SAP
+  holds, `terraform destroy` deletes, and `terraform import` works by name.
+  The first apply after an import records `current_value_wo_version`
+  without touching the counter. Create stops if the name already exists.
 - Experimental `sapintegrationsuite_business_data_graph` resource and data
   source for API Composition's Configuration API, with a new optional
   `provider.api_composition` block. Its credentials come from an API

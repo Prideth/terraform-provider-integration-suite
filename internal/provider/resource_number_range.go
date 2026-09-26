@@ -5,13 +5,16 @@ import (
 	"fmt"
 	"math/big"
 	"regexp"
+	"strconv"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/cloudintegration"
@@ -47,6 +50,9 @@ type numberRangeModel struct {
 	FieldLength           types.String `tfsdk:"field_length"`
 	CurrentValueWO        types.String `tfsdk:"current_value_wo"`
 	CurrentValueWOVersion types.String `tfsdk:"current_value_wo_version"`
+	CurrentValue          types.String `tfsdk:"current_value"`
+	DeployedBy            types.String `tfsdk:"deployed_by"`
+	DeployedOn            types.String `tfsdk:"deployed_on"`
 }
 
 func (r *numberRangeResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -59,22 +65,16 @@ func (r *numberRangeResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"object, used to generate unique interchange numbers for outbound EDI/EDIFACT " +
 			"documents. Backed by the public Message Stores OData V2 API (NumberRanges). " +
 			"\n\n" +
-			"IMPORTANT — this resource has no Read: SAP documents no GET operation for this " +
-			"entity anywhere (unlike DataStores, DataStoreEntries, and Variables, which all have " +
-			"documented GET examples in the same API family). Without a GET, this provider cannot " +
-			"verify what SAP actually stored, cannot detect drift, and cannot support " +
-			"'terraform import'. This resource's Read is a documented no-op that simply trusts " +
-			"whatever Terraform already has in state — it never contacts SAP. Every Create and " +
-			"Update instead resends the complete static configuration from your configuration " +
-			"file, and this provider trusts that write to have succeeded exactly as sent. " +
-			"See docs/guides/runtime-stores-and-number-ranges.md for the full reasoning, " +
-			"including why 'terraform destroy' is also unsupported (SAP documents no DELETE for " +
-			"this entity either — only an 'Undeploy' UI action with no confirmed REST " +
-			"equivalent).\n\n" +
+			"SAP documents only create and update for this entity. Reading by name and deleting " +
+			"were verified on a tenant in September 2026 (GET and DELETE on " +
+			"NumberRanges('<name>')), so this resource detects drift, supports destroy and can be " +
+			"imported by name. Create refuses to run when a number range of that name already " +
+			"exists, because SAP does not document what a create on an existing name does.\n\n" +
 			"The runtime counter (SAP's CurrentValue, shown as 'Next Value' in the UI) is " +
 			"handled separately from the rest of this resource's configuration: see " +
 			"current_value_wo below. Ordinary applies that only change description, min_value, " +
-			"max_value, rotate, or field_length never touch the counter.",
+			"max_value, rotate, or field_length never send the counter, and current_value shows " +
+			"its live value.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
@@ -86,10 +86,10 @@ func (r *numberRangeResource) Schema(_ context.Context, _ resource.SchemaRequest
 			},
 			"name": schema.StringAttribute{
 				Required: true,
-				Description: "The Number Range object's name. This is SAP's documented OData " +
-					"key, so it is RequiresReplace: SAP's documentation does not describe any " +
-					"rename semantics, and emulating a rename via Delete+Create is not possible " +
-					"anyway since this entity has no confirmed Delete.",
+				Description: "The Number Range object's name, SAP's OData key. Changing it " +
+					"replaces the number range. A tenant accepted a name without special " +
+					"characters (tfAccProbeNr); a request with hyphens in the name and different " +
+					"values failed, so prefer plain letters and digits.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -144,27 +144,33 @@ func (r *numberRangeResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Required:  true,
 				WriteOnly: true,
 				Description: "The counter value (SAP's CurrentValue / the UI's \"Next Value\") " +
-					"to push to SAP, as a decimal digit string. Write-only: Terraform never " +
-					"stores this in plan or state, and — because this entity has no GET — this " +
-					"provider can never read the live counter back either. Required on Create " +
-					"(SAP's documented example always includes CurrentValue when adding an " +
-					"object). On Update, this value is sent ONLY when current_value_wo_version " +
-					"changes from the prior apply; every other Update omits CurrentValue from " +
-					"the request entirely, so that changing only description/min_value/" +
-					"max_value/rotate/field_length can never reset a counter that has since " +
-					"advanced through normal EDI/EDIFACT processing. Setting this on an apply " +
-					"that does not also bump current_value_wo_version has no effect — bump the " +
-					"version to signal deliberate intent to (re)set the counter, the same " +
-					"pattern this provider uses for credential rotation.",
+					"to push to SAP, as a decimal digit string. Write-only: Terraform does not " +
+					"store it; the live counter is reported in current_value instead. Sent on " +
+					"Create (SAP's documented example always includes CurrentValue). On Update, " +
+					"it is sent ONLY when current_value_wo_version changes; every other Update " +
+					"omits CurrentValue, so that changing only description/min_value/max_value/" +
+					"rotate/field_length can never reset a counter that has advanced through " +
+					"EDI/EDIFACT processing.",
 			},
 			"current_value_wo_version": schema.StringAttribute{
 				Required: true,
-				Description: "An arbitrary marker (for example a counter or timestamp) that a " +
-					"practitioner changes to signal that current_value_wo should be pushed to " +
-					"SAP on this apply. Required on Create (its value is not otherwise used, " +
-					"but Create always pushes current_value_wo regardless). Leaving this " +
-					"unchanged across an Update is what keeps this resource from ever resetting " +
-					"a runtime counter it cannot read back.",
+				Description: "An arbitrary marker (for example a counter or timestamp) that you " +
+					"change to push current_value_wo to SAP on this apply. After an import, the " +
+					"first apply only records the marker and does not touch the counter; change " +
+					"it once more to set the counter deliberately.",
+			},
+			"current_value": schema.StringAttribute{
+				Computed: true,
+				Description: "The live counter as SAP reports it on the last read. It advances as " +
+					"deployed content consumes numbers.",
+			},
+			"deployed_by": schema.StringAttribute{
+				Computed:    true,
+				Description: "User or client that last deployed the number range, as SAP reports it.",
+			},
+			"deployed_on": schema.StringAttribute{
+				Computed:    true,
+				Description: "When the number range was last deployed, RFC 3339 in UTC.",
 			},
 		},
 	}
@@ -226,9 +232,26 @@ func (r *numberRangeResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
+	name := plan.Name.ValueString()
+
+	// SAP does not document what a create on an existing name does. Stop
+	// rather than risk overwriting a number range, and its counter, that
+	// this configuration does not own.
+	if _, err := r.client.GetNumberRange(ctx, name); err == nil {
+		resp.Diagnostics.AddError(
+			"Number range already exists",
+			"A number range named "+name+" already exists on the tenant. Import it with "+
+				"terraform import instead of creating it.",
+		)
+		return
+	} else if !isNotFound(err) {
+		resp.Diagnostics.AddError("Failed to check for an existing SAP Integration Suite number range", diagnosticDetail(err))
+		return
+	}
+
 	value := currentValue.ValueString()
 	err := r.client.CreateNumberRange(ctx, cloudintegration.NumberRange{
-		Name:         plan.Name.ValueString(),
+		Name:         name,
 		MinValue:     plan.MinValue.ValueString(),
 		MaxValue:     plan.MaxValue.ValueString(),
 		Description:  plan.Description.ValueString(),
@@ -241,24 +264,49 @@ func (r *numberRangeResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
-	plan.ID = types.StringValue(plan.Name.ValueString())
-	plan.CurrentValueWO = types.StringNull()
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	r.readInto(ctx, name, plan, &resp.State, &resp.Diagnostics)
 }
 
-// Read never contacts SAP: no GET operation is documented for this entity
-// (see the schema description above and docs/guides/runtime-stores-and-
-// number-ranges.md). It simply re-persists whatever Terraform already has
-// in state, trusting the last Create/Update to have applied exactly as
-// sent — the only contract this provider can honestly offer against this
-// API.
+// readInto reads the number range back and stores it, keeping the
+// write-only counter marker from base.
+func (r *numberRangeResource) readInto(ctx context.Context, name string, base numberRangeModel, state *tfsdk.State, diags *diag.Diagnostics) {
+	nr, err := r.client.GetNumberRange(ctx, name)
+	if err != nil {
+		if isNotFound(err) {
+			state.RemoveResource(ctx)
+			return
+		}
+		diags.AddError("Failed to read SAP Integration Suite number range", diagnosticDetail(err))
+		return
+	}
+	diags.Append(state.Set(ctx, numberRangeToModel(nr, base))...)
+}
+
+func numberRangeToModel(nr *cloudintegration.NumberRangeState, base numberRangeModel) numberRangeModel {
+	m := base
+	m.ID = types.StringValue(nr.Name)
+	m.Name = types.StringValue(nr.Name)
+	m.MinValue = types.StringValue(nr.MinValue)
+	m.MaxValue = types.StringValue(nr.MaxValue)
+	m.Description = types.StringValue(nr.Description)
+	if rotate, err := strconv.ParseBool(nr.Rotate); err == nil {
+		m.Rotate = types.BoolValue(rotate)
+	}
+	m.FieldLength = types.StringValue(nr.FieldLength)
+	m.CurrentValueWO = types.StringNull()
+	m.CurrentValue = stringOrNull(nr.CurrentValue)
+	m.DeployedBy = stringOrNull(nr.DeployedBy)
+	m.DeployedOn = odataDateToRFC3339(nr.DeployedOn)
+	return m
+}
+
 func (r *numberRangeResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state numberRangeModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	r.readInto(ctx, state.ID.ValueString(), state, &resp.State, &resp.Diagnostics)
 }
 
 func (r *numberRangeResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -278,14 +326,11 @@ func (r *numberRangeResource) Update(ctx context.Context, req resource.UpdateReq
 		FieldLength: plan.FieldLength.ValueString(),
 	}
 
-	// current_value_wo is only ever pushed when current_value_wo_version
-	// changed since the last apply — a deliberate, explicit signal from the
-	// practitioner. Every other Update omits CurrentValue entirely, so that
-	// changing only static fields can never reset a counter this provider
-	// has no way to read back first. See docs/guides/runtime-stores-and-
-	// number-ranges.md for why this is the safest available contract given
-	// SAP documents no GET for this entity.
-	if !plan.CurrentValueWOVersion.Equal(state.CurrentValueWOVersion) {
+	// current_value_wo is only pushed when current_value_wo_version changed
+	// since the last apply, a deliberate signal. After an import the prior
+	// marker is null: that first apply only records the marker, so adopting
+	// a number range in use never resets its counter.
+	if !state.CurrentValueWOVersion.IsNull() && !plan.CurrentValueWOVersion.Equal(state.CurrentValueWOVersion) {
 		var currentValue types.String
 		resp.Diagnostics.Append(req.Config.GetAttribute(ctx, pathRoot("current_value_wo"), &currentValue)...)
 		if resp.Diagnostics.HasError() {
@@ -300,51 +345,26 @@ func (r *numberRangeResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
-	plan.ID = types.StringValue(plan.Name.ValueString())
-	plan.CurrentValueWO = types.StringNull()
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	r.readInto(ctx, nr.Name, plan, &resp.State, &resp.Diagnostics)
 }
 
-// Delete deliberately never calls SAP: no DELETE operation is documented
-// anywhere for NumberRanges (unlike every other design-time artifact this
-// provider manages). SAP's Monitor UI shows an "Undeploy" action for this
-// entity, but no REST equivalent was found in SAP's own documentation, and
-// this provider does not invent one. Returning an explicit error here
-// mirrors sapintegrationsuite_custom_tag_configuration's Delete, the
-// established pattern in this codebase for "SAP documents no confirmed
-// destroy operation" — see docs/guides/runtime-stores-and-number-ranges.md
-// for how to actually retire a Number Range.
-func (r *numberRangeResource) Delete(_ context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
-	resp.Diagnostics.AddError(
-		"Destroying sapintegrationsuite_number_range is not supported",
-		"SAP documents no delete operation for the NumberRanges API — only an 'Undeploy' action "+
-			"in the Monitor UI with no confirmed REST equivalent — and this provider does not "+
-			"guess at one for an object that may still be referenced by deployed EDI/EDIFACT "+
-			"content. To stop managing this Number Range with Terraform without changing "+
-			"anything on the tenant, remove it from state with 'terraform state rm' instead of "+
-			"running 'terraform destroy'. To actually remove it, use the SAP Integration Suite "+
-			"Monitor UI. See docs/guides/runtime-stores-and-number-ranges.md.",
-	)
+func (r *numberRangeResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state numberRangeModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if err := r.client.DeleteNumberRange(ctx, state.ID.ValueString()); err != nil && !isNotFound(err) {
+		resp.Diagnostics.AddError("Failed to delete SAP Integration Suite number range", diagnosticDetail(err))
+	}
 }
 
-// ImportState always errors: SAP documents no GET operation for this
-// entity, so there is nothing this provider could read from the tenant to
-// populate min_value, max_value, description, rotate, or field_length with.
-// Silently accepting an import ID and leaving every other attribute unknown
-// would misrepresent what this provider actually knows, so — mirroring
-// Delete above — this returns an explicit, actionable error instead of a
-// silently broken import.
-func (r *numberRangeResource) ImportState(_ context.Context, _ resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resp.Diagnostics.AddError(
-		"Importing sapintegrationsuite_number_range is not supported",
-		"SAP documents no GET operation for the NumberRanges API, so this provider has no way to "+
-			"read an existing Number Range's configuration back from the tenant. Instead, write a "+
-			"sapintegrationsuite_number_range resource block matching the object's current "+
-			"configuration and run 'terraform apply' — SAP's documented behavior for a POST "+
-			"against a Name that already exists on the tenant is unconfirmed, so verify in the "+
-			"Monitor UI first whether this recreates it, conflicts, or overwrites it. See "+
-			"docs/guides/runtime-stores-and-number-ranges.md.",
-	)
+// ImportState imports a number range by name. current_value_wo_version stays
+// null until the first apply, which then records it without touching the
+// counter (see Update).
+func (r *numberRangeResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRootID(), req.ID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRoot("name"), req.ID)...)
 }
 
 type numberRangeDigitsValidator struct{}

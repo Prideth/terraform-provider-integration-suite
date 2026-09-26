@@ -514,44 +514,28 @@ var Catalog = []Feature{
 			"EDI/EDIFACT documents, with a static configuration (min/max/description/rotate/" +
 			"field length) and a live runtime counter (CurrentValue, the UI's \"Next Value\") " +
 			"that advances as deployed content consumes numbers.",
-		SupportStatus: StatusPartial,
-		SupportReason: ReasonUnsafeTerraformLifecycle,
+		SupportStatus: StatusSupported,
 		ResourceTypes: []string{"sapintegrationsuite_number_range"},
 		PublicAPI:     true,
 		APIProtocol:   "OData V2",
-		Planned:       true,
 		Limitations: []string{
-			"The tenant $metadata (September 2026) defines NumberRanges keyed by Name, with " +
-				"DeployedBy and DeployedOn alongside the writable fields, and a tenant answered a bare " +
-				"GET on the collection with 200 ($top is rejected with 501). GET by key and DELETE " +
-				"are still unverified, so Read and Delete stay as described below until a write test " +
-				"confirms them.",
-			"SAP documents no GET operation for this entity anywhere — unlike every sibling entity " +
-				"in the same Message Stores API family (DataStores, DataStoreEntries, Variables all " +
-				"have documented GET examples), NumberRanges has none in SAP's curated \"Message " +
-				"Stores Example Requests\" index or anywhere else this project found. Without a GET, " +
-				"this resource's Read is a documented no-op that trusts local state rather than " +
-				"verifying anything against the tenant: it cannot detect drift, and 'terraform " +
-				"import' is rejected outright rather than silently leaving most attributes unknown.",
-			"SAP documents no delete operation for this entity either; the Monitor UI shows an " +
-				"\"Undeploy\" action with no confirmed REST equivalent. 'terraform destroy' returns " +
-				"an explicit error rather than guessing at an unconfirmed operation — see " +
-				"docs/guides/runtime-stores-and-number-ranges.md.",
-			"The runtime counter is handled as a write-only, version-gated attribute " +
-				"(current_value_wo / current_value_wo_version), pushed to SAP only when the " +
-				"version marker changes. An ordinary Update that only changes description/" +
-				"min_value/max_value/rotate/field_length omits CurrentValue from the request body " +
-				"entirely, rather than resending a value this provider has no way to confirm is " +
-				"still current — SAP's documentation does not confirm whether an omitted field on " +
-				"this entity's PUT is preserved unchanged or reset, which is an inherent, " +
-				"documented risk of this design, not a guess this provider is hiding.",
-			"The UI additionally documents a \"Runtimes\" multi-select deployment field (Cloud " +
-				"Integration plus any active Edge Integration Cell nodes) with no visible " +
-				"counterpart in either of SAP's two documented API examples (Add, Update); this " +
-				"provider's client always targets the default runtime implicitly and does not " +
-				"expose runtime/location selection.",
+			"SAP documents only POST and PUT. GET by name and DELETE were verified on a tenant " +
+				"(September 2026: GET returned every field as sent, DELETE answered 202 and a read " +
+				"afterwards 404), so the resource reads, deletes and imports. The collection rejects " +
+				"$top with 501, and every write answered 202 without a body.",
+			"The runtime counter is a write-only, version-gated attribute (current_value_wo / " +
+				"current_value_wo_version), sent on create and only when the version marker changes; " +
+				"current_value reports the live value. After an import the first apply records the " +
+				"marker without touching the counter.",
+			"Whether a PUT that omits CurrentValue keeps the counter is not documented and not yet " +
+				"verified; current_value shows the result after an update.",
+			"Create stops when the name already exists, because SAP does not document what a create " +
+				"on an existing name does. A name with hyphens failed on a tenant together with other " +
+				"values, so plain letters and digits are the safe choice.",
+			"SAP documents an Edge Integration Cell path (/location/<id>/api/v1/NumberRanges); " +
+				"runtime_location_id is not offered yet because it has not been tried on a tenant.",
 		},
-		Operations: Operations{Create: true, Update: true},
+		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},
 	},
 	{
 		Key:    "cloud_integration.variable",

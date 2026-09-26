@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/cloudintegration"
@@ -87,6 +88,9 @@ func TestNumberRangeResource_ValidateConfig_RejectsMinGreaterThanMax(t *testing.
 		"field_length":             tftypes.NewValue(tftypes.String, nil),
 		"current_value_wo":         tftypes.NewValue(tftypes.String, nil),
 		"current_value_wo_version": tftypes.NewValue(tftypes.String, "v1"),
+		"current_value":            tftypes.NewValue(tftypes.String, nil),
+		"deployed_by":              tftypes.NewValue(tftypes.String, nil),
+		"deployed_on":              tftypes.NewValue(tftypes.String, nil),
 	})
 
 	req := resource.ValidateConfigRequest{Config: tfsdk.Config{Schema: s, Raw: raw}}
@@ -115,6 +119,9 @@ func TestNumberRangeResource_ValidateConfig_AcceptsValidRange(t *testing.T) {
 		"field_length":             tftypes.NewValue(tftypes.String, nil),
 		"current_value_wo":         tftypes.NewValue(tftypes.String, nil),
 		"current_value_wo_version": tftypes.NewValue(tftypes.String, "v1"),
+		"current_value":            tftypes.NewValue(tftypes.String, nil),
+		"deployed_by":              tftypes.NewValue(tftypes.String, nil),
+		"deployed_on":              tftypes.NewValue(tftypes.String, nil),
 	})
 
 	req := resource.ValidateConfigRequest{Config: tfsdk.Config{Schema: s, Raw: raw}}
@@ -123,26 +130,6 @@ func TestNumberRangeResource_ValidateConfig_AcceptsValidRange(t *testing.T) {
 
 	if resp.Diagnostics.HasError() {
 		t.Errorf("ValidateConfig() unexpectedly produced diagnostics: %v", resp.Diagnostics)
-	}
-}
-
-func TestNumberRangeResource_Delete_AlwaysErrors(t *testing.T) {
-	r := NewNumberRangeResource()
-
-	var resp resource.DeleteResponse
-	r.Delete(context.Background(), resource.DeleteRequest{}, &resp)
-	if !resp.Diagnostics.HasError() {
-		t.Error("Delete() did not produce a diagnostic; SAP documents no delete operation for this entity")
-	}
-}
-
-func TestNumberRangeResource_ImportState_AlwaysErrors(t *testing.T) {
-	r := NewNumberRangeResource().(resource.ResourceWithImportState)
-
-	var resp resource.ImportStateResponse
-	r.ImportState(context.Background(), resource.ImportStateRequest{ID: "MyRange"}, &resp)
-	if !resp.Diagnostics.HasError() {
-		t.Error("ImportState() did not produce a diagnostic; SAP documents no GET for this entity, so import cannot populate state from the tenant")
 	}
 }
 
@@ -162,9 +149,14 @@ func newNumberRangeTestState(t *testing.T, s schema.Schema) tfsdk.State {
 func TestNumberRangeResource_Update_OmitsCurrentValueWhenVersionUnchanged(t *testing.T) {
 	var gotBody []byte
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(numberRangeTestEntity))
+			return
+		}
 		body, _ := io.ReadAll(r.Body)
 		gotBody = body
-		w.WriteHeader(http.StatusNoContent)
+		w.WriteHeader(http.StatusAccepted)
 	}))
 	defer server.Close()
 
@@ -183,6 +175,9 @@ func TestNumberRangeResource_Update_OmitsCurrentValueWhenVersionUnchanged(t *tes
 		"field_length":             tftypes.NewValue(tftypes.String, "4"),
 		"current_value_wo":         tftypes.NewValue(tftypes.String, nil),
 		"current_value_wo_version": tftypes.NewValue(tftypes.String, "v1"),
+		"current_value":            tftypes.NewValue(tftypes.String, nil),
+		"deployed_by":              tftypes.NewValue(tftypes.String, nil),
+		"deployed_on":              tftypes.NewValue(tftypes.String, nil),
 	})
 	planRaw := tftypes.NewValue(objType, map[string]tftypes.Value{
 		"id":                       tftypes.NewValue(tftypes.String, "MyRange"),
@@ -194,6 +189,9 @@ func TestNumberRangeResource_Update_OmitsCurrentValueWhenVersionUnchanged(t *tes
 		"field_length":             tftypes.NewValue(tftypes.String, "4"),
 		"current_value_wo":         tftypes.NewValue(tftypes.String, nil),
 		"current_value_wo_version": tftypes.NewValue(tftypes.String, "v1"),
+		"current_value":            tftypes.NewValue(tftypes.String, nil),
+		"deployed_by":              tftypes.NewValue(tftypes.String, nil),
+		"deployed_on":              tftypes.NewValue(tftypes.String, nil),
 	})
 	configRaw := planRaw
 
@@ -221,9 +219,14 @@ func TestNumberRangeResource_Update_OmitsCurrentValueWhenVersionUnchanged(t *tes
 func TestNumberRangeResource_Update_SendsCurrentValueWhenVersionChanges(t *testing.T) {
 	var gotBody []byte
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(numberRangeTestEntity))
+			return
+		}
 		body, _ := io.ReadAll(r.Body)
 		gotBody = body
-		w.WriteHeader(http.StatusNoContent)
+		w.WriteHeader(http.StatusAccepted)
 	}))
 	defer server.Close()
 
@@ -242,6 +245,9 @@ func TestNumberRangeResource_Update_SendsCurrentValueWhenVersionChanges(t *testi
 		"field_length":             tftypes.NewValue(tftypes.String, "4"),
 		"current_value_wo":         tftypes.NewValue(tftypes.String, nil),
 		"current_value_wo_version": tftypes.NewValue(tftypes.String, "v1"),
+		"current_value":            tftypes.NewValue(tftypes.String, nil),
+		"deployed_by":              tftypes.NewValue(tftypes.String, nil),
+		"deployed_on":              tftypes.NewValue(tftypes.String, nil),
 	})
 	planRaw := tftypes.NewValue(objType, map[string]tftypes.Value{
 		"id":                       tftypes.NewValue(tftypes.String, "MyRange"),
@@ -253,6 +259,9 @@ func TestNumberRangeResource_Update_SendsCurrentValueWhenVersionChanges(t *testi
 		"field_length":             tftypes.NewValue(tftypes.String, "4"),
 		"current_value_wo":         tftypes.NewValue(tftypes.String, nil),
 		"current_value_wo_version": tftypes.NewValue(tftypes.String, "v2"),
+		"current_value":            tftypes.NewValue(tftypes.String, nil),
+		"deployed_by":              tftypes.NewValue(tftypes.String, nil),
+		"deployed_on":              tftypes.NewValue(tftypes.String, nil),
 	})
 	configRaw := tftypes.NewValue(objType, map[string]tftypes.Value{
 		"id":                       tftypes.NewValue(tftypes.String, nil),
@@ -264,6 +273,9 @@ func TestNumberRangeResource_Update_SendsCurrentValueWhenVersionChanges(t *testi
 		"field_length":             tftypes.NewValue(tftypes.String, "4"),
 		"current_value_wo":         tftypes.NewValue(tftypes.String, "500"),
 		"current_value_wo_version": tftypes.NewValue(tftypes.String, "v2"),
+		"current_value":            tftypes.NewValue(tftypes.String, nil),
+		"deployed_by":              tftypes.NewValue(tftypes.String, nil),
+		"deployed_on":              tftypes.NewValue(tftypes.String, nil),
 	})
 
 	req := resource.UpdateRequest{
@@ -292,17 +304,18 @@ func containsCurrentValue(body []byte) bool {
 	return ok
 }
 
-// TestNumberRangeResource_Read_IsNoOp proves Read never mutates what is
-// already in state: it copies state straight through to the response
-// without contacting SAP (there is no client on the resource in this test,
-// so any attempt to call SAP would nil-panic).
-func TestNumberRangeResource_Read_IsNoOp(t *testing.T) {
-	r := &numberRangeResource{}
-	s := numberRangeSchema(t).Schema
-	ctx := context.Background()
-	objType := s.Type().TerraformType(ctx).(tftypes.Object)
+// numberRangeTestEntity is a GET response in the shape a tenant returned in
+// September 2026: every value a string, the date as /Date(ms)/.
+const numberRangeTestEntity = `{"d":{"Name":"MyRange","Description":"from SAP","MaxValue":"9999","MinValue":"0","Rotate":"true","CurrentValue":"42","FieldLength":"4","DeployedBy":"sb-client","DeployedOn":"\/Date(1790410291173)\/"}}`
 
-	stateRaw := tftypes.NewValue(objType, map[string]tftypes.Value{
+func numberRangeStateRaw(t *testing.T, s schema.Schema, version *string) tftypes.Value {
+	t.Helper()
+	objType := s.Type().TerraformType(context.Background()).(tftypes.Object)
+	var v interface{}
+	if version != nil {
+		v = *version
+	}
+	return tftypes.NewValue(objType, map[string]tftypes.Value{
 		"id":                       tftypes.NewValue(tftypes.String, "MyRange"),
 		"name":                     tftypes.NewValue(tftypes.String, "MyRange"),
 		"min_value":                tftypes.NewValue(tftypes.String, "0"),
@@ -311,23 +324,181 @@ func TestNumberRangeResource_Read_IsNoOp(t *testing.T) {
 		"rotate":                   tftypes.NewValue(tftypes.Bool, true),
 		"field_length":             tftypes.NewValue(tftypes.String, "4"),
 		"current_value_wo":         tftypes.NewValue(tftypes.String, nil),
-		"current_value_wo_version": tftypes.NewValue(tftypes.String, "v1"),
+		"current_value_wo_version": tftypes.NewValue(tftypes.String, v),
+		"current_value":            tftypes.NewValue(tftypes.String, nil),
+		"deployed_by":              tftypes.NewValue(tftypes.String, nil),
+		"deployed_on":              tftypes.NewValue(tftypes.String, nil),
 	})
+}
 
-	req := resource.ReadRequest{State: tfsdk.State{Schema: s, Raw: stateRaw}}
+// Read reports what SAP holds, so a description changed in the UI shows up
+// as drift, and the live counter appears in current_value.
+func TestNumberRangeResource_Read_DetectsDrift(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/NumberRanges('MyRange')" || r.URL.RawQuery != "" {
+			t.Errorf("request = %s?%s, want a bare GET by key", r.URL.Path, r.URL.RawQuery)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(numberRangeTestEntity))
+	}))
+	defer server.Close()
+
+	r := &numberRangeResource{client: cloudintegration.New(http.DefaultClient, server.URL)}
+	s := numberRangeSchema(t).Schema
+	ctx := context.Background()
+	v1 := "v1"
+
 	resp := &resource.ReadResponse{State: newNumberRangeTestState(t, s)}
-
-	r.Read(ctx, req, resp)
+	r.Read(ctx, resource.ReadRequest{State: tfsdk.State{Schema: s, Raw: numberRangeStateRaw(t, s, &v1)}}, resp)
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("Read() produced diagnostics: %v", resp.Diagnostics)
 	}
 
 	var got numberRangeModel
 	resp.Diagnostics.Append(resp.State.Get(ctx, &got)...)
-	if got.Description.ValueString() != "d" {
-		t.Errorf("Read() changed description to %q, want unchanged %q", got.Description.ValueString(), "d")
+	if got.Description.ValueString() != "from SAP" {
+		t.Errorf("description = %q, want the value SAP reports", got.Description.ValueString())
 	}
-	if got.ID.ValueString() != "MyRange" {
-		t.Errorf("Read() changed id to %q, want unchanged %q", got.ID.ValueString(), "MyRange")
+	if got.CurrentValue.ValueString() != "42" {
+		t.Errorf("current_value = %q, want 42", got.CurrentValue.ValueString())
+	}
+	if got.CurrentValueWOVersion.ValueString() != "v1" {
+		t.Errorf("current_value_wo_version = %q, want it kept from state", got.CurrentValueWOVersion.ValueString())
+	}
+	if got.DeployedOn.ValueString() == "" {
+		t.Error("deployed_on is empty, want the converted /Date(ms)/ value")
+	}
+}
+
+func TestNumberRangeResource_Read_RemovesDeletedRange(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"error":{"code":"Not Found","message":{"lang":"en","value":"not found"}}}`))
+	}))
+	defer server.Close()
+
+	r := &numberRangeResource{client: cloudintegration.New(http.DefaultClient, server.URL)}
+	s := numberRangeSchema(t).Schema
+	v1 := "v1"
+
+	resp := &resource.ReadResponse{State: tfsdk.State{Schema: s, Raw: numberRangeStateRaw(t, s, &v1)}}
+	r.Read(context.Background(), resource.ReadRequest{State: tfsdk.State{Schema: s, Raw: numberRangeStateRaw(t, s, &v1)}}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Read() produced diagnostics: %v", resp.Diagnostics)
+	}
+	if !resp.State.Raw.IsNull() {
+		t.Error("state should be removed when SAP reports 404")
+	}
+}
+
+func TestNumberRangeResource_Delete_SendsDelete(t *testing.T) {
+	var method, path string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		method, path = r.Method, r.URL.Path
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	r := &numberRangeResource{client: cloudintegration.New(http.DefaultClient, server.URL)}
+	s := numberRangeSchema(t).Schema
+	v1 := "v1"
+
+	var resp resource.DeleteResponse
+	r.Delete(context.Background(), resource.DeleteRequest{State: tfsdk.State{Schema: s, Raw: numberRangeStateRaw(t, s, &v1)}}, &resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Delete() produced diagnostics: %v", resp.Diagnostics)
+	}
+	if method != http.MethodDelete || path != "/api/v1/NumberRanges('MyRange')" {
+		t.Errorf("request = %s %s, want DELETE NumberRanges('MyRange')", method, path)
+	}
+}
+
+func TestNumberRangeResource_ImportState_SetsName(t *testing.T) {
+	r := NewNumberRangeResource().(resource.ResourceWithImportState)
+	s := numberRangeSchema(t).Schema
+	ctx := context.Background()
+
+	resp := &resource.ImportStateResponse{State: newNumberRangeTestState(t, s)}
+	r.ImportState(ctx, resource.ImportStateRequest{ID: "MyRange"}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("ImportState() produced diagnostics: %v", resp.Diagnostics)
+	}
+	var name types.String
+	resp.Diagnostics.Append(resp.State.GetAttribute(ctx, pathRoot("name"), &name)...)
+	if name.ValueString() != "MyRange" {
+		t.Errorf("name = %q, want MyRange", name.ValueString())
+	}
+}
+
+// After an import the marker is null. The first apply must record it
+// without sending CurrentValue, or adopting a number range in use would
+// reset its counter to whatever the configuration says.
+func TestNumberRangeResource_Update_AfterImportKeepsCounter(t *testing.T) {
+	var gotBody []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(numberRangeTestEntity))
+			return
+		}
+		gotBody, _ = io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	r := &numberRangeResource{client: cloudintegration.New(http.DefaultClient, server.URL)}
+	s := numberRangeSchema(t).Schema
+	ctx := context.Background()
+	v1 := "v1"
+
+	config := numberRangeStateRaw(t, s, &v1)
+	req := resource.UpdateRequest{
+		State:  tfsdk.State{Schema: s, Raw: numberRangeStateRaw(t, s, nil)},
+		Plan:   tfsdk.Plan{Schema: s, Raw: numberRangeStateRaw(t, s, &v1)},
+		Config: tfsdk.Config{Schema: s, Raw: config},
+	}
+	resp := &resource.UpdateResponse{State: newNumberRangeTestState(t, s)}
+	r.Update(ctx, req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Update() produced diagnostics: %v", resp.Diagnostics)
+	}
+	if containsCurrentValue(gotBody) {
+		t.Errorf("first apply after import sent CurrentValue: %s", gotBody)
+	}
+	var got numberRangeModel
+	resp.Diagnostics.Append(resp.State.Get(ctx, &got)...)
+	if got.CurrentValueWOVersion.ValueString() != "v1" {
+		t.Errorf("current_value_wo_version = %q, want the marker recorded", got.CurrentValueWOVersion.ValueString())
+	}
+}
+
+// SAP does not document what a create on an existing name does, so Create
+// stops instead of posting.
+func TestNumberRangeResource_Create_RefusesExistingName(t *testing.T) {
+	posted := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			posted = true
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(numberRangeTestEntity))
+	}))
+	defer server.Close()
+
+	r := &numberRangeResource{client: cloudintegration.New(http.DefaultClient, server.URL)}
+	s := numberRangeSchema(t).Schema
+	v1 := "v1"
+
+	raw := numberRangeStateRaw(t, s, &v1)
+	resp := &resource.CreateResponse{State: newNumberRangeTestState(t, s)}
+	r.Create(context.Background(), resource.CreateRequest{
+		Plan:   tfsdk.Plan{Schema: s, Raw: raw},
+		Config: tfsdk.Config{Schema: s, Raw: raw},
+	}, resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("expected Create to fail for an existing number range")
+	}
+	if posted {
+		t.Error("Create sent a POST for an existing name")
 	}
 }

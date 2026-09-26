@@ -1,0 +1,1 @@
+terraform import sapintegrationsuite_number_range.invoice_numbers InvoiceNumbers

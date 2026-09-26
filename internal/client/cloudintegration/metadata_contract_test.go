@@ -26,6 +26,7 @@ func TestWireContractAgainstMetadata(t *testing.T) {
 		{integrationDesigntimeArtifactsEntitySet, IntegrationFlow{}},
 		{messageMappingDesigntimeArtifactsEntitySet, MessageMapping{}},
 		{numberRangesEntitySet, numberRangeWireModel{}},
+		{numberRangesEntitySet, NumberRangeState{}},
 		{integrationPackagesEntitySet, Package{}},
 		{runtimeArtifactsEntitySet, RuntimeArtifact{}},
 		{scriptCollectionDesigntimeArtifactsEntitySet, ScriptCollection{}},

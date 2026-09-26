@@ -872,7 +872,12 @@ data; is import meaningful; does it belong in desired-state infrastructure; Reso
 Source/unsupported/out of scope). Full API evidence is in
 `docs/sap-api-references.md`; this section records the suitability conclusions.
 
-### Number Range — partial resource (write-only lifecycle)
+### Number Range — resource with a version-gated counter
+
+> **Re-audit September 2026.** Points 5, 7, 8, 11 and 12 below originally said "no": SAP still
+> documents only POST and PUT, but a tenant answered `GET NumberRanges('<name>')` with the entity
+> and `DELETE NumberRanges('<name>')` with `202` (the object was gone afterwards). The resource
+> now reads, deletes and imports; the updated answers are given inline.
 
 1. **Who creates it**: a practitioner or integration developer, explicitly, via the Monitor
    application or this API — the only object in this family a human deliberately defines rather
@@ -885,25 +890,21 @@ Source/unsupported/out of scope). Full API evidence is in
 3. **Is identity stable**: yes — `Name` is SAP's documented OData key, and SAP's documentation
    never describes rename semantics, so it is `RequiresReplace`.
 4. **Is Create public**: yes, confirmed (`POST /NumberRanges`).
-5. **Is Read public**: **no** — confirmed absent, not merely unconfirmed. See
-   `docs/sap-api-references.md` for the exhaustive check (the curated example-requests index,
-   the overview resource table, a full directory search) that ruled this out rather than assumed
-   it from one missing page.
+5. **Is Read public**: not documented by SAP, but verified on a tenant: `GET` by name returns
+   every field as sent (the collection rejects `$top` with `501`).
 6. **Is Update public**: yes, confirmed (`PUT /NumberRanges('{name}')`).
-7. **Is Delete public**: **no** — confirmed absent; the UI documents "Undeploy" as a distinct
-   action from "Delete", with no REST equivalent found anywhere.
-8. **Can Terraform detect drift reliably**: no — there is no GET to compare against. This is the
-   central, disqualifying fact for a conventional resource design.
+7. **Is Delete public**: not documented (the UI shows "Undeploy"), but verified on a tenant:
+   `DELETE` by name answers `202` and the object is gone.
+8. **Can Terraform detect drift reliably**: yes for the static fields, through the GET.
 9. **Would Terraform reconciliation be safe**: for the static fields, yes, if Update never
    silently resends a value it cannot confirm is current. For `CurrentValue`, no — no design can
    make blind reconciliation of an unreadable, externally-advancing counter safe.
 10. **Could `apply` accidentally reset runtime state**: yes, this is the central risk this design
     exists to prevent — see the Update design below.
-11. **Could `destroy` destroy productive runtime data**: moot — Delete is not implemented (SAP
-    documents no operation to call).
-12. **Is import meaningful**: no — without a GET there is nothing to populate imported state
-    with beyond the ID itself, which is not import in any meaningful sense the rest of this
-    provider practices.
+11. **Could `destroy` destroy productive runtime data**: yes — deleting a number range that
+    deployed content uses breaks that content; the guide says to remove references first.
+12. **Is import meaningful**: yes, by name; the first apply after an import records the version
+    marker without sending the counter.
 13. **Does it belong in desired-state infrastructure management**: the static configuration
     does; the runtime counter categorically does not.
 14. **Resource / Data Source / unsupported / out of scope**: **Resource, but a deliberately
@@ -952,19 +953,18 @@ authored in the first place.
     interpretation) is **not confirmed either way**, since there is no GET to check the result
     against. This is disclosed prominently in the resource's schema description and in
     `docs/guides/runtime-stores-and-number-ranges.md`, not hidden behind an assumption of safety.
-- **Read**: a documented no-op. It copies `req.State` straight into `resp.State` and never
-  contacts SAP — the only Read behavior this provider can honestly offer against an entity with
-  no GET, rather than a Read that silently never detects anything wrong.
-- **Delete**: always returns an explicit error (mirrors
-  `sapintegrationsuite_custom_tag_configuration`'s established pattern for "SAP documents no
-  confirmed destroy operation" — `terraform state rm` is the documented escape hatch).
-- **Import**: `ResourceWithImportState` is implemented, but `ImportState` always returns an
-  explicit error, for the same reason as Delete — this provider considered omitting the
-  interface entirely, but an explicit, actionable error was judged more honest and more
-  consistent with this provider's established "explicit error over silent gap" convention than a
-  bare Terraform-core "does not support import" message.
-- **Feature catalog status**: `partial`, reason `unsafe_terraform_lifecycle` — the missing
-  Read/Delete/Import are permanent properties of this API, not gaps expected to close later.
+- **Read** (since the September 2026 re-audit): `GET NumberRanges('<name>')` without query
+  options. The static fields come from SAP, so UI changes show as drift; a `404` removes the
+  resource from state. `current_value`, `deployed_by` and `deployed_on` are computed; the
+  version marker is kept from state.
+- **Create**: reads the name first and stops if it exists, because SAP does not document what a
+  POST on an existing name does. Every write answers `202` without a body, so Create and Update
+  read the object back.
+- **Delete**: `DELETE NumberRanges('<name>')`; a `404` counts as already deleted.
+- **Import**: by name. The version marker is null afterwards; Update pushes the counter only when
+  the prior marker is non-null and changed, so the first apply after an import never resets it.
+- **Feature catalog status**: `supported`. Open: whether a PUT that omits `CurrentValue` keeps the
+  counter (visible through `current_value`, a tenant test is prepared).
 
 ### Variable — no resource, no data source
 

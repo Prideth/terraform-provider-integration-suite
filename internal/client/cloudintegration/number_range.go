@@ -14,15 +14,10 @@ const numberRangesEntitySet = "NumberRanges"
 // NumberRange is the static, desired-state configuration of a Number Ranges
 // object, confirmed verbatim from SAP's own "Add a Number Ranges Object" and
 // "Update a Number Ranges Object" documentation pages. CurrentValue is
-// intentionally not a plain field here: SAP's public documentation confirms
-// no GET operation for this entity anywhere (unlike every sibling entity in
-// the same Message Stores API — DataStores, DataStoreEntries, Variables all
-// have documented GET examples; NumberRanges has none, in the curated
-// "Message Stores Example Requests" index or anywhere else this project
-// searched). Without a GET, this client cannot read back the live counter
-// before an Update, so CurrentValue is only ever sent when the caller
-// explicitly opts in (see CurrentValue field and UpdateNumberRange), never
-// silently resent from a remembered value.
+// intentionally not a plain field here: the counter advances at run time,
+// so it is only ever sent when the caller explicitly opts in (see
+// CurrentValue field and UpdateNumberRange), never silently resent from a
+// remembered value.
 type NumberRange struct {
 	Name        string
 	MinValue    string
@@ -89,6 +84,45 @@ func (c *Client) CreateNumberRange(ctx context.Context, nr NumberRange) error {
 	return err
 }
 
+// NumberRangeState is a Number Ranges object as GET returns it. SAP
+// documents no GET for this entity, but a tenant answered
+// GET NumberRanges('<name>') with 200, echoing every field exactly as it was
+// sent (numbers and Rotate as strings), and the tenant $metadata confirms
+// the properties (September 2026).
+type NumberRangeState struct {
+	Name         string `json:"Name"`
+	Description  string `json:"Description"`
+	MinValue     string `json:"MinValue"`
+	MaxValue     string `json:"MaxValue"`
+	Rotate       string `json:"Rotate"`
+	CurrentValue string `json:"CurrentValue"`
+	FieldLength  string `json:"FieldLength"`
+	DeployedBy   string `json:"DeployedBy"`
+	DeployedOn   string `json:"DeployedOn"`
+}
+
+// GetNumberRange reads a Number Ranges object by name. Like the other
+// Message Store entity sets, it is requested without query options, which
+// the service rejects.
+func (c *Client) GetNumberRange(ctx context.Context, name string) (*NumberRangeState, error) {
+	body, err := c.odata.Get(ctx, v2.BuildPath(numberRangesEntitySet, v2.KeyPredicate(name), ""))
+	if err != nil {
+		return nil, err
+	}
+	var nr NumberRangeState
+	if err := v2.DecodeEntity(body, &nr); err != nil {
+		return nil, err
+	}
+	return &nr, nil
+}
+
+// DeleteNumberRange removes a Number Ranges object. SAP documents no DELETE
+// for this entity; a tenant answered DELETE NumberRanges('<name>') with 202
+// and the object was gone afterwards (September 2026).
+func (c *Client) DeleteNumberRange(ctx context.Context, name string) error {
+	return c.odata.Delete(ctx, v2.BuildPath(numberRangesEntitySet, v2.KeyPredicate(name), ""))
+}
+
 // UpdateNumberRange updates an existing Number Ranges object's static
 // configuration. Confirmed directly from SAP's own documentation:
 // `PUT /api/v1/NumberRanges('{objectName}')`.
@@ -99,11 +133,9 @@ func (c *Client) CreateNumberRange(ctx context.Context, nr NumberRange) error {
 //     rotate/field_length changed): CurrentValue is omitted from the JSON
 //     body. SAP's documentation does not confirm whether an omitted field is
 //     preserved unchanged (a partial-merge PUT) or reset to a default (a
-//     literal full-replace PUT) — this client cannot verify either way,
-//     since no GET exists to check the result. Omission is the more
-//     conservative choice of two unconfirmed behaviors: it never transmits
-//     a value this client knows to be stale, whereas resending a remembered
-//     value is confirmed by design to go stale the moment SAP's runtime
+//     literal full-replace PUT). Omission is the more conservative choice:
+//     it never transmits a value this client knows to be stale, whereas
+//     resending a remembered value goes stale the moment SAP's runtime
 //     consumes even one number.
 //   - non-nil (the caller explicitly wants to (re)set the counter, mirroring
 //     this provider's write-only-secret-rotation pattern): CurrentValue is

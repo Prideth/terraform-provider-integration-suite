@@ -35,23 +35,34 @@ number must be added to each document." It has two very different parts:
   Suite Monitor UI — same value, different name) that advances every time deployed content
   consumes a number.
 
-`sapintegrationsuite_number_range` manages the first part. It does not, and cannot safely, manage
-the second.
+`sapintegrationsuite_number_range` manages the first part. It sets the counter only when you ask
+for it explicitly, and reports its live value in `current_value`.
 
-### Why this resource has no Read
+### Reading, deleting and importing: verified on a tenant
 
-Every other resource in this provider implements a real `Read` that calls SAP's API and detects
-drift. This one cannot: **SAP documents no `GET` operation for Number Ranges anywhere.** This was
-checked exhaustively, not assumed from one missing example — see `docs/sap-api-references.md` for
-the full trail (the curated example-requests index that lists a "Get..." page for every sibling
-entity except this one; a full directory search; the overview resource table, which documents
-unsupported query options for Data Stores and Variables but says nothing of the kind for Number
-Ranges, implying there is no GET to apply query options to in the first place).
+SAP documents only two operations for Number Ranges: *Add* (`POST /api/v1/NumberRanges`) and
+*Update* (`PUT /api/v1/NumberRanges('<name>')`). Earlier releases of this provider therefore had a
+`Read` that never contacted SAP, refused `terraform destroy` and refused imports.
 
-Because of that, `sapintegrationsuite_number_range`'s `Read` is a **documented no-op**: it copies
-whatever Terraform already has in state back into state, and never contacts SAP. It cannot tell
-you if someone changed `description` through the UI. It cannot tell you if the object was deleted
-entirely. This is disclosed in the resource's own schema description, not just here.
+In September 2026 a tenant test settled the rest. `GET NumberRanges('<name>')` returned the
+object with every field exactly as it was sent, `DELETE NumberRanges('<name>')` answered `202`
+and a read afterwards returned `404`, and the tenant `$metadata` lists the same properties plus
+`DeployedBy` and `DeployedOn`. The resource now uses both operations:
+
+- `Read` reports what SAP holds, so a description or range changed in the Monitor UI shows up as
+  drift, and a number range deleted outside Terraform drops out of state.
+- `current_value` shows the live counter from the last read, next to `deployed_by` and
+  `deployed_on`.
+- `terraform destroy` deletes the number range. Content that still uses it fails at run time
+  afterwards, so remove references first.
+- Import by name: `terraform import sapintegrationsuite_number_range.invoice_numbers InvoiceNumbers`.
+
+Because SAP does not document what a create does when the name already exists, `Create` checks
+first and stops with an error that asks for an import instead.
+
+Two request details from the same test matter if you call the API yourself: the entity set
+answers `$top` with `501`, so the provider reads without query options; and every write returned
+`202 Accepted` with an empty body.
 
 ### Why the runtime counter is a separate, write-only attribute
 
@@ -104,54 +115,27 @@ resource "sapintegrationsuite_number_range" "invoice_numbers" {
 }
 ```
 
-### An open, honestly-disclosed risk: what does an omitted field actually do?
+### Importing a number range that is in use
 
-The design above — omitting `CurrentValue` from the request body on an ordinary Update — is the
-safest option this provider could construct given the API it has, but it rests on an assumption
-this provider **could not verify**: that SAP's `PUT` treats a missing `CurrentValue` as "leave
-unchanged" (a partial-merge interpretation), not "reset to a default" (a literal full-replace
-interpretation). There is no `GET` to check which one actually happens. If your tenant's behavior
-turns out to be the latter, please report it — this is exactly the kind of gap this provider
-would rather document prominently than paper over with false confidence.
+After an import, `current_value_wo_version` is not yet in state. The first apply only records
+the value from your configuration and does **not** send `current_value_wo`, so adopting a
+number range that deployed content is already consuming never resets its counter. To set the
+counter deliberately afterwards, change `current_value_wo_version` once more.
 
-### Delete and Import are both refused, not guessed at
+### Still open: what does an omitted `CurrentValue` do?
 
-SAP documents no `DELETE` for this entity either. The Integration Suite Monitor UI shows an
-**"Undeploy"** action for Number Ranges — explicitly distinct from "Delete" in SAP's own Actions
-documentation — with no REST equivalent found anywhere. `terraform destroy` (or removing the
-resource block and applying) therefore returns an explicit, actionable error rather than either
-silently doing nothing (leaving Terraform's state out of sync with a belief that the object was
-removed) or guessing at an unconfirmed operation against a live tenant object that deployed EDI
-content may still depend on:
+An ordinary update omits `CurrentValue` from the `PUT` body. SAP does not document whether its
+`PUT` then keeps the counter (a partial update) or resets it (a full replacement). Unlike before,
+this is now visible: `current_value` after the apply shows what SAP holds. A tenant test for
+exactly this question is prepared; until it has run, check `current_value` after changing a
+number range that is in use.
 
-```shell
-$ terraform destroy
-╷
-│ Error: Destroying sapintegrationsuite_number_range is not supported
-│
-│ SAP documents no delete operation for the NumberRanges API — only an
-│ 'Undeploy' action in the Monitor UI with no confirmed REST equivalent...
-│ To stop managing this Number Range with Terraform without changing
-│ anything on the tenant, remove it from state with 'terraform state rm'.
-```
+### Names
 
-Import is refused for the same underlying reason (no GET), via the same explicit-error pattern:
-
-```shell
-$ terraform import sapintegrationsuite_number_range.invoice_numbers InvoiceNumbers
-╷
-│ Error: Importing sapintegrationsuite_number_range is not supported
-│
-│ SAP documents no GET operation for the NumberRanges API, so this provider
-│ has no way to read an existing Number Range's configuration back from the
-│ tenant...
-```
-
-If a Number Range already exists on your tenant and you want Terraform to manage its static
-configuration going forward, write a `sapintegrationsuite_number_range` resource block matching
-its current settings and run `terraform apply` — but first verify, in the Monitor UI, what
-happens when you `POST` a `Name` that already exists. SAP's documentation does not confirm
-whether that errors, conflicts, or silently overwrites, and this provider does not guess.
+A tenant accepted a number range named `tfAccProbeNr`. A create with the name
+`tf-acc-probe-nr` and different values failed with a `500` that carried no message, so either
+hyphens in the name or those values are rejected. Until that is narrowed down, prefer names made
+of letters and digits.
 
 ### A UI capability this provider does not expose: multi-runtime deployment
 
@@ -161,7 +145,12 @@ Integration Cell nodes." Neither of SAP's two documented API examples (Add, Upda
 runtime/location parameter. This provider's client always targets the implicit default runtime
 and does not attempt to reconstruct or guess at Edge Integration Cell-specific deployment — if
 your tenant has active Edge Integration Cell nodes and you need Number Ranges deployed there
-specifically, use the Monitor UI for that until SAP documents the API parameter.
+specifically, use the Monitor UI for that.
+
+SAP's *Add a Number Ranges Object* page does name the Edge Integration Cell service root,
+`/location/<runtime location id>/api/v1/NumberRanges`, the same root the provider's other
+Edge-capable resources use through `runtime_location_id`. Number ranges do not offer
+`runtime_location_id` yet because that path has not been tried on a tenant.
 
 ### Numeric fields are strings, on purpose
 
@@ -242,8 +231,8 @@ purpose, and "an entry can be deleted somehow" is not a reason to model that del
 Both `DataStores` and `Variables` confirm, verbatim, that they do not support `$filter`,
 `$inlinecount`, `$orderby`, `$skip`, `$top`, `$expand`, or `$select` — two separate statements in
 SAP's documentation, one per entity, not a single rule this provider generalized across the whole
-API family. Number Ranges makes no such statement (and has no GET to apply query options to
-regardless).
+API family. Number Ranges makes no such statement, but a tenant answered `$top` on `NumberRanges`
+with `501` all the same (September 2026), so the provider reads it without query options.
 
 ### Authorization
 
