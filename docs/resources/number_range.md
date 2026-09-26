@@ -5,7 +5,7 @@ subcategory: ""
 description: |-
   Manages the static configuration of a Cloud Integration "Number Ranges" object, used to generate unique interchange numbers for outbound EDI/EDIFACT documents. Backed by the public Message Stores OData V2 API (NumberRanges).
   SAP documents only create and update for this entity. Reading by name and deleting were verified on a tenant in September 2026 (GET and DELETE on NumberRanges('')), so this resource detects drift, supports destroy and can be imported by name. Create refuses to run when a number range of that name already exists, because SAP does not document what a create on an existing name does.
-  The runtime counter (SAP's CurrentValue, shown as 'Next Value' in the UI) is handled separately from the rest of this resource's configuration: see current_value_wo below. Ordinary applies that only change description, min_value, max_value, rotate, or field_length never send the counter, and current_value shows its live value.
+  The runtime counter (SAP's CurrentValue, shown as 'Next Value' in the UI) is handled separately from the rest of this resource's configuration: see current_value_wo below. Ordinary applies that only change description, min_value, max_value, rotate, or field_length send back the counter SAP currently holds, and current_value shows its live value.
 ---
 
 # sapintegrationsuite_number_range (Resource)
@@ -14,7 +14,7 @@ Manages the static configuration of a Cloud Integration "Number Ranges" object, 
 
 SAP documents only create and update for this entity. Reading by name and deleting were verified on a tenant in September 2026 (GET and DELETE on NumberRanges('<name>')), so this resource detects drift, supports destroy and can be imported by name. Create refuses to run when a number range of that name already exists, because SAP does not document what a create on an existing name does.
 
-The runtime counter (SAP's CurrentValue, shown as 'Next Value' in the UI) is handled separately from the rest of this resource's configuration: see current_value_wo below. Ordinary applies that only change description, min_value, max_value, rotate, or field_length never send the counter, and current_value shows its live value.
+The runtime counter (SAP's CurrentValue, shown as 'Next Value' in the UI) is handled separately from the rest of this resource's configuration: see current_value_wo below. Ordinary applies that only change description, min_value, max_value, rotate, or field_length send back the counter SAP currently holds, and current_value shows its live value.
 
 ## Example Usage
 
@@ -63,11 +63,11 @@ resource "sapintegrationsuite_number_range" "invoice_numbers" {
 
 > **NOTE**: [Write-only arguments](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments) are supported in Terraform 1.11 and later.
 
-- `current_value_wo` (String, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) The counter value (SAP's CurrentValue / the UI's "Next Value") to push to SAP, as a decimal digit string. Write-only: Terraform does not store it; the live counter is reported in current_value instead. Sent on Create (SAP's documented example always includes CurrentValue). On Update, it is sent ONLY when current_value_wo_version changes; every other Update omits CurrentValue, so that changing only description/min_value/max_value/rotate/field_length can never reset a counter that has advanced through EDI/EDIFACT processing.
+- `current_value_wo` (String, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) The counter value (SAP's CurrentValue / the UI's "Next Value") to push to SAP, as a decimal digit string. Write-only: Terraform does not store it; the live counter is reported in current_value instead. Sent on Create. On Update it is sent ONLY when current_value_wo_version changes. SAP rejects an update without a counter, so every other Update reads the live counter right before the PUT and sends it back unchanged; changing description/min_value/max_value/rotate/field_length therefore never resets a counter that has advanced through EDI/EDIFACT processing (a number consumed during that one round trip would be handed out again).
 - `current_value_wo_version` (String) An arbitrary marker (for example a counter or timestamp) that you change to push current_value_wo to SAP on this apply. After an import, the first apply only records the marker and does not touch the counter; change it once more to set the counter deliberately.
 - `max_value` (String) The highest value the counter may hold before it errors (if rotate is false) or wraps back to min_value (if rotate is true), as a decimal digit string. SAP's UI validates this as fewer than 15 digits.
 - `min_value` (String) The lowest value the counter may hold, as a decimal digit string (SAP's wire format — not a Terraform number, to avoid any numeric-precision assumption on values SAP documents as up to 14 digits long). SAP's UI validates this as greater than or equal to 0.
-- `name` (String) The Number Range object's name, SAP's OData key. Changing it replaces the number range. A tenant accepted a name without special characters (tfAccProbeNr); a request with hyphens in the name and different values failed, so prefer plain letters and digits.
+- `name` (String) The Number Range object's name, SAP's OData key. Changing it replaces the number range. Must not contain hyphens: a tenant rejected a create with a hyphenated name and SAP's own example values with a 500, while the same request with the name tfAccProbeNr succeeded.
 - `rotate` (Boolean) Whether the counter wraps back to min_value once it reaches max_value (confirmed by SAP's documentation), instead of erroring once exhausted. A Terraform bool; SAP's wire format is the string "true"/"false", translated by this provider.
 
 ### Optional

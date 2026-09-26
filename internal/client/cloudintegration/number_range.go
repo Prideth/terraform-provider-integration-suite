@@ -127,20 +127,14 @@ func (c *Client) DeleteNumberRange(ctx context.Context, name string) error {
 // configuration. Confirmed directly from SAP's own documentation:
 // `PUT /api/v1/NumberRanges('{objectName}')`.
 //
-// nr.CurrentValue controls whether the request body includes the
-// CurrentValue property at all:
-//   - nil (the ordinary case: only static fields like description/min/max/
-//     rotate/field_length changed): CurrentValue is omitted from the JSON
-//     body. SAP's documentation does not confirm whether an omitted field is
-//     preserved unchanged (a partial-merge PUT) or reset to a default (a
-//     literal full-replace PUT). Omission is the more conservative choice:
-//     it never transmits a value this client knows to be stale, whereas
-//     resending a remembered value goes stale the moment SAP's runtime
-//     consumes even one number.
-//   - non-nil (the caller explicitly wants to (re)set the counter, mirroring
-//     this provider's write-only-secret-rotation pattern): CurrentValue is
-//     sent with the given value.
+// nr.CurrentValue must be set. A tenant rejected a PUT without CurrentValue
+// with a 500 and left the object unchanged (September 2026), so an update
+// that should not move the counter has to send the value it currently holds,
+// read with GetNumberRange right before.
 func (c *Client) UpdateNumberRange(ctx context.Context, nr NumberRange) error {
+	if nr.CurrentValue == nil {
+		return fmt.Errorf("cloudintegration: UpdateNumberRange requires a CurrentValue; SAP rejects a PUT without it")
+	}
 	payload, err := json.Marshal(numberRangeToWire(nr))
 	if err != nil {
 		return fmt.Errorf("cloudintegration: encoding number range update request: %w", err)

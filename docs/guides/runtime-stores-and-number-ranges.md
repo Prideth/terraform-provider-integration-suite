@@ -94,14 +94,17 @@ resource "sapintegrationsuite_number_range" "invoice_numbers" {
 - It is sent to SAP on every `Create` (SAP's documented example always includes `CurrentValue`
   when adding an object).
 - On `Update`, it is sent **only when `current_value_wo_version` changes** from what is already
-  in state. An apply that changes only `description` — or `min_value`, `max_value`, `rotate`,
-  `field_length`, or all four at once — never sends `CurrentValue` at all. This is the mandatory
-  guarantee behind this design, and it is covered by a dedicated regression test at both the
-  client layer (`TestClient_UpdateNumberRange_OmitsCurrentValueWhenNil`) and the resource layer
-  (`TestNumberRangeResource_Update_OmitsCurrentValueWhenVersionUnchanged`): given a Number Range
-  whose counter has advanced to some arbitrary live value through real consumption, an apply that
-  only touches static configuration produces a `PUT` request body containing no `CurrentValue`
-  property whatsoever — not the value Terraform last knew, and not any other guessed value.
+  in state.
+- Every other update still has to carry a counter: a tenant rejected a `PUT` without
+  `CurrentValue` with `500` and left the number range unchanged (September 2026). The provider
+  therefore reads the live counter right before the `PUT` and sends it back unchanged. An apply
+  that changes only `description`, `min_value`, `max_value`, `rotate` or `field_length` thus
+  never resets a counter that deployed content has advanced. The tests
+  `TestNumberRangeResource_Update_SendsLiveCounterWhenVersionUnchanged` and
+  `TestClient_UpdateNumberRange_RejectsMissingCurrentValue` keep it that way.
+- One narrow window remains: a number handed out by the runtime between that read and the
+  `PUT`, a single round trip, would be handed out again. Change number ranges that are in heavy
+  use when little traffic is flowing.
 
 To deliberately push a new counter value — for example, correcting the counter after a manual
 intervention outside Terraform — bump `current_value_wo_version` to any new string and set
@@ -117,25 +120,17 @@ resource "sapintegrationsuite_number_range" "invoice_numbers" {
 
 ### Importing a number range that is in use
 
-After an import, `current_value_wo_version` is not yet in state. The first apply only records
-the value from your configuration and does **not** send `current_value_wo`, so adopting a
-number range that deployed content is already consuming never resets its counter. To set the
-counter deliberately afterwards, change `current_value_wo_version` once more.
-
-### Still open: what does an omitted `CurrentValue` do?
-
-An ordinary update omits `CurrentValue` from the `PUT` body. SAP does not document whether its
-`PUT` then keeps the counter (a partial update) or resets it (a full replacement). Unlike before,
-this is now visible: `current_value` after the apply shows what SAP holds. A tenant test for
-exactly this question is prepared; until it has run, check `current_value` after changing a
-number range that is in use.
+After an import, `current_value_wo_version` is not yet in state. The first apply records the
+value from your configuration and sends back the live counter instead of `current_value_wo`,
+so adopting a number range that deployed content is already consuming never resets it. To set
+the counter deliberately afterwards, change `current_value_wo_version` once more.
 
 ### Names
 
-A tenant accepted a number range named `tfAccProbeNr`. A create with the name
-`tf-acc-probe-nr` and different values failed with a `500` that carried no message, so either
-hyphens in the name or those values are rejected. Until that is narrowed down, prefer names made
-of letters and digits.
+Names must not contain hyphens. A tenant rejected `tf-acc-probe-nr` with a `500` and no
+message, using SAP's own example values, while the same request with the name `tfAccProbeNr`
+succeeded. The provider rejects hyphenated names at plan time. SAP's own example uses spaces
+(`My NRO Object`); other special characters have not been tried.
 
 ### A UI capability this provider does not expose: multi-runtime deployment
 

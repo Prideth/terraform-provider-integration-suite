@@ -2,11 +2,9 @@ package cloudintegration
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 )
 
@@ -162,56 +160,26 @@ func TestClient_UpdateNumberRange_ExactRequestBody(t *testing.T) {
 	}
 }
 
-// TestClient_UpdateNumberRange_OmitsCurrentValueWhenNil is the mandatory
-// runtime-counter-preservation regression test for this client: an ordinary
-// static-configuration Update (CurrentValue == nil, the case every resource
-// Update that does not touch current_value_wo_version takes) must never
-// transmit a CurrentValue property at all — neither a stale remembered
-// value nor any other guess. SAP's public API gives this client no GET to
-// learn the live counter from, so the only safe contract this client can
-// keep is "never send a value we cannot confirm is still correct."
-func TestClient_UpdateNumberRange_OmitsCurrentValueWhenNil(t *testing.T) {
-	var gotBody []byte
-
+// TestClient_UpdateNumberRange_RejectsMissingCurrentValue: a tenant answered
+// a PUT without CurrentValue with 500 and left the object unchanged
+// (September 2026). The client refuses such an update before sending it.
+func TestClient_UpdateNumberRange_RejectsMissingCurrentValue(t *testing.T) {
+	called := false
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			t.Fatalf("reading request body: %v", err)
-		}
-		gotBody = body
-		w.WriteHeader(http.StatusNoContent)
+		called = true
+		w.WriteHeader(http.StatusAccepted)
 	}))
 	defer server.Close()
 
 	client := New(http.DefaultClient, server.URL)
-
-	// Simulates: Terraform created this Number Range with CurrentValue=1;
-	// SAP's runtime has since consumed numbers up to 137; the practitioner
-	// now only changes "description". CurrentValue must not appear in the
-	// request body at all — not "1", and not any other value this client
-	// invented.
 	err := client.UpdateNumberRange(context.Background(), NumberRange{
-		Name:        "My NRO Object",
-		MinValue:    "0",
-		MaxValue:    "9999",
-		Description: "updated description",
-		Rotate:      true,
-		FieldLength: "4",
-		// CurrentValue intentionally nil.
+		Name: "MyRange", MinValue: "0", MaxValue: "9999", Rotate: true, FieldLength: "4",
 	})
-	if err != nil {
-		t.Fatalf("UpdateNumberRange() error: %v", err)
+	if err == nil {
+		t.Fatal("expected an error for an update without CurrentValue")
 	}
-
-	var decoded map[string]json.RawMessage
-	if err := json.Unmarshal(gotBody, &decoded); err != nil {
-		t.Fatalf("decoding request body: %v", err)
-	}
-	if _, present := decoded["CurrentValue"]; present {
-		t.Errorf("request body contains CurrentValue (%s), want it omitted entirely", gotBody)
-	}
-	if strings.Contains(string(gotBody), "137") || strings.Contains(string(gotBody), `"1"`) {
-		t.Errorf("request body unexpectedly references a counter value: %s", gotBody)
+	if called {
+		t.Error("the update was sent although SAP rejects it")
 	}
 }
 
@@ -226,7 +194,8 @@ func TestClient_UpdateNumberRange_EscapesNameInPath(t *testing.T) {
 
 	client := New(http.DefaultClient, server.URL)
 
-	err := client.UpdateNumberRange(context.Background(), NumberRange{Name: "Customer's Range"})
+	zero := "0"
+	err := client.UpdateNumberRange(context.Background(), NumberRange{Name: "Customer's Range", CurrentValue: &zero})
 	if err != nil {
 		t.Fatalf("UpdateNumberRange() error: %v", err)
 	}

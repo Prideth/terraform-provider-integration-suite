@@ -48,6 +48,12 @@ All notable changes to this project are documented in this file.
   user credentials) and the Partner Directory creates now read the entry
   back when the response has no body, and other creates report an empty
   response clearly instead of a JSON parse error.
+- Updating a `sapintegrationsuite_number_range` without changing
+  `current_value_wo_version` failed on a real tenant. The update left out
+  `CurrentValue` to avoid resetting the counter, but SAP rejects a PUT
+  without it (500, nothing changed). The update now reads the live counter
+  right before the PUT and sends it back unchanged. Names with hyphens,
+  which SAP also rejects with a 500, are refused at plan time.
 - The size check for `sapintegrationsuite_partner_binary_parameter` allows
   values up to 1,572,864 bytes, the `MaxLength` the tenant `$metadata`
   declares for `BinaryParameter.Value`, instead of 260 KB. Older SAP pages

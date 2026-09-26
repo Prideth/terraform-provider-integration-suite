@@ -138,15 +138,12 @@ func newNumberRangeTestState(t *testing.T, s schema.Schema) tfsdk.State {
 	return tfsdk.State{Schema: s, Raw: tftypes.NewValue(s.Type().TerraformType(context.Background()), nil)}
 }
 
-// TestNumberRangeResource_Update_OmitsCurrentValueWhenVersionUnchanged is the
-// mandatory regression test for the counter-preservation contract: a
-// practitioner changing only "description" (current_value_wo_version left
-// untouched) must produce a PUT request whose body contains no CurrentValue
-// property at all. This is this resource's version of the "never rewind the
-// counter" requirement, adapted to a client with no GET: instead of
-// re-fetching the live value before Update, it simply never sends one
-// unless explicitly asked to via a version bump.
-func TestNumberRangeResource_Update_OmitsCurrentValueWhenVersionUnchanged(t *testing.T) {
+// TestNumberRangeResource_Update_SendsLiveCounterWhenVersionUnchanged is the
+// regression test for the counter-preservation contract. SAP rejects a PUT
+// without CurrentValue (500, tenant test September 2026), so an update that
+// only changes "description" must send the counter SAP currently holds (42
+// in numberRangeTestEntity), never a value from the configuration.
+func TestNumberRangeResource_Update_SendsLiveCounterWhenVersionUnchanged(t *testing.T) {
 	var gotBody []byte
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
@@ -207,8 +204,8 @@ func TestNumberRangeResource_Update_OmitsCurrentValueWhenVersionUnchanged(t *tes
 		t.Fatalf("Update() produced diagnostics: %v", resp.Diagnostics)
 	}
 
-	if containsCurrentValue(gotBody) {
-		t.Errorf("PUT body unexpectedly contains CurrentValue when current_value_wo_version did not change: %s", gotBody)
+	if got := sentCurrentValue(gotBody); got != "42" {
+		t.Errorf("PUT CurrentValue = %q, want the live counter 42 (body %s)", got, gotBody)
 	}
 }
 
@@ -290,18 +287,21 @@ func TestNumberRangeResource_Update_SendsCurrentValueWhenVersionChanges(t *testi
 		t.Fatalf("Update() produced diagnostics: %v", resp.Diagnostics)
 	}
 
-	if !containsCurrentValue(gotBody) {
-		t.Errorf("PUT body should contain CurrentValue when current_value_wo_version changed: %s", gotBody)
+	if got := sentCurrentValue(gotBody); got != "500" {
+		t.Errorf("PUT CurrentValue = %q, want the configured 500 after a version change (body %s)", got, gotBody)
 	}
 }
 
-func containsCurrentValue(body []byte) bool {
-	var decoded map[string]json.RawMessage
-	if err := json.Unmarshal(body, &decoded); err != nil {
-		return false
+// sentCurrentValue returns the CurrentValue a PUT body carried, or "" if
+// it had none.
+func sentCurrentValue(body []byte) string {
+	var decoded struct {
+		CurrentValue string `json:"CurrentValue"`
 	}
-	_, ok := decoded["CurrentValue"]
-	return ok
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		return ""
+	}
+	return decoded.CurrentValue
 }
 
 // numberRangeTestEntity is a GET response in the shape a tenant returned in
@@ -430,9 +430,9 @@ func TestNumberRangeResource_ImportState_SetsName(t *testing.T) {
 	}
 }
 
-// After an import the marker is null. The first apply must record it
-// without sending CurrentValue, or adopting a number range in use would
-// reset its counter to whatever the configuration says.
+// After an import the marker is null. The first apply must record it and
+// send the live counter back, or adopting a number range in use would reset
+// its counter to whatever the configuration says.
 func TestNumberRangeResource_Update_AfterImportKeepsCounter(t *testing.T) {
 	var gotBody []byte
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -462,8 +462,8 @@ func TestNumberRangeResource_Update_AfterImportKeepsCounter(t *testing.T) {
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("Update() produced diagnostics: %v", resp.Diagnostics)
 	}
-	if containsCurrentValue(gotBody) {
-		t.Errorf("first apply after import sent CurrentValue: %s", gotBody)
+	if got := sentCurrentValue(gotBody); got != "42" {
+		t.Errorf("first apply after import sent CurrentValue %q, want the live counter 42 (body %s)", got, gotBody)
 	}
 	var got numberRangeModel
 	resp.Diagnostics.Append(resp.State.Get(ctx, &got)...)

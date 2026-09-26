@@ -527,11 +527,12 @@ var Catalog = []Feature{
 				"current_value_wo_version), sent on create and only when the version marker changes; " +
 				"current_value reports the live value. After an import the first apply records the " +
 				"marker without touching the counter.",
-			"Whether a PUT that omits CurrentValue keeps the counter is not documented and not yet " +
-				"verified; current_value shows the result after an update.",
+			"SAP rejects a PUT without CurrentValue (500, object unchanged), so every other update " +
+				"reads the live counter right before the PUT and sends it back; a number consumed " +
+				"during that round trip would be handed out again.",
 			"Create stops when the name already exists, because SAP does not document what a create " +
-				"on an existing name does. A name with hyphens failed on a tenant together with other " +
-				"values, so plain letters and digits are the safe choice.",
+				"on an existing name does. Names must not contain hyphens: a tenant rejected one with " +
+				"a 500 while the same request with a plain name succeeded.",
 			"SAP documents an Edge Integration Cell path (/location/<id>/api/v1/NumberRanges); " +
 				"runtime_location_id is not offered yet because it has not been tried on a tenant.",
 		},

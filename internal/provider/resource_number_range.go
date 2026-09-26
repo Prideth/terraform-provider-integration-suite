@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -73,8 +74,8 @@ func (r *numberRangeResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"The runtime counter (SAP's CurrentValue, shown as 'Next Value' in the UI) is " +
 			"handled separately from the rest of this resource's configuration: see " +
 			"current_value_wo below. Ordinary applies that only change description, min_value, " +
-			"max_value, rotate, or field_length never send the counter, and current_value shows " +
-			"its live value.",
+			"max_value, rotate, or field_length send back the counter SAP currently holds, and " +
+			"current_value shows its live value.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
@@ -87,11 +88,15 @@ func (r *numberRangeResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"name": schema.StringAttribute{
 				Required: true,
 				Description: "The Number Range object's name, SAP's OData key. Changing it " +
-					"replaces the number range. A tenant accepted a name without special " +
-					"characters (tfAccProbeNr); a request with hyphens in the name and different " +
-					"values failed, so prefer plain letters and digits.",
+					"replaces the number range. Must not contain hyphens: a tenant rejected a " +
+					"create with a hyphenated name and SAP's own example values with a 500, " +
+					"while the same request with the name tfAccProbeNr succeeded.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(regexp.MustCompile(`^[^-]+$`),
+						"must not contain hyphens; SAP rejects number range names with hyphens"),
 				},
 			},
 			"min_value": schema.StringAttribute{
@@ -146,11 +151,12 @@ func (r *numberRangeResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Description: "The counter value (SAP's CurrentValue / the UI's \"Next Value\") " +
 					"to push to SAP, as a decimal digit string. Write-only: Terraform does not " +
 					"store it; the live counter is reported in current_value instead. Sent on " +
-					"Create (SAP's documented example always includes CurrentValue). On Update, " +
-					"it is sent ONLY when current_value_wo_version changes; every other Update " +
-					"omits CurrentValue, so that changing only description/min_value/max_value/" +
-					"rotate/field_length can never reset a counter that has advanced through " +
-					"EDI/EDIFACT processing.",
+					"Create. On Update it is sent ONLY when current_value_wo_version changes. " +
+					"SAP rejects an update without a counter, so every other Update reads the " +
+					"live counter right before the PUT and sends it back unchanged; changing " +
+					"description/min_value/max_value/rotate/field_length therefore never resets " +
+					"a counter that has advanced through EDI/EDIFACT processing (a number " +
+					"consumed during that one round trip would be handed out again).",
 			},
 			"current_value_wo_version": schema.StringAttribute{
 				Required: true,
@@ -326,10 +332,14 @@ func (r *numberRangeResource) Update(ctx context.Context, req resource.UpdateReq
 		FieldLength: plan.FieldLength.ValueString(),
 	}
 
-	// current_value_wo is only pushed when current_value_wo_version changed
-	// since the last apply, a deliberate signal. After an import the prior
-	// marker is null: that first apply only records the marker, so adopting
-	// a number range in use never resets its counter.
+	// SAP rejects a PUT without CurrentValue (500, tenant test September
+	// 2026), so every update has to send one. current_value_wo is used only
+	// when current_value_wo_version changed since the last apply, a
+	// deliberate signal; after an import the prior marker is null and that
+	// first apply only records it. Otherwise the live counter is read right
+	// before the PUT and sent back unchanged. A number consumed between the
+	// read and the write would be handed out again; the window is one round
+	// trip.
 	if !state.CurrentValueWOVersion.IsNull() && !plan.CurrentValueWOVersion.Equal(state.CurrentValueWOVersion) {
 		var currentValue types.String
 		resp.Diagnostics.Append(req.Config.GetAttribute(ctx, pathRoot("current_value_wo"), &currentValue)...)
@@ -337,6 +347,14 @@ func (r *numberRangeResource) Update(ctx context.Context, req resource.UpdateReq
 			return
 		}
 		value := currentValue.ValueString()
+		nr.CurrentValue = &value
+	} else {
+		live, err := r.client.GetNumberRange(ctx, nr.Name)
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to read the SAP Integration Suite number range before updating it", diagnosticDetail(err))
+			return
+		}
+		value := live.CurrentValue
 		nr.CurrentValue = &value
 	}
 

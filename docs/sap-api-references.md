@@ -1732,9 +1732,10 @@ than decode the create response. Defaults SAP fills in for an OAuth2 client cred
 without optional settings: `ScopeContentType` `urlencoded`, `Scope`, `Resource` and `Audience`
 empty, `ClientAuthentication` null. A number range created with SAP's documented example values
 (`MinValue` 0, `MaxValue` 9999, `FieldLength` 4, `CurrentValue` 0) and the name `tfAccProbeNr`
-succeeded; an earlier attempt with the name `tf-acc-probe-nr`, `MinValue` 1, `MaxValue` 999,
-`FieldLength` 3 and `CurrentValue` 1 failed with a bodiless 500, so either the hyphens or those
-values are rejected.
+succeeded; the same values with the name `tf-acc-probe-nr` failed with a bodiless `500`, so
+hyphens in the name are rejected. A `PUT` that set `CurrentValue` to 5 succeeded (202, read back
+as 5); a following `PUT` without `CurrentValue` failed with a bodiless `500` and changed nothing
+(counter and description as before), so an update must always carry the counter.
 
 On the API portal, a key with `APIPortal.Administrator` read `APIProviders`, `APIProxies`,
 `APIProducts`, `CertificateStoreReferences`, `GenericKeyMapEntries` and `VirtualHosts` (200),

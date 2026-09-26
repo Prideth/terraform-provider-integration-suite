@@ -937,22 +937,15 @@ authored in the first place.
   `sapintegrationsuite_user_credential`). `current_value_wo` is `Required` (SAP's Create example
   always includes `CurrentValue`) and is sent to SAP:
   - **On every Create.**
-  - **On Update, only when `current_value_wo_version` differs from the prior state.** Every
-    other Update — including one that changes every other attribute simultaneously — omits
-    `CurrentValue` from the request body entirely. This is the mandatory counter-preservation
-    guarantee for this resource, verified by
-    `TestNumberRangeResource_Update_OmitsCurrentValueWhenVersionUnchanged` (provider layer) and
-    `TestClient_UpdateNumberRange_OmitsCurrentValueWhenNil` (client layer): a Terraform apply
-    that only changes `description` must never transmit any counter value at all, stale or
-    otherwise.
-  - This is a deliberately different contract than the one originally sketched for this phase
-    ("GET the live value, then PUT it back unchanged"): that flow requires a GET this API does
-    not have. Field-omission is the closest safe substitute this provider could construct, with
-    one open, explicitly documented risk: whether SAP's `PUT` preserves an omitted `CurrentValue`
-    unchanged (a partial-merge interpretation) or resets it to a default (a literal full-replace
-    interpretation) is **not confirmed either way**, since there is no GET to check the result
-    against. This is disclosed prominently in the resource's schema description and in
-    `docs/guides/runtime-stores-and-number-ranges.md`, not hidden behind an assumption of safety.
+  - **On Update, only when `current_value_wo_version` differs from the prior state.**
+  - Every other Update sends the counter SAP currently holds. Earlier releases omitted
+    `CurrentValue` instead, because there was no GET; a tenant test (September 2026) showed that
+    SAP rejects a PUT without `CurrentValue` with `500` and leaves the object unchanged, so every
+    ordinary update would have failed. With GET verified, the original design ("GET the live
+    value, then PUT it back unchanged") is used. The client refuses an update without a counter
+    (`TestClient_UpdateNumberRange_RejectsMissingCurrentValue`), and the resource sends the live
+    value (`TestNumberRangeResource_Update_SendsLiveCounterWhenVersionUnchanged`). A number
+    consumed between the GET and the PUT would be handed out again; the window is one round trip.
 - **Read** (since the September 2026 re-audit): `GET NumberRanges('<name>')` without query
   options. The static fields come from SAP, so UI changes show as drift; a `404` removes the
   resource from state. `current_value`, `deployed_by` and `deployed_on` are computed; the
@@ -961,10 +954,12 @@ authored in the first place.
   POST on an existing name does. Every write answers `202` without a body, so Create and Update
   read the object back.
 - **Delete**: `DELETE NumberRanges('<name>')`; a `404` counts as already deleted.
-- **Import**: by name. The version marker is null afterwards; Update pushes the counter only when
-  the prior marker is non-null and changed, so the first apply after an import never resets it.
-- **Feature catalog status**: `supported`. Open: whether a PUT that omits `CurrentValue` keeps the
-  counter (visible through `current_value`, a tenant test is prepared).
+- **Import**: by name. The version marker is null afterwards; Update pushes the configured
+  counter only when the prior marker is non-null and changed, so the first apply after an import
+  sends the live counter back and never resets it.
+- **Names**: a tenant rejected a hyphenated name with `500` while the same request with a plain
+  name succeeded; a validator rejects hyphens at plan time.
+- **Feature catalog status**: `supported`.
 
 ### Variable — no resource, no data source
 
