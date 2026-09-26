@@ -96,6 +96,10 @@ func (c *Client) CreateOAuth2ClientCredential(ctx context.Context, cred OAuth2Cl
 	if err != nil {
 		return nil, err
 	}
+	// SAP may accept the write with 202 and no body; read the entry back.
+	if v2.EmptyBody(body) {
+		return c.GetOAuth2ClientCredential(ctx, cred.Name)
+	}
 
 	var created OAuth2ClientCredential
 	if err := v2.DecodeEntity(body, &created); err != nil {

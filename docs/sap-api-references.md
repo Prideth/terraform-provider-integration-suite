@@ -1719,6 +1719,23 @@ returned all 14 SAP-delivered entries in one response without `__next`, with `Ty
 dates as `/Date(ms)/`. `GET NumberRanges` answering 200 is the first evidence that number
 ranges can be read; reading one by key and deleting it still need a write test.
 
+A write test with throw-away objects (all cleaned up) settled the lifecycles:
+
+| Entity set | `POST` | `GET` by key | `PUT` | `DELETE` |
+|---|---|---|---|---|
+| `SecureParameters` | 202, empty body | 200, `SecureParam` null, `Status` `DEPLOYED` | 202, empty body | 202, then 404 |
+| `OAuth2ClientCredentials` | 202, empty body | 200, `ClientSecret` null | — | 202, then 404 |
+| `NumberRanges` | 202, empty body | 200 | — | 202, then 404 |
+
+Every write answered `202 Accepted` without a body, so a client must read the entry back rather
+than decode the create response. Defaults SAP fills in for an OAuth2 client credential created
+without optional settings: `ScopeContentType` `urlencoded`, `Scope`, `Resource` and `Audience`
+empty, `ClientAuthentication` null. A number range created with SAP's documented example values
+(`MinValue` 0, `MaxValue` 9999, `FieldLength` 4, `CurrentValue` 0) and the name `tfAccProbeNr`
+succeeded; an earlier attempt with the name `tf-acc-probe-nr`, `MinValue` 1, `MaxValue` 999,
+`FieldLength` 3 and `CurrentValue` 1 failed with a bodiless 500, so either the hyphens or those
+values are rejected.
+
 On the API portal, a key with `APIPortal.Administrator` read `APIProviders`, `APIProxies`,
 `APIProducts`, `CertificateStoreReferences`, `GenericKeyMapEntries` and `VirtualHosts` (200),
 while `Configuration.svc` and its `VirtualHostRequests` answered 403: virtual host changes need

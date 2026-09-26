@@ -1,7 +1,9 @@
 package v2
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 )
 
@@ -19,6 +21,9 @@ type collectionBody struct {
 
 // DecodeEntity unmarshals a single-entity OData V2 response body into v.
 func DecodeEntity(body []byte, v interface{}) error {
+	if EmptyBody(body) {
+		return ErrEmptyBody
+	}
 	var env Envelope
 	if err := json.Unmarshal(body, &env); err != nil {
 		return fmt.Errorf("odata: decoding envelope: %w", err)
@@ -45,4 +50,15 @@ func DecodeCollection(body []byte, v interface{}) error {
 		return fmt.Errorf("odata: decoding collection results: %w", err)
 	}
 	return nil
+}
+
+// ErrEmptyBody reports a successful response without an entity. SAP's
+// Security Content and Message Store services answer writes with
+// 202 Accepted and an empty body, so a caller that needs the entity has to
+// read it back.
+var ErrEmptyBody = errors.New("odata: SAP accepted the request but returned no entity in the response")
+
+// EmptyBody reports whether a response body carries no content.
+func EmptyBody(body []byte) bool {
+	return len(bytes.TrimSpace(body)) == 0
 }

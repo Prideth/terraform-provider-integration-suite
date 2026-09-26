@@ -53,6 +53,10 @@ func (c *Client) CreateAuthorizedUser(ctx context.Context, au AuthorizedUser) (*
 	if err != nil {
 		return nil, err
 	}
+	// SAP may accept the write with 202 and no body; read the entry back.
+	if v2.EmptyBody(body) {
+		return c.GetAuthorizedUser(ctx, au.User)
+	}
 
 	var created AuthorizedUser
 	if err := v2.DecodeEntity(body, &created); err != nil {

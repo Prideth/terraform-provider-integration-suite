@@ -41,6 +41,13 @@ All notable changes to this project are documented in this file.
   users lowercased (its own example creates `MyUser` and returns `myuser`),
   so a mixed-case value could never match what SAP reported back and failed
   after apply.
+- Creating OAuth2 client credentials failed on a real tenant after SAP had
+  already created them: SAP answers the POST with `202 Accepted` and an
+  empty body, which the client tried to decode. The next apply then failed
+  because the credential existed. The Security Content creates (OAuth2 and
+  user credentials) and the Partner Directory creates now read the entry
+  back when the response has no body, and other creates report an empty
+  response clearly instead of a JSON parse error.
 - The size check for `sapintegrationsuite_partner_binary_parameter` allows
   values up to 1,572,864 bytes, the `MaxLength` the tenant `$metadata`
   declares for `BinaryParameter.Value`, instead of 260 KB. Older SAP pages

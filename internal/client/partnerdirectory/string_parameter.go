@@ -55,6 +55,10 @@ func (c *Client) CreateStringParameter(ctx context.Context, sp StringParameter) 
 	if err != nil {
 		return nil, err
 	}
+	// SAP may accept the write with 202 and no body; read the entry back.
+	if v2.EmptyBody(body) {
+		return c.GetStringParameter(ctx, sp.Pid, sp.Id)
+	}
 
 	var created StringParameter
 	if err := v2.DecodeEntity(body, &created); err != nil {

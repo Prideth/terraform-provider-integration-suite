@@ -1,6 +1,9 @@
 package v2
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 type testPackage struct {
 	ID   string `json:"Id"`
@@ -38,5 +41,14 @@ func TestDecodeEntity_InvalidJSON(t *testing.T) {
 	var got testPackage
 	if err := DecodeEntity([]byte("not json"), &got); err == nil {
 		t.Fatal("expected an error for invalid JSON")
+	}
+}
+
+func TestDecodeEntity_EmptyBody(t *testing.T) {
+	var v struct{ Name string }
+	for _, body := range [][]byte{nil, []byte(""), []byte("  \n")} {
+		if err := DecodeEntity(body, &v); !errors.Is(err, ErrEmptyBody) {
+			t.Errorf("DecodeEntity(%q) error = %v, want ErrEmptyBody", body, err)
+		}
 	}
 }

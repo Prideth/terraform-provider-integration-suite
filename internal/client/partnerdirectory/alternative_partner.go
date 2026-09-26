@@ -91,6 +91,10 @@ func (c *Client) CreateAlternativePartner(ctx context.Context, ap AlternativePar
 	if err != nil {
 		return nil, err
 	}
+	// SAP may accept the write with 202 and no body; read the entry back.
+	if v2.EmptyBody(body) {
+		return c.GetAlternativePartner(ctx, ap.Agency, ap.Scheme, ap.Id)
+	}
 
 	var created AlternativePartner
 	if err := v2.DecodeEntity(body, &created); err != nil {

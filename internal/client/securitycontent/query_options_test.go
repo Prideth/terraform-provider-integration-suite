@@ -48,3 +48,32 @@ func TestReads_SendNoQueryOptions(t *testing.T) {
 		t.Errorf("read sent query options SAP rejects: %s", q)
 	}
 }
+
+// SAP answers a create with 202 Accepted and no body (tenant probe, September
+// 2026). The client must read the credential back instead of failing on the
+// empty body, or the object would exist in SAP but never reach state.
+func TestCreateOAuth2ClientCredential_ReadsBackAfter202WithoutBody(t *testing.T) {
+	var methods []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		methods = append(methods, r.Method)
+		if r.Method == http.MethodPost {
+			w.WriteHeader(http.StatusAccepted)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"d":{"Name":"cred","TokenServiceUrl":"https://token.example.invalid","ClientId":"id","ClientSecret":null,"ScopeContentType":"urlencoded"}}`))
+	}))
+	defer server.Close()
+
+	client := New(http.DefaultClient, server.URL)
+	created, err := client.CreateOAuth2ClientCredential(context.Background(), OAuth2ClientCredential{Name: "cred"}, "secret")
+	if err != nil {
+		t.Fatalf("CreateOAuth2ClientCredential() error: %v", err)
+	}
+	if created.Name != "cred" || created.ScopeContentType != "urlencoded" {
+		t.Errorf("created = %+v, want the entity read back", created)
+	}
+	if len(methods) < 2 || methods[len(methods)-1] != http.MethodGet {
+		t.Errorf("requests = %v, want the POST followed by a GET", methods)
+	}
+}

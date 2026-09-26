@@ -80,6 +80,10 @@ func (c *Client) CreateUserCredentialParameter(ctx context.Context, pid, id, use
 	if err != nil {
 		return nil, err
 	}
+	// SAP may accept the write with 202 and no body; read the entry back.
+	if v2.EmptyBody(body) {
+		return c.GetUserCredentialParameter(ctx, pid, id)
+	}
 
 	var created UserCredentialParameter
 	if err := v2.DecodeEntity(body, &created); err != nil {
