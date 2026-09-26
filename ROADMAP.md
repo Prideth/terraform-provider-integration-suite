@@ -13,21 +13,27 @@ matrix.
 
 ## Current status
 
-Current public API coverage is complete for this round of development: every SAP Integration
-Suite capability this provider knows about (Cloud Integration, Security Content, Partner
-Directory, Classic API Management, current API Management/API Artifacts, Integration Cell, Edge
-Integration Cell, Developer Hub, API Composition, Integration Assessment, Trading Partner
-Management, Integration Advisor, Migration Assessment, Data Space Integration, Event Mesh, Open
-Connectors, OData Provisioning) has been researched and classified, and every object with a
-confirmed public API contract this provider judged Terraform-suitable has been implemented. The
-provider completion and hardening pass — a catalog-wide accuracy audit, a repository-wide
-quality/security review, and a `password_wo` schema fix this pass found and corrected — is also
-done; see "Implemented" below for what that produced.
+Every SAP Integration Suite capability this provider knows about (Cloud Integration, Security
+Content, Partner Directory, Classic API Management, current API Management/API Artifacts,
+Integration Cell, Edge Integration Cell, Developer Hub, API Composition, Integration Assessment,
+Trading Partner Management, Integration Advisor, Migration Assessment, Data Space Integration,
+Event Mesh, Open Connectors, OData Provisioning) has been researched and classified.
 
-API Composition's business data graph is now implemented as an experimental resource. SAP
-documents create, read and update and the configuration format; the PATCH body and the delete
-request are inferred and wait for verification against a live system. See
-`docs/guides/api-composition.md`.
+An earlier version of this section called public API coverage complete. The September 2026
+re-audit showed that some contracts counted as confirmed had been reconstructed from UI labels
+and did not match SAP's services (access policy references, integration adapters, service
+endpoint API definitions). Those are fixed, and the Cloud Integration, Security Content and
+Partner Directory clients are now checked against a tenant `$metadata` by contract tests. What
+remains open is listed with the evidence each item needs in
+[`docs/research/sap-2026-public-api-gap-closure.md`](docs/research/sap-2026-public-api-gap-closure.md):
+chiefly the Classic API Management `$metadata`, the Hub specifications for the Transport API
+and Data Space Integration, service-key access for API Composition and Integration Assessment,
+and tenant checks that need additional role templates.
+
+API Composition's business data graph and Edge Integration Cell targeting are implemented as
+experimental. SAP documents their contracts, but parts are inferred (API Composition's PATCH
+body and delete request) or unverified on a live system. See `docs/guides/api-composition.md`
+and `docs/guides/edge-integration-cell.md`.
 
 Future work follows newly published SAP APIs and incoming feature requests, not a fixed backlog.
 The clearest concrete opportunities already identified, in case SAP's documented API surface
@@ -46,7 +52,7 @@ were reclassified with real evidence: **Event Mesh**
 is now `separate_provider` (a genuine, well-documented Solace PubSub+ broker API, deliberately
 excluded because it predates Integration Suite and belongs to a different provider's boundary,
 the same reasoning already applied to Developer Hub); **Data Space Integration** is confirmed
-`research_required` with a real, separately credentialed OData API and a genuinely complex
+`research_required` with a real, separately credentialed REST API and a genuinely complex
 object model warranting its own future phase; **Open Connectors** is now `out_of_scope` as a
 deliberate judgment (a catalog of 170+ independent third-party connector types that does not fit
 this provider's schema-first design), not a research gap. Capability activation itself was

@@ -162,6 +162,10 @@ All notable changes to this project are documented in this file.
 
 ### Documentation
 
+- New research summary `docs/research/sap-2026-public-api-gap-closure.md`:
+  method, results per area, corrected earlier conclusions, breaking changes
+  and the open items with the evidence each one needs. The ROADMAP no longer
+  claims complete public API coverage.
 - New guide "Authorization and Roles": the SAP role templates each resource
   family needs, where they are assigned, and how to diagnose a 403.
 - The Current API Management guide was rewritten around a per-object status
