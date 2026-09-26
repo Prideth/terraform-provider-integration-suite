@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // EnvMetadataFile overrides where the $metadata document is read from.
@@ -243,11 +244,71 @@ func (m *Model) assertFields(t *testing.T, entitySet string, v any, decoded bool
 			t.Errorf("%T: JSON field %q is not a property of %s (entity set %s)", v, field.name, et.Name, entitySet)
 			continue
 		}
-		if decoded && p.Navigation && !decodesNavigation(field.typ) {
-			t.Errorf("%T: JSON field %q maps the navigation property %s.%s as %s, which cannot decode SAP's "+
-				"{\"__deferred\": ...} or {\"results\": [...]} object; drop it from the read struct or use "+
-				"v2.ExpandedCollection with $expand", v, field.name, et.Name, field.name, field.typ)
+		if !decoded {
+			continue
 		}
+		if p.Navigation {
+			if !decodesNavigation(field.typ) {
+				t.Errorf("%T: JSON field %q maps the navigation property %s.%s as %s, which cannot decode SAP's "+
+					"{\"__deferred\": ...} or {\"results\": [...]} object; drop it from the read struct or use "+
+					"v2.ExpandedCollection with $expand", v, field.name, et.Name, field.name, field.typ)
+			}
+			continue
+		}
+		if ok, want := decodesEdm(p.Type, field); !ok {
+			t.Errorf("%T: JSON field %q is %s, but %s.%s is %s, which OData V2 JSON sends as %s",
+				v, field.name, field.typ, et.Name, field.name, p.Type, want)
+		}
+	}
+}
+
+var (
+	unmarshalerType = reflect.TypeOf((*json.Unmarshaler)(nil)).Elem()
+	timeType        = reflect.TypeOf(time.Time{})
+	numberType      = reflect.TypeOf(json.Number(""))
+)
+
+// decodesEdm reports whether a Go field can decode a property's value as
+// OData V2 JSON represents it: Edm.Int64 and Edm.Decimal as strings ("51"),
+// Edm.DateTime as "/Date(ms)/", smaller integers, doubles and booleans as
+// JSON numbers and booleans. The second result describes the JSON shape for
+// the error message.
+func decodesEdm(edmType string, f jsonField) (bool, string) {
+	typ := f.typ
+	for typ.Kind() == reflect.Pointer {
+		typ = typ.Elem()
+	}
+	kind := typ.Kind()
+	isInt := kind >= reflect.Int && kind <= reflect.Uint64
+	isFloat := kind == reflect.Float32 || kind == reflect.Float64
+
+	switch edmType {
+	case "Edm.DateTime", "Edm.DateTimeOffset", "Edm.Time":
+		// time.Time implements json.Unmarshaler but only reads RFC 3339.
+		if typ == timeType {
+			return false, `a string such as "/Date(1790424405369)/"`
+		}
+	}
+	if typ == reflect.TypeOf(json.RawMessage(nil)) || kind == reflect.Interface ||
+		reflect.PointerTo(typ).Implements(unmarshalerType) {
+		return true, ""
+	}
+
+	switch edmType {
+	case "Edm.String", "Edm.Guid", "Edm.DateTime", "Edm.DateTimeOffset", "Edm.Time":
+		return kind == reflect.String, "a JSON string"
+	case "Edm.Int64", "Edm.Decimal":
+		return kind == reflect.String || typ == numberType || ((isInt || isFloat) && f.quoted),
+			`a JSON string such as "51" (use a string, json.Number or the ",string" tag option)`
+	case "Edm.Int32", "Edm.Int16", "Edm.Byte", "Edm.SByte", "Edm.Double", "Edm.Single":
+		return isInt || isFloat || typ == numberType, "a JSON number"
+	case "Edm.Boolean":
+		return kind == reflect.Bool, "a JSON boolean"
+	case "Edm.Binary":
+		return kind == reflect.String || (kind == reflect.Slice && typ.Elem().Kind() == reflect.Uint8), "a base64 string"
+	default:
+		// A complex type arrives as a JSON object.
+		return kind == reflect.Struct || kind == reflect.Map, "a JSON object"
 	}
 }
 
@@ -325,8 +386,9 @@ func JSONFields(typ reflect.Type) []string {
 }
 
 type jsonField struct {
-	name string
-	typ  reflect.Type
+	name   string
+	typ    reflect.Type
+	quoted bool // the ",string" tag option
 }
 
 func jsonFields(typ reflect.Type) []jsonField {
@@ -351,7 +413,7 @@ func jsonFields(typ reflect.Type) []jsonField {
 		if name == "" {
 			name = f.Name
 		}
-		fields = append(fields, jsonField{name: name, typ: f.Type})
+		fields = append(fields, jsonField{name: name, typ: f.Type, quoted: strings.Contains(tag, ",string")})
 	}
 	return fields
 }

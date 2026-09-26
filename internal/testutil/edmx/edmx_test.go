@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"sort"
 	"testing"
+	"time"
 )
 
 const sample = `<?xml version="1.0" encoding="UTF-8"?>
@@ -111,6 +112,53 @@ func TestDecodesNavigation(t *testing.T) {
 	for _, c := range cases {
 		if got := decodesNavigation(reflect.TypeOf(c.v)); got != c.want {
 			t.Errorf("%s: decodesNavigation = %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
+// OData V2 JSON sends Edm.Int64 and Edm.Decimal as strings, Edm.DateTime as
+// "/Date(ms)/", smaller numbers as JSON numbers. A read struct whose Go type
+// cannot take that shape fails on every real response.
+func TestDecodesEdm(t *testing.T) {
+	type wire struct {
+		S      string      `json:"s"`
+		I64    int64       `json:"i64"`
+		I64Str int64       `json:"i64s,string"`
+		Num    json.Number `json:"num"`
+		I32    int32       `json:"i32"`
+		B      bool        `json:"b"`
+		When   time.Time   `json:"when"`
+		Ptr    *int        `json:"ptr"`
+		Bytes  []byte      `json:"bytes"`
+		Obj    struct{}    `json:"obj"`
+	}
+	fields := map[string]jsonField{}
+	for _, f := range jsonFields(reflect.TypeOf(wire{})) {
+		fields[f.name] = f
+	}
+	cases := []struct {
+		edm, field string
+		want       bool
+	}{
+		{"Edm.Int64", "s", true},
+		{"Edm.Int64", "i64", false},
+		{"Edm.Int64", "i64s", true},
+		{"Edm.Decimal", "num", true},
+		{"Edm.Int32", "i32", true},
+		{"Edm.Int32", "s", false},
+		{"Edm.Int32", "ptr", true},
+		{"Edm.Boolean", "b", true},
+		{"Edm.Boolean", "s", false},
+		{"Edm.DateTime", "s", true},
+		{"Edm.DateTime", "when", false},
+		{"Edm.String", "i32", false},
+		{"Edm.Binary", "bytes", true},
+		{"com.example.History", "obj", true},
+		{"com.example.History", "s", false},
+	}
+	for _, c := range cases {
+		if got, _ := decodesEdm(c.edm, fields[c.field]); got != c.want {
+			t.Errorf("%s into %s (%s): got %v, want %v", c.edm, c.field, fields[c.field].typ, got, c.want)
 		}
 	}
 }
