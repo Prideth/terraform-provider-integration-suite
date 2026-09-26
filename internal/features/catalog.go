@@ -925,21 +925,23 @@ var Catalog = []Feature{
 		Name:   "Secure Parameter",
 		Description: "A \"Secure Parameter\" security material artifact: an opaque confidential value " +
 			"(for example for a custom adapter) deployed without an associated username.",
-		SupportStatus: StatusUnsupported,
-		SupportReason: ReasonPublicAPIIncomplete,
+		SupportStatus: StatusSupported,
+		ResourceTypes: []string{"sapintegrationsuite_secure_parameter"},
 		PublicAPI:     true,
 		APIProtocol:   "OData V2",
-		Planned:       true,
 		Limitations: []string{
-			"The tenant $metadata defines a SecureParameters entity set keyed by Name, with " +
-				"Description, SecureParam (the secret), DeployedBy, DeployedOn and Status. SAP Help does " +
-				"not list it among the Security Content API resources and publishes no example request, " +
-				"and $metadata does not say which operations the set accepts. Implementing it means " +
-				"sending a secret to an endpoint whose create and update behavior is unverified, so it " +
-				"waits for a read and write check against a tenant.",
-			"Once confirmed, the intended shape is a resource with value_wo/value_wo_version, the " +
-				"same write-only pattern as security.user_credential's password.",
+			"SAP Help documents the artifact only in the Monitor UI. The entity set comes from the " +
+				"tenant $metadata (key Name; Description, SecureParam, DeployedBy, DeployedOn, Status), " +
+				"and a tenant test in September 2026 verified create (POST), read by name, update " +
+				"(PUT) and delete, each write answering 202 without a body.",
+			"The value is write-only (secure_param_wo / secure_param_wo_version) and sent on create " +
+				"and every update; SAP returns SecureParam as null. Import recovers the name and " +
+				"description only, so the first apply after an import sends the configured value.",
+			"Create stops when the name already exists, because SAP does not document what a create " +
+				"on an existing name does. Edge Integration Cell targeting is not offered, as it has " +
+				"not been tried for this artifact.",
 		},
+		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},
 	},
 	{
 		Key:    "security.known_hosts",

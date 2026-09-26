@@ -62,6 +62,12 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- `sapintegrationsuite_secure_parameter` manages Security Content "Secure
+  Parameter" artifacts, the confidential values custom adapters and scripts
+  read by alias. SAP Help documents the artifact only in the UI; the entity
+  set comes from the tenant `$metadata`, and create, read, update and delete
+  were verified on a tenant. The value is write-only
+  (`secure_param_wo` / `secure_param_wo_version`) and redeployed in place.
 - `sapintegrationsuite_number_range` reads, deletes and imports. SAP
   documents only create and update, but a tenant test confirmed
   `GET NumberRanges('<name>')` and `DELETE`. Read now detects drift in the

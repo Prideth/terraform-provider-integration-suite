@@ -419,6 +419,7 @@ func (p *sapIntegrationSuiteProvider) Resources(_ context.Context) []func() reso
 		NewPartnerAuthorizedUserResource,
 		NewPartnerUserCredentialParameterResource,
 		NewUserCredentialResource,
+		NewSecureParameterResource,
 		NewOAuth2ClientCredentialResource,
 		NewIntegrationAdapterResource,
 		NewIntegrationAdapterDeploymentResource,

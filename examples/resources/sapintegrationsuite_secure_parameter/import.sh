@@ -1,0 +1,1 @@
+terraform import sapintegrationsuite_secure_parameter.custom_adapter_api_key CUSTOM_ADAPTER_API_KEY

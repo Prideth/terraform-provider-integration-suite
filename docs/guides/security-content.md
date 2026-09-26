@@ -150,6 +150,40 @@ password/secret you supplied. This is a deliberate design, not an accident: it m
 credential never silently rotates its secret, and taking ownership of rotation is always an
 explicit, visible step in a plan.
 
+## Implemented: Secure Parameters
+
+[`sapintegrationsuite_secure_parameter`](../resources/secure_parameter.md) manages SAP's
+"Secure Parameter" artifact: a confidential value stored under an alias, which custom adapters
+and scripts read at run time (in a Groovy script through the `SecureStoreService`).
+
+```hcl
+resource "sapintegrationsuite_secure_parameter" "custom_adapter_api_key" {
+  id          = "CUSTOM_ADAPTER_API_KEY"
+  description = "API key of the custom adapter's backend"
+
+  secure_param_wo         = var.custom_adapter_api_key
+  secure_param_wo_version = "1"
+}
+```
+
+SAP Help documents this artifact only in the Monitor UI (*Security Material > Add > Secure
+Parameter*); its Security Content API page does not list it. The provider relies on two other
+sources:
+
+- The tenant `$metadata` defines `SecureParameters` with the key `Name` (up to 150 characters),
+  `Description` (up to 1024), `SecureParam` (up to 4096, matching the UI's Cloud Foundry limit),
+  `DeployedBy`, `DeployedOn` and `Status`.
+- A tenant test in September 2026 created a secure parameter (`POST`), read it by name, changed
+  it with `PUT` and deleted it. Every write answered `202 Accepted` without a body; reads return
+  `SecureParam` as `null` and `Status` as `DEPLOYED`.
+
+The value follows the same write-only model as the credentials above: `secure_param_wo` is never
+stored, and changing `secure_param_wo_version` redeploys the artifact with the new value in place.
+The value is sent on every update, as the UI also asks for it on every edit. Create stops if a
+secure parameter with that name already exists, because SAP does not document what a create on
+an existing name does; import it instead. After an import, the first apply sends the configured
+value, since the stored one cannot be read.
+
 ## Implemented: Keystore Entries, Certificates, and SAP-generated Key Pairs
 
 The tenant keystore (*Monitor* > *Manage Security* > *Keystore*) holds certificates and key
@@ -317,10 +351,6 @@ differ, and the difference matters when you plan around them. Each item is recor
 the entities, but SAP documents neither the requests nor which operations are allowed, and
 each one involves secret or key material where a wrong guess is costly:
 
-- **Secure Parameter** (`security.secure_parameter`). The `SecureParameters` entity set holds
-  a name, description, the secret itself (`SecureParam`) and deployment status. SAP Help does not
-  list it among the Security Content API resources and gives no example. It becomes a resource
-  with `value_wo`/`value_wo_version` once create and update have been verified against a tenant.
 - **Certificate Chain** (`security.certificate_chain`). `CertificateChainResources` is a media
   entity per key pair alias, and `ChainCertificates` lists the chain's certificates. The media
   type and request for uploading a chain are undocumented. The intended shape is a resource

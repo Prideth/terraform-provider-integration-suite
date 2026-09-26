@@ -55,8 +55,8 @@ items below still say "waiting for a tenant check".
 |---|---|---|
 | Access policies | Supported, contract corrected | Property names from SAP's own access policy tooling and the `$metadata`; `Edm.Int64` keys; `PUT` for updates; runtime assignments data source |
 | Current API Management, Integration Cell | No public API, unchanged | MCP servers added to the catalog; evidence from the Integration Content API, Client SDK 3.0.6 and What's New |
-| Security Content | Supported, fields completed | OAuth2 client credential fields `ClientAuthentication`, `ScopeContentType`, `Resource`, `Audience`; keystore entry metadata; catalog entries for OAuth2 password and SAML bearer credentials, where-used and PGP keyrings |
-| Cloud Integration | Supported, several fixes | Integration flow configuration resource; `redeploy_triggers`; `save_as_version` via the documented SaveAsVersion function imports; adapter and service endpoint fields aligned with `$metadata`; reclassifications of value mapping entries, data types, message types, service interfaces |
+| Security Content | Supported, fields completed | OAuth2 client credential fields `ClientAuthentication`, `ScopeContentType`, `Resource`, `Audience`; keystore entry metadata; catalog entries for OAuth2 password and SAML bearer credentials, where-used and PGP keyrings; new `sapintegrationsuite_secure_parameter` (lifecycle verified on a tenant); creates that SAP answers with 202 and no body read the entry back |
+| Cloud Integration | Supported, several fixes | Integration flow configuration resource; `redeploy_triggers`; `save_as_version` via the documented SaveAsVersion function imports; adapter and service endpoint fields aligned with `$metadata`; reclassifications of value mapping entries, data types, message types, service interfaces; number ranges read, delete and import (verified on a tenant) and send the live counter on updates, which SAP requires |
 | Archiving (Cloud Integration, B2B) | New catalog entry, no resource | Activation is a one-way function import without deactivation; per-flow settings are UI-only |
 | Edge Integration Cell | Experimental | `runtime_location_id` on deployments, credentials, certificates, key pairs and Partner Directory resources, using the documented `/location/<id>/api/v1` service root |
 | Partner Directory | Supported, fixes | User credential parameters updated in place (documented POST upsert) and never overwritten on create; authorized users must be lowercase; binary parameter limit follows the `$metadata` (1.5 MiB); `runtime_location_id` kept in state |
@@ -102,7 +102,7 @@ must be numeric.
 | API Composition PATCH body, delete, service key fields | Configuration API `$metadata`, a live test | Service key of the `configuration` plan |
 | Integration Assessment Landscape Configuration | `EntitiesAPI` `$metadata` | Service key of *Integration Assessment APIs* |
 | Data Space Integration assets, policies, contract definitions | `DSIAPI` specification | Hub download with an SAP login |
-| Secure parameters, number range GET/DELETE, OAuth2 custom parameters, access policy constants | Tenant check | Re-run the tenant probe after assigning the missing role templates |
+| OAuth2 custom parameters (`SendAsPartOf` values), access policy constants | An existing example on the tenant, documentation | Create one custom parameter in the UI, then re-run the tenant probe with `-WriteTests` |
 | Edge Integration Cell targeting | A tenant with an Edge Integration Cell | Run the probe with `-RuntimeLocationId` |
 | Value mapping entries | Payload and delete granularity | SAP documentation or a tenant test |
 

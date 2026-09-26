@@ -20,6 +20,8 @@ func TestWireContractAgainstMetadata(t *testing.T) {
 		{oauth2ClientCredentialsEntitySet, oauth2ClientCredentialWriteRequest{}},
 		{userCredentialsEntitySet, UserCredential{}},
 		{userCredentialsEntitySet, userCredentialWriteRequest{}},
+		{secureParametersEntitySet, SecureParameter{}},
+		{secureParametersEntitySet, secureParameterWriteRequest{}},
 		{keystoreEntriesEntitySet, KeystoreEntry{}},
 		{keyPairGenerationRequestsEntitySet, keyPairGenerationWireRequest{}},
 		{keystoreResourcesEntitySet, deleteKeystoreEntriesRequest{}},
@@ -31,5 +33,8 @@ func TestWireContractAgainstMetadata(t *testing.T) {
 	m.AssertKey(t, certificateResourcesEntitySet, "Hexalias", "Edm.String")
 	m.AssertKey(t, oauth2ClientCredentialsEntitySet, "Name", "Edm.String")
 	m.AssertKey(t, userCredentialsEntitySet, "Name", "Edm.String")
+	m.AssertKey(t, secureParametersEntitySet, "Name", "Edm.String")
+	m.AssertMaxLength(t, secureParametersEntitySet, "Name", MaxSecureParameterNameLength)
+	m.AssertMaxLength(t, secureParametersEntitySet, "SecureParam", MaxSecureParameterValueLength)
 	m.AssertKey(t, keystoreResourcesEntitySet, "Name", "Edm.String")
 }

@@ -124,7 +124,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | OAuth2 Password Credentials | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 | OAuth2 SAML Bearer Assertion | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 | PGP Keyrings | ❌ | Planned — API details unconfirmed — see [feature-support.md](docs/feature-support.md#all-features) |
-| Secure Parameter | ❌ | Planned — API details unconfirmed — see [feature-support.md](docs/feature-support.md#all-features) |
+| Secure Parameter | ✅ | Resource |
 | SSH Key | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | User Credential | ⚠️ | Resource + Data Source — see [feature-support.md](docs/feature-support.md#all-features) |
 | Security Material Where-Used | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
@@ -231,7 +231,7 @@ Legend: ✅ Supported · ⚠️ Partial support / important limitations · 👁�
 | Trading Partner Management Partner Directory Generation | ❌ | Out of scope — see [feature-support.md](docs/feature-support.md#all-features) |
 | Trading Partner Management Partner Profile | ❌ | No suitable public API — see [feature-support.md](docs/feature-support.md#all-features) |
 
-20 supported · 10 partial · 4 read-only · 2 experimental · 61 unsupported · 2 planned as a separate provider, out of 99 evaluated Integration Suite features.
+21 supported · 10 partial · 4 read-only · 2 experimental · 60 unsupported · 2 planned as a separate provider, out of 99 evaluated Integration Suite features.
 
 <!-- END GENERATED FEATURE SUPPORT -->
 
