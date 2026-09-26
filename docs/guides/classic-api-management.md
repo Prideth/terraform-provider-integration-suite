@@ -64,14 +64,16 @@ it consumes.
 | Object | Resource / Data Source | Lifecycle |
 |---|---|---|
 | API Provider | `sapintegrationsuite_api_provider` | Create, Read, Delete — no Update |
-| API Product | `sapintegrationsuite_api_product` | Full CRUD |
+| API Product | `sapintegrationsuite_api_product` | Create, Read, Delete — no Update |
 | Certificate Store Reference | `sapintegrationsuite_api_management_certificate_store_reference` | Full CRUD |
 | Key Value Map | `sapintegrationsuite_api_key_value_map` | Create, Read, Delete — no Update, unencrypted only |
 
 Every one of these is confirmed field-for-field against SAP's own official "SAP API Management
 Standalone Service" user guide (its worked Create/Update/Delete request and response bodies),
 not inferred from UI screenshots or guessed from field labels — see `docs/sap-api-references.md`
-for the full evidence trail.
+for the full evidence trail. Where a tenant test in September 2026 showed that the service
+behaves differently from that guide, as it does for API products, the provider follows the
+tenant.
 
 ### API Provider
 
@@ -119,16 +121,14 @@ elsewhere may still occasionally need a retry.
 
 ### API Product
 
-A bundle of API Proxies published together for subscription, with optional custom attributes and
-request quotas.
+A bundle of API proxies that application developers subscribe to, with optional custom
+attributes and request quotas.
 
 ```hcl
 resource "sapintegrationsuite_api_product" "sample" {
-  name         = "SampleProduct"
-  version      = "1"
-  title        = "SampleProduct"
-  status_code  = "PUBLISHED"
-  is_published = true
+  name        = "SampleProduct"
+  title       = "Sample Product"
+  status_code = "PUBLISHED"
 
   api_proxy_names = ["SampleAPI"]
 
@@ -138,19 +138,28 @@ resource "sapintegrationsuite_api_product" "sample" {
 }
 ```
 
-`api_proxy_names` is only ever sent on **Create**: SAP's own documented Update (`PUT`) worked
-example never includes the `apiProxies` association, so this provider treats it as
-`RequiresReplace` rather than guess at an unconfirmed way to add or remove proxies from an
-existing product. The referenced proxies are expected to already exist through some other means
-— this provider does not implement `sapintegrationsuite_api_proxy` in this phase (see below), so
-`api_proxy_names` currently only accepts proxies created through the SAP Integration Suite UI.
+**A product cannot be changed, only replaced.** On a tenant in September 2026, SAP answered
+`PUT`, `PATCH` and `MERGE` on an existing product with `405 UPDATE operation not supported on
+APIProduct entity`. SAP's older user guide still shows a `PUT` example, but the service no
+longer accepts it. Every argument of `sapintegrationsuite_api_product` therefore forces a new
+product: Terraform deletes the old one and creates the new one. Applications subscribed to the
+old product lose that subscription, so read a plan that replaces a product before you apply
+it, and consider `lifecycle { prevent_destroy = true }` for products with subscribers.
 
-`additional_properties` (SAP's custom Product attributes) has its own confirmed, independent
-Create/Update/Delete lifecycle (`APIProductAdditionalProperties`, a composite `entityId`+`name`
-key) and is reconciled as a diff against the prior state on every `Update`, issuing only the
-Create/Update/Delete calls actually needed. SAP documents limits of 255 characters for a name,
-1024 for a value, and 18 attributes per product; this provider does not validate those itself,
-since SAP may change them.
+**At least one proxy is required.** SAP refuses a product without a linked proxy ("At least one
+API Proxy should be linked to an API Product"). The proxies must already exist; this provider
+does not manage API proxies (see below), so create them in the SAP Integration Suite UI.
+
+**Status.** SAP needs a `status_code` on create; without one its create fails with an internal
+error. The provider sends `PUBLISHED` unless you set something else. `DRAFT` also works and
+creates an unpublished product (`is_published` comes back `false`). Leave `is_published` out
+unless you have a reason to set it: SAP derives it from the status.
+
+**Additional properties** are sent inside the create request. SAP does not accept them on their
+own (`405 CREATE operation not supported on APIProductAdditionalProperty entity`), and each one
+must carry the product's name as `entityId`, which the provider fills in for you. SAP documents
+limits of 255 characters for a name, 1024 for a value, and 18 attributes per product; the
+provider does not check those itself, since SAP may change them.
 
 ### Certificate Store Reference
 
@@ -300,13 +309,16 @@ provider's scope entirely, planned as its own separate Terraform provider — se
 `sapintegrationsuite_api_management_certificate_store_reference` support `terraform import` by
 name (`terraform import sapintegrationsuite_api_product.sample SampleProduct`).
 `sapintegrationsuite_api_provider` also supports import (its `id` is its `name`), but every
-subsequent change to an imported provider replaces it, per the no-Update limitation above.
+subsequent change to an imported provider replaces it, per the no-Update limitation above. The
+same holds for an imported API product: import reads its linked proxies and additional
+properties from SAP, so the configuration has to match them exactly, or the next apply
+replaces the product.
 `sapintegrationsuite_api_key_value_map` imports via its composite key,
 `"<name>/<scope>/<scope_id>"` (`terraform import sapintegrationsuite_api_key_value_map.oc_instance_token apim.oc.instance.token/APIPROXY/SampleAPI`).
 
 Drift detection reads back every attribute this provider writes, except: `password_wo` on
 `sapintegrationsuite_api_provider` (write-only by design, never returned by `GET`, and this
-resource has no Update to reconcile it against anyway), and `additional_properties` on
-`sapintegrationsuite_api_product` immediately after `Create` (SAP's confirmed `GET APIProducts`
-response shape does not embed them; they are read back correctly on every subsequent `Read`
-via the resource's own state, and reconciled precisely on `Update`).
+resource has no Update to reconcile it against anyway). For `sapintegrationsuite_api_product`,
+SAP's product response only links to the proxies and properties, so the provider reads them
+through `APIProducts('<name>')/apiProxies` and `APIProducts('<name>')/additionalProperties`. A
+proxy order that differs from your configuration is not reported as a change.

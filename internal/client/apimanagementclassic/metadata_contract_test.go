@@ -19,7 +19,7 @@ func TestWireContractAgainstMetadata(t *testing.T) {
 		{apiProvidersEntitySet, APIProvider{}},
 		{apiProductsEntitySet, APIProduct{}},
 		{apiProductsEntitySet, apiProductWire{}},
-		{apiProductsEntitySet, apiProductUpdateWire{}},
+		{apiProductsEntitySet, apiProductReadWire{}},
 		{apiProductAdditionalPropertiesEntity, APIProductAdditionalProperty{}},
 		{certificateStoreReferencesEntitySet, CertificateStoreReference{}},
 		{genericKeyMapEntriesEntitySet, KeyValueMap{}},

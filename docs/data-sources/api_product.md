@@ -31,7 +31,7 @@ output "sample_product_proxies" {
 
 ### Read-Only
 
-- `api_proxy_names` (List of String)
+- `api_proxy_names` (List of String) Names of the API proxies bundled in this product.
 - `description` (String)
 - `is_published` (Boolean)
 - `is_restricted` (Boolean)

@@ -75,6 +75,25 @@ All notable changes to this project are documented in this file.
   declares for `BinaryParameter.Value`, instead of 260 KB. Older SAP pages
   still give the lower figure; the contract tests pin the new value to the
   `$metadata`.
+- **Breaking:** `sapintegrationsuite_api_product` could neither create nor
+  read a product on a real API Portal. SAP returns the product's links to
+  proxies and properties as `__deferred` objects, which the client tried to
+  decode as lists. A tenant test also showed that SAP answers every update
+  of a product (PUT, PATCH and MERGE) with 405 and rejects a separate
+  create of an additional property with 405. The resource now changes as
+  follows:
+  - Every attribute forces a new product. Replacing a product drops the
+    subscriptions of applications that use it, so check plans carefully.
+  - `api_proxy_names` is required. SAP refuses a product without a linked
+    proxy.
+  - `status_code` defaults to `PUBLISHED`. `DRAFT` also works and creates an
+    unpublished product. Without a status, SAP's create fails.
+  - `version`, `title`, `is_published` and `is_restricted` take the values
+    SAP sets when they are left out, for example version `1`.
+  - `additional_properties` are sent inside the create request.
+  - Refresh and import read the linked proxies and the properties from SAP,
+    so drift in both is detected. The data source's `api_proxy_names` was
+    always empty and is now filled.
 
 ### Added
 

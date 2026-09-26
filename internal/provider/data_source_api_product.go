@@ -40,15 +40,19 @@ func (d *apiProductDataSource) Schema(_ context.Context, _ datasource.SchemaRequ
 	resp.Schema = schema.Schema{
 		Description: "Reads a Classic API Management API product (APIProducts) by name.",
 		Attributes: map[string]schema.Attribute{
-			"name":            schema.StringAttribute{Required: true, Description: "The API product's name to look up."},
-			"version":         schema.StringAttribute{Computed: true},
-			"title":           schema.StringAttribute{Computed: true},
-			"description":     schema.StringAttribute{Computed: true},
-			"scope":           schema.StringAttribute{Computed: true},
-			"status_code":     schema.StringAttribute{Computed: true},
-			"is_published":    schema.BoolAttribute{Computed: true},
-			"is_restricted":   schema.BoolAttribute{Computed: true},
-			"api_proxy_names": schema.ListAttribute{Computed: true, ElementType: types.StringType},
+			"name":          schema.StringAttribute{Required: true, Description: "The API product's name to look up."},
+			"version":       schema.StringAttribute{Computed: true},
+			"title":         schema.StringAttribute{Computed: true},
+			"description":   schema.StringAttribute{Computed: true},
+			"scope":         schema.StringAttribute{Computed: true},
+			"status_code":   schema.StringAttribute{Computed: true},
+			"is_published":  schema.BoolAttribute{Computed: true},
+			"is_restricted": schema.BoolAttribute{Computed: true},
+			"api_proxy_names": schema.ListAttribute{
+				Computed:    true,
+				ElementType: types.StringType,
+				Description: "Names of the API proxies bundled in this product.",
+			},
 		},
 	}
 }
@@ -80,6 +84,11 @@ func (d *apiProductDataSource) Read(ctx context.Context, req datasource.ReadRequ
 		resp.Diagnostics.AddError("Failed to read Classic API Management API product", diagnosticDetail(err))
 		return
 	}
+	proxyNames, err := d.client.GetAPIProductProxyNames(ctx, found.Name)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to read the API proxies linked to a Classic API Management API product", diagnosticDetail(err))
+		return
+	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, apiProductDataSourceModel{
 		Name:          types.StringValue(found.Name),
@@ -90,6 +99,6 @@ func (d *apiProductDataSource) Read(ctx context.Context, req datasource.ReadRequ
 		StatusCode:    stringOrNull(found.StatusCode),
 		IsPublished:   types.BoolValue(found.IsPublished),
 		IsRestricted:  types.BoolValue(found.IsRestricted),
-		APIProxyNames: found.ApiProxyNames,
+		APIProxyNames: proxyNames,
 	})...)
 }

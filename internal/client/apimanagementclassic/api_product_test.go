@@ -9,6 +9,10 @@ import (
 	"testing"
 )
 
+// deferredProduct is the product as a tenant returned it in September 2026:
+// navigation properties are __deferred objects, not arrays.
+const deferredProduct = `{"d": {"__metadata": {"type": "apiportal.APIProduct"}, "name": "SampleProduct", "version": "1", "title": "SampleProduct", "description": null, "scope": "", "status_code": "PUBLISHED", "isPublished": true, "isRestricted": false, "quotaCount": null, "quotaInterval": null, "quotaTimeUnit": null, "life_cycle": {"created_at": "/Date(1790423910729)/"}, "apiProxies": {"__deferred": {"uri": "https://host/APIProducts('SampleProduct')/apiProxies"}}, "apiResources": {"__deferred": {"uri": "https://host/APIProducts('SampleProduct')/apiResources"}}, "additionalProperties": {"__deferred": {"uri": "https://host/APIProducts('SampleProduct')/additionalProperties"}}}}`
+
 func TestClient_CreateAPIProduct(t *testing.T) {
 	var postBody []byte
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -18,7 +22,7 @@ func TestClient_CreateAPIProduct(t *testing.T) {
 		body, _ := io.ReadAll(r.Body)
 		postBody = body
 		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(`{"d": {"name": "SampleProduct", "version": "1", "title": "SampleProduct", "scope": "", "status_code": "PUBLISHED", "isPublished": false, "isRestricted": false, "apiProxies": [{"__metadata": {"uri": "APIProxies(name='SampleAPI')"}}]}}`))
+		_, _ = w.Write([]byte(deferredProduct))
 	}))
 	defer server.Close()
 
@@ -34,7 +38,10 @@ func TestClient_CreateAPIProduct(t *testing.T) {
 		t.Fatalf("CreateAPIProduct() error: %v", err)
 	}
 	if len(created.ApiProxyNames) != 1 || created.ApiProxyNames[0] != "SampleAPI" {
-		t.Errorf("ApiProxyNames = %v, want [SampleAPI]", created.ApiProxyNames)
+		t.Errorf("ApiProxyNames = %v, want the sent [SampleAPI]", created.ApiProxyNames)
+	}
+	if !created.IsPublished {
+		t.Error("IsPublished = false, want the value SAP returned")
 	}
 
 	var decoded map[string]interface{}
@@ -45,11 +52,13 @@ func TestClient_CreateAPIProduct(t *testing.T) {
 	if !ok || len(proxies) != 1 {
 		t.Fatalf("apiProxies in request body = %v", decoded["apiProxies"])
 	}
+	if decoded["status_code"] != "PUBLISHED" {
+		t.Errorf("status_code in request body = %v, want PUBLISHED", decoded["status_code"])
+	}
 }
 
-func TestClient_GetUpdateDeleteAPIProduct(t *testing.T) {
+func TestClient_GetDeleteAPIProduct(t *testing.T) {
 	var lastMethod string
-	var putBody []byte
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		lastMethod = r.Method
@@ -60,11 +69,7 @@ func TestClient_GetUpdateDeleteAPIProduct(t *testing.T) {
 		switch r.Method {
 		case http.MethodGet:
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"d": {"name": "SampleProduct", "title": "SampleProduct", "status_code": "PUBLISHED"}}`))
-		case http.MethodPut:
-			body, _ := io.ReadAll(r.Body)
-			putBody = body
-			w.WriteHeader(http.StatusNoContent)
+			_, _ = w.Write([]byte(deferredProduct))
 		case http.MethodDelete:
 			w.WriteHeader(http.StatusNoContent)
 		}
@@ -77,24 +82,8 @@ func TestClient_GetUpdateDeleteAPIProduct(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetAPIProduct() error: %v", err)
 	}
-	if product.Title != "SampleProduct" {
-		t.Errorf("Title = %q, want SampleProduct", product.Title)
-	}
-
-	if err := client.UpdateAPIProduct(context.Background(), APIProduct{
-		Name:        "SampleProduct",
-		Title:       "SampleProduct",
-		StatusCode:  "PUBLISHED",
-		IsPublished: true,
-	}); err != nil {
-		t.Fatalf("UpdateAPIProduct() error: %v", err)
-	}
-	var decoded map[string]interface{}
-	if err := json.Unmarshal(putBody, &decoded); err != nil {
-		t.Fatalf("decoding PUT body: %v", err)
-	}
-	if _, present := decoded["apiProxies"]; present {
-		t.Error("Update payload should never include apiProxies (no confirmed update path for the association)")
+	if product.Title != "SampleProduct" || product.StatusCode != "PUBLISHED" {
+		t.Errorf("product = %+v, want title SampleProduct and status PUBLISHED", product)
 	}
 
 	if err := client.DeleteAPIProduct(context.Background(), "SampleProduct"); err != nil {
@@ -105,41 +94,67 @@ func TestClient_GetUpdateDeleteAPIProduct(t *testing.T) {
 	}
 }
 
-func TestClient_APIProductAdditionalProperty(t *testing.T) {
-	var lastMethod, lastPath string
+// SAP rejects a deep-inserted property without the owning product's name
+// (400 ADDITIONAL_PROPERTY_ENTITY_ID_MATCH_ERROR), so the create body must
+// carry it in every property.
+func TestClient_CreateAPIProduct_PropertiesCarryEntityID(t *testing.T) {
+	var postBody map[string]interface{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		lastMethod = r.Method
-		lastPath = r.URL.Path
-		switch r.Method {
-		case http.MethodPost:
-			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"d": {"entityId": "SampleProduct", "name": "key1", "value": "val1"}}`))
-		case http.MethodPut, http.MethodDelete:
-			w.WriteHeader(http.StatusNoContent)
-		}
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &postBody)
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(deferredProduct))
 	}))
 	defer server.Close()
 
+	_, err := New(http.DefaultClient, server.URL).CreateAPIProduct(context.Background(), APIProduct{
+		Name:                 "SampleProduct",
+		StatusCode:           "PUBLISHED",
+		ApiProxyNames:        []string{"SampleAPI"},
+		AdditionalProperties: []APIProductAdditionalProperty{{Name: "team", Value: "integration"}},
+	})
+	if err != nil {
+		t.Fatalf("CreateAPIProduct() error: %v", err)
+	}
+	props, _ := postBody["additionalProperties"].([]interface{})
+	if len(props) != 1 {
+		t.Fatalf("additionalProperties sent = %v, want one", postBody["additionalProperties"])
+	}
+	prop := props[0].(map[string]interface{})
+	if prop["entityId"] != "SampleProduct" || prop["name"] != "team" || prop["value"] != "integration" {
+		t.Errorf("property sent = %v, want entityId SampleProduct, name team, value integration", prop)
+	}
+}
+
+func TestClient_GetAPIProductNavigation(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		base := "/apiportal/api/1.0/Management.svc/APIProducts('SampleProduct')"
+		switch r.URL.Path {
+		case base + "/apiProxies":
+			// Trimmed from a tenant answer, September 2026.
+			_, _ = w.Write([]byte(`{"d": {"results": [{"__metadata": {"type": "apiportal.APIProxy"}, "name": "test", "state": "DEPLOYED", "status_code": "REGISTERED", "life_cycle": {"created_at": "/Date(1790423031733)/"}}]}}`))
+		case base + "/additionalProperties":
+			_, _ = w.Write([]byte(`{"d": {"results": [{"entityId": "SampleProduct", "name": "team", "value": "integration"}]}}`))
+		default:
+			t.Errorf("unexpected path %q", r.URL.Path)
+		}
+	}))
+	defer server.Close()
 	client := New(http.DefaultClient, server.URL)
 
-	if err := client.CreateAPIProductAdditionalProperty(context.Background(), APIProductAdditionalProperty{
-		EntityID: "SampleProduct", Name: "key1", Value: "val1",
-	}); err != nil {
-		t.Fatalf("CreateAPIProductAdditionalProperty() error: %v", err)
+	names, err := client.GetAPIProductProxyNames(context.Background(), "SampleProduct")
+	if err != nil {
+		t.Fatalf("GetAPIProductProxyNames() error: %v", err)
+	}
+	if len(names) != 1 || names[0] != "test" {
+		t.Errorf("names = %v, want [test]", names)
 	}
 
-	if err := client.UpdateAPIProductAdditionalProperty(context.Background(), "SampleProduct", "key1", "val2"); err != nil {
-		t.Fatalf("UpdateAPIProductAdditionalProperty() error: %v", err)
+	props, err := client.GetAPIProductAdditionalProperties(context.Background(), "SampleProduct")
+	if err != nil {
+		t.Fatalf("GetAPIProductAdditionalProperties() error: %v", err)
 	}
-	wantPath := "/apiportal/api/1.0/Management.svc/APIProductAdditionalProperties(entityId='SampleProduct',name='key1')"
-	if lastPath != wantPath {
-		t.Errorf("path = %q, want %q", lastPath, wantPath)
-	}
-	if lastMethod != http.MethodPut {
-		t.Errorf("lastMethod = %s, want PUT", lastMethod)
-	}
-
-	if err := client.DeleteAPIProductAdditionalProperty(context.Background(), "SampleProduct", "key1"); err != nil {
-		t.Fatalf("DeleteAPIProductAdditionalProperty() error: %v", err)
+	if len(props) != 1 || props[0].Name != "team" || props[0].Value != "integration" {
+		t.Errorf("props = %+v, want team=integration", props)
 	}
 }

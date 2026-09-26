@@ -3,35 +3,32 @@
 page_title: "sapintegrationsuite_api_product Resource - sapintegrationsuite"
 subcategory: ""
 description: |-
-  Manages a Classic API Management API Product (APIProducts): a bundle of one or more API Proxies published together for subscription. Backed by the API Portal's Management.svc OData API, confirmed field-for-field against SAP's own documented Create (POST) and Update (PUT) worked examples.
-  api_proxy_names is only ever sent on Create: SAP's documented Update payload never includes the apiProxies association, so this provider treats it as immutable after creation (RequiresReplace) rather than guess at an unconfirmed way to add or remove proxies from an existing product. Referenced proxies are expected to already exist — this provider does not implement sapintegrationsuite_api_proxy in this phase (see docs/guides/classic-api-management.md), so api_proxy_names currently only accepts names of proxies created through the SAP Integration Suite UI.
-  additional_properties (SAP's custom Product attributes) has its own confirmed, independent Create/Update/Delete lifecycle (APIProductAdditionalProperties, composite key entityId+name) and is reconciled by this resource as a set of {name, value} pairs; SAP documents limits of 255 characters for a name, 1024 for a value, and 18 attributes per product, none of which this provider validates itself, since SAP may change them.
+  Manages a Classic API Management API product (APIProducts): a bundle of one or more API proxies that application developers subscribe to.
+  An API product cannot be changed after it is created. A tenant test in September 2026 answered PUT, PATCH and MERGE on an existing product with 405 "UPDATE operation not supported on APIProduct entity". Every attribute therefore forces a new product: Terraform deletes the product and creates it again. Applications subscribed to the old product lose that subscription, so review any plan that replaces a product.
+  SAP requires at least one linked API proxy. The proxies must already exist; this provider does not manage API proxies.
 ---
 
 # sapintegrationsuite_api_product (Resource)
 
-Manages a Classic API Management API Product (APIProducts): a bundle of one or more API Proxies published together for subscription. Backed by the API Portal's Management.svc OData API, confirmed field-for-field against SAP's own documented Create (POST) and Update (PUT) worked examples.
+Manages a Classic API Management API product (APIProducts): a bundle of one or more API proxies that application developers subscribe to.
 
-api_proxy_names is only ever sent on Create: SAP's documented Update payload never includes the apiProxies association, so this provider treats it as immutable after creation (RequiresReplace) rather than guess at an unconfirmed way to add or remove proxies from an existing product. Referenced proxies are expected to already exist — this provider does not implement sapintegrationsuite_api_proxy in this phase (see docs/guides/classic-api-management.md), so api_proxy_names currently only accepts names of proxies created through the SAP Integration Suite UI.
+An API product cannot be changed after it is created. A tenant test in September 2026 answered PUT, PATCH and MERGE on an existing product with 405 "UPDATE operation not supported on APIProduct entity". Every attribute therefore forces a new product: Terraform deletes the product and creates it again. Applications subscribed to the old product lose that subscription, so review any plan that replaces a product.
 
-additional_properties (SAP's custom Product attributes) has its own confirmed, independent Create/Update/Delete lifecycle (APIProductAdditionalProperties, composite key entityId+name) and is reconciled by this resource as a set of {name, value} pairs; SAP documents limits of 255 characters for a name, 1024 for a value, and 18 attributes per product, none of which this provider validates itself, since SAP may change them.
+SAP requires at least one linked API proxy. The proxies must already exist; this provider does not manage API proxies.
 
 ## Example Usage
 
 ```terraform
-# Requires provider.api_management to be configured. api_proxy_names
-# references already-existing API Proxies by name (created through the SAP
-# Integration Suite UI — sapintegrationsuite_api_proxy is not yet
-# implemented, see docs/guides/classic-api-management.md) and is
-# RequiresReplace, since no confirmed way exists to change it after
-# creation.
+# Requires provider.api_management to be configured. The proxies in
+# api_proxy_names must already exist; create them in the SAP Integration
+# Suite UI. SAP cannot change a product after it is created, so changing any
+# argument here makes Terraform delete the product and create a new one.
+# Applications subscribed to the old product lose their subscription.
 resource "sapintegrationsuite_api_product" "sample" {
-  name         = "SampleProduct"
-  version      = "1"
-  title        = "SampleProduct"
-  description  = "Sample product bundling the SampleAPI proxy"
-  status_code  = "PUBLISHED"
-  is_published = true
+  name        = "SampleProduct"
+  title       = "Sample Product"
+  description = "Sample product bundling the SampleAPI proxy"
+  status_code = "PUBLISHED"
 
   api_proxy_names = ["SampleAPI"]
 
@@ -49,26 +46,26 @@ resource "sapintegrationsuite_api_product" "sample" {
 
 ### Required
 
-- `name` (String) The API product's name.
+- `api_proxy_names` (List of String) Names of existing API proxies bundled in this product. SAP rejects a product without one ("At least one API Proxy should be linked to an API Product").
+- `name` (String) The API product's name. It is the product's key and cannot be changed.
 
 ### Optional
 
-- `additional_properties` (Attributes Set) Custom name/value attributes attached to this product. Order carries no meaning, hence a set. (see [below for nested schema](#nestedatt--additional_properties))
-- `api_proxy_names` (List of String) Names of already-existing API Proxies to associate with this product at creation time. See the resource description above for why this is RequiresReplace.
-- `description` (String)
-- `is_published` (Boolean) Whether the product is published (visible for subscription).
-- `is_restricted` (Boolean) Whether subscription to this product is restricted (requires approval).
-- `quota_count` (Number) Request quota count. SAP's own worked examples send -99 for "no quota" in one place and null in another; this provider sends whatever is configured (including a negative sentinel) and null when unset, without interpreting the value itself.
-- `quota_interval` (Number) Request quota interval, paired with quota_count and quota_time_unit.
-- `quota_time_unit` (String) Request quota time unit, paired with quota_count and quota_interval.
-- `scope` (String) SAP's confirmed example always sends this field, as an empty string when unused.
-- `status_code` (String) The product's status. The only value this provider found confirmed in a worked example is "PUBLISHED"; not validated against a closed enum, since SAP's full set of accepted values is not confirmed.
-- `title` (String)
-- `version` (String) The product's version identifier, for example "1" (SAP's confirmed example value).
+- `additional_properties` (Attributes Set) Custom name/value attributes sent with the product when it is created. Order carries no meaning, hence a set. (see [below for nested schema](#nestedatt--additional_properties))
+- `description` (String) A longer description of the product.
+- `is_published` (Boolean) Whether the product is published for subscription. When left out, SAP decides.
+- `is_restricted` (Boolean) Whether a subscription to this product needs approval. When left out, SAP decides.
+- `quota_count` (Number) How many requests the quota allows per interval. SAP's own examples send -99 for "no quota"; the provider sends the value as configured and null when unset.
+- `quota_interval` (Number) The quota interval, counted in quota_time_unit.
+- `quota_time_unit` (String) The unit of quota_interval, as SAP expects it (for example "minute").
+- `scope` (String) OAuth scopes the product grants, as SAP expects them. Sent as an empty string when left out.
+- `status_code` (String) The product's status. SAP requires one on create; without it the create fails inside SAP. Defaults to "PUBLISHED", the value confirmed on a tenant.
+- `title` (String) The title shown in the API business hub enterprise.
+- `version` (String) The product's version, for example "1". When left out, SAP sets one itself ("1" on the tested tenant).
 
 ### Read-Only
 
-- `id` (String) Always equal to name — SAP's confirmed OData key for this entity (APIProducts('<name>')).
+- `id` (String) Always equal to name, SAP's key for this entity (APIProducts('<name>')).
 
 <a id="nestedatt--additional_properties"></a>
 ### Nested Schema for `additional_properties`

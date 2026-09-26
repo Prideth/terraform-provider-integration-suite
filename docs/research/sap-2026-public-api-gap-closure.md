@@ -45,9 +45,11 @@ Two techniques are reusable and documented in `CONTRIBUTING.md`:
   package's APIs with type and version. It ignores `$filter`, so filtered queries prove nothing,
   and specification files stay behind the Hub login.
 
-A read-only probe script was run against the development tenant. Apart from access policies it
-returned `403 Forbidden`, because the OAuth client lacked role templates. That is why several
-items below still say "waiting for a tenant check".
+A probe script was run against the development tenant and its API Portal. The first read-only
+run returned `403 Forbidden` apart from access policies, because the OAuth client lacked role
+templates. After the roles were assigned, a second mode created, changed and deleted test
+objects to check each write the provider makes; the results are noted per area below. Items
+that need uploaded content (integration flows, mappings, script collections) were not written.
 
 ## Results per area
 
@@ -60,7 +62,7 @@ items below still say "waiting for a tenant check".
 | Archiving (Cloud Integration, B2B) | New catalog entry, no resource | Activation is a one-way function import without deactivation; per-flow settings are UI-only |
 | Edge Integration Cell | Not supported | Untested `runtime_location_id` on deployments, credentials, certificates, key pairs and Partner Directory resources, using the documented `/location/<id>/api/v1` service root |
 | Partner Directory | Supported, fixes | User credential parameters updated in place (documented POST upsert) and never overwritten on create; authorized users must be lowercase; binary parameter limit follows the `$metadata` (1.5 MiB); `runtime_location_id` kept in state |
-| Classic API Management | Contract confirmed | Client checked against the API portal's `Management.svc/$metadata` by a contract test; virtual host read schema and seven further entity sets catalogued; the Hub lists *API Portal - Transport (CF)* as the official ZIP import and export API |
+| Classic API Management | Contract confirmed, API product fixed | Client checked against the API portal's `Management.svc/$metadata` by a contract test; virtual host read schema and seven further entity sets catalogued; the Hub lists *API Portal - Transport (CF)* as the official ZIP import and export API; API product create, read and delete verified on a tenant, the product is replace-only because every update answers 405, linked proxies and additional properties are read through navigation properties |
 | API Composition | Experimental resource | Business data graph resource and data source; schema follows SAP's configuration file format; asynchronous processing with timeouts; the Hub lists the API as OData V4 |
 | Integration Assessment | Public API, contract unknown | Both APIs are OData per the Hub; the `$metadata` fetched with a service key would unblock Landscape Configuration |
 | Data Space Integration | Public API, contract unknown | One REST API (`DSIAPI` 2.0.0); SAP documents only consumer runtime calls; new guide |
@@ -84,13 +86,18 @@ items below still say "waiting for a tenant check".
 - OData Provisioning: no management API; `ODPAPIAccess` had been misread as a sign of one.
 - Hub searches: a filtered catalog query had been taken as evidence; the full package list is
   used instead.
+- Classic API products: SAP's user guide shows a `PUT` update and a separate
+  `APIProductAdditionalProperties` create, but the tenant answers both with 405. The product
+  read returns `__deferred` links, which the client had tried to decode as lists, so create
+  and read had failed on every tenant.
 
 ## Breaking changes
 
 Listed with migration notes in `CHANGELOG.md`: the access policy reference schema and removed
 `reconciliation_status`; integration adapter without `type` and `application`; service endpoint
-`api_definitions[].name`; lowercase `user` for authorized users. Import IDs for access policies
-must be numeric.
+`api_definitions[].name`; lowercase `user` for authorized users; required `short_text` on
+integration packages; a replace-only API product with required `api_proxy_names`. Import IDs
+for access policies must be numeric.
 
 ## Open items and what would close them
 

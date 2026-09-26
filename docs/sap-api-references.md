@@ -1253,6 +1253,29 @@ attribute's value. DELETE for `APIProducts` itself is not shown verbatim anywher
 provider infers it from the identical key-predicate DELETE convention confirmed directly for
 `APIProviders` and `CertificateStoreReferences` within this same API.
 
+**Tenant test, September 2026 (overrides parts of the guide above).** Run against an API Portal
+with a service key holding `APIPortal.Administrator`:
+
+- `POST APIProducts` with `status_code: "PUBLISHED"` and one `apiProxies` reference answered 201.
+  `status_code: "DRAFT"` also answered 201 and returned `isPublished: false`. Without
+  `status_code` SAP failed with a `NullPointerException` on `getStatus_code()`; without a proxy
+  it refused with "At least one API Proxy should be linked to an API Product". SAP set
+  `version` to `"1"` when none was sent.
+- `PUT`, `PATCH` and `MERGE APIProducts('<name>')` on an existing product all answered `405
+  UPDATE operation not supported on APIProduct entity`. The guide's `PUT` example no longer
+  works.
+- `POST APIProductAdditionalProperties` answered `405 CREATE operation not supported on
+  APIProductAdditionalProperty entity`. Nested in the product's create without `entityId`,
+  SAP answered `400 ADDITIONAL_PROPERTY_ENTITY_ID_MATCH_ERROR` ("Entity Id in Additional
+  Property does not match"), so each nested property carries the product's name as
+  `entityId`, as the guide's example does.
+- `GET APIProducts('<name>')` returns every navigation property (`apiProxies`,
+  `additionalProperties`, `apiResources`, `ratePlans` and others) as a `__deferred` link.
+  `GET APIProducts('<name>')/apiProxies` lists the linked proxies with their `name`;
+  `?$expand=apiProxies` works as well. `GET APIProducts('<name>')/additionalProperties`
+  answers `{"d":{"results":[...]}}`.
+- `DELETE APIProducts('<name>')` answered 204.
+
 ### Certificate Store Reference (`CertificateStoreReferences`)
 
 The most completely confirmed entity in this whole research pass: the official user guide

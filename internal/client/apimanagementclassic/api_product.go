@@ -24,12 +24,18 @@ type apiProxyRef struct {
 
 // APIProduct is the wire representation of an APIProducts entity, confirmed
 // field-for-field against SAP's own "SAP API Management Standalone Service"
-// user guide worked Create (POST) and Update (PUT) examples.
+// user guide worked Create (POST) example and a tenant test in September
+// 2026.
+//
+// A product cannot be changed after it is created: the same tenant test
+// answered PUT, PATCH and MERGE on an existing product with 405 "UPDATE
+// operation not supported on APIProduct entity". This client therefore
+// offers create, read and delete only.
 //
 // ApiProxyNames is only sent on Create (as __metadata.uri deep-insert
-// references) — no worked Update example includes it, so this provider
-// treats the proxy association as immutable after creation rather than
-// guess at an unconfirmed way to add or remove proxies later.
+// references). SAP rejects a product without one ("At least one API Proxy
+// should be linked to an API Product"). A read returns the association as a
+// __deferred link, not the names, so GetAPIProduct leaves it empty.
 type APIProduct struct {
 	Name        string `json:"name"`
 	Version     string `json:"version,omitempty"`
@@ -37,8 +43,9 @@ type APIProduct struct {
 	Description string `json:"description,omitempty"`
 	Scope       string `json:"scope"`
 
-	// StatusCode's only confirmed value is "PUBLISHED"; no other value
-	// appears in any reachable worked example, so this provider does not
+	// StatusCode is required on create: without it SAP failed with a
+	// NullPointerException on getStatus_code(). "PUBLISHED" is confirmed on
+	// a tenant; no other value is confirmed, so this client does not
 	// validate it against a closed enum.
 	StatusCode string `json:"status_code,omitempty"`
 
@@ -55,6 +62,10 @@ type APIProduct struct {
 
 	// ApiProxyNames is only meaningful on Create; see the type doc comment.
 	ApiProxyNames []string `json:"-"`
+
+	// AdditionalProperties is only sent on Create, inside the product
+	// (deep insert); see APIProductAdditionalProperty.
+	AdditionalProperties []APIProductAdditionalProperty `json:"-"`
 }
 
 type apiProductWire struct {
@@ -71,6 +82,8 @@ type apiProductWire struct {
 	QuotaTimeUnit *string       `json:"quotaTimeUnit"`
 	ApiProxies    []apiProxyRef `json:"apiProxies,omitempty"`
 	ApiResources  []struct{}    `json:"apiResources"`
+
+	AdditionalProperties []APIProductAdditionalProperty `json:"additionalProperties,omitempty"`
 }
 
 func (p APIProduct) toCreateWire() apiProductWire {
@@ -93,43 +106,36 @@ func (p APIProduct) toCreateWire() apiProductWire {
 		ref.Metadata.URI = fmt.Sprintf("APIProxies(name='%s')", v2.EscapeLiteral(name))
 		wire.ApiProxies = append(wire.ApiProxies, ref)
 	}
+	// SAP rejects a deep-inserted property without the owning product's
+	// name: 400 ADDITIONAL_PROPERTY_ENTITY_ID_MATCH_ERROR, "Entity Id in
+	// Additional Property does not match".
+	for _, prop := range p.AdditionalProperties {
+		prop.EntityID = p.Name
+		wire.AdditionalProperties = append(wire.AdditionalProperties, prop)
+	}
 	return wire
 }
 
-// updateWire is the narrower field set SAP's own documented Update (PUT)
-// example sends — no apiProxies, apiResources, or additionalProperties.
-type apiProductUpdateWire struct {
+// apiProductReadWire is the entity as SAP returns it. Navigation properties
+// (apiProxies, apiResources, additionalProperties and others) come back as
+// {"__deferred": {"uri": ...}} objects, not arrays, so they are left out
+// here; decoding them into the create shape's slices would fail.
+type apiProductReadWire struct {
 	Name          string  `json:"name"`
-	Title         string  `json:"title,omitempty"`
-	Description   string  `json:"description,omitempty"`
+	Version       string  `json:"version"`
+	Title         string  `json:"title"`
+	Description   string  `json:"description"`
 	Scope         string  `json:"scope"`
-	Version       string  `json:"version,omitempty"`
-	StatusCode    string  `json:"status_code,omitempty"`
-	IsRestricted  bool    `json:"isRestricted"`
+	StatusCode    string  `json:"status_code"`
 	IsPublished   bool    `json:"isPublished"`
+	IsRestricted  bool    `json:"isRestricted"`
 	QuotaCount    *int64  `json:"quotaCount"`
 	QuotaInterval *int64  `json:"quotaInterval"`
 	QuotaTimeUnit *string `json:"quotaTimeUnit"`
 }
 
-func (p APIProduct) toUpdateWire() apiProductUpdateWire {
-	return apiProductUpdateWire{
-		Name:          p.Name,
-		Title:         p.Title,
-		Description:   p.Description,
-		Scope:         p.Scope,
-		Version:       p.Version,
-		StatusCode:    p.StatusCode,
-		IsRestricted:  p.IsRestricted,
-		IsPublished:   p.IsPublished,
-		QuotaCount:    p.QuotaCount,
-		QuotaInterval: p.QuotaInterval,
-		QuotaTimeUnit: p.QuotaTimeUnit,
-	}
-}
-
-func apiProductFromWire(wire apiProductWire) APIProduct {
-	p := APIProduct{
+func apiProductFromWire(wire apiProductReadWire) APIProduct {
+	return APIProduct{
 		Name:          wire.Name,
 		Version:       wire.Version,
 		Title:         wire.Title,
@@ -142,19 +148,12 @@ func apiProductFromWire(wire apiProductWire) APIProduct {
 		QuotaInterval: wire.QuotaInterval,
 		QuotaTimeUnit: wire.QuotaTimeUnit,
 	}
-	for _, ref := range wire.ApiProxies {
-		// uri is "APIProxies(name='<name>')"; extract <name> back out.
-		uri := ref.Metadata.URI
-		const prefix, suffix = "APIProxies(name='", "')"
-		if len(uri) > len(prefix)+len(suffix) && uri[:len(prefix)] == prefix {
-			p.ApiProxyNames = append(p.ApiProxyNames, uri[len(prefix):len(uri)-len(suffix)])
-		}
-	}
-	return p
 }
 
-// CreateAPIProduct creates a new API product, optionally associating it
-// with existing API proxies by name in the same call.
+// CreateAPIProduct creates a new API product linked to existing API proxies
+// by name. SAP answers 201 with the product, whose proxy association is only
+// a __deferred link, so the returned product carries the names that were
+// sent.
 func (c *Client) CreateAPIProduct(ctx context.Context, product APIProduct) (*APIProduct, error) {
 	payload, err := json.Marshal(product.toCreateWire())
 	if err != nil {
@@ -166,15 +165,18 @@ func (c *Client) CreateAPIProduct(ctx context.Context, product APIProduct) (*API
 		return nil, err
 	}
 
-	var wire apiProductWire
+	var wire apiProductReadWire
 	if err := v2.DecodeEntity(body, &wire); err != nil {
 		return nil, err
 	}
 	result := apiProductFromWire(wire)
+	result.ApiProxyNames = product.ApiProxyNames
+	result.AdditionalProperties = product.AdditionalProperties
 	return &result, nil
 }
 
-// GetAPIProduct reads a single API product by name.
+// GetAPIProduct reads a single API product by name. ApiProxyNames stays
+// empty; see the APIProduct type doc comment.
 func (c *Client) GetAPIProduct(ctx context.Context, name string) (*APIProduct, error) {
 	path := v2.BuildPath(apiProductsEntitySet, v2.KeyPredicate(name), "")
 
@@ -183,7 +185,7 @@ func (c *Client) GetAPIProduct(ctx context.Context, name string) (*APIProduct, e
 		return nil, err
 	}
 
-	var wire apiProductWire
+	var wire apiProductReadWire
 	if err := v2.DecodeEntity(body, &wire); err != nil {
 		return nil, err
 	}
@@ -191,25 +193,49 @@ func (c *Client) GetAPIProduct(ctx context.Context, name string) (*APIProduct, e
 	return &result, nil
 }
 
-// UpdateAPIProduct updates an API product's top-level fields. It never
-// touches the product's API proxy associations — see the APIProduct type
-// doc comment for why.
-func (c *Client) UpdateAPIProduct(ctx context.Context, product APIProduct) error {
-	payload, err := json.Marshal(product.toUpdateWire())
+// GetAPIProductProxyNames lists the names of the API proxies linked to a
+// product, through the apiProxies navigation property. A tenant test in
+// September 2026 answered with the proxies as a plain results list.
+func (c *Client) GetAPIProductProxyNames(ctx context.Context, name string) ([]string, error) {
+	path := v2.BuildPath(apiProductsEntitySet, v2.KeyPredicate(name), "") + "/apiProxies"
+
+	body, err := c.odata.Get(ctx, path)
 	if err != nil {
-		return fmt.Errorf("apimanagementclassic: encoding API product: %w", err)
+		return nil, err
 	}
 
-	path := v2.BuildPath(apiProductsEntitySet, v2.KeyPredicate(product.Name), "")
-	_, err = c.odata.Put(ctx, path, payload)
-	return err
+	var proxies []struct {
+		Name string `json:"name"`
+	}
+	if err := v2.DecodeCollection(body, &proxies); err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(proxies))
+	for _, p := range proxies {
+		names = append(names, p.Name)
+	}
+	return names, nil
 }
 
-// DeleteAPIProduct deletes an API product by name. SAP's documentation does
-// not show a worked DELETE example for this entity specifically; this
-// method uses the same key-predicate DELETE convention directly confirmed
-// for APIProviders and CertificateStoreReferences within this same
-// Management.svc API family.
+// GetAPIProductAdditionalProperties lists a product's custom attributes,
+// through the additionalProperties navigation property.
+func (c *Client) GetAPIProductAdditionalProperties(ctx context.Context, name string) ([]APIProductAdditionalProperty, error) {
+	path := v2.BuildPath(apiProductsEntitySet, v2.KeyPredicate(name), "") + "/additionalProperties"
+
+	body, err := c.odata.Get(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+
+	var props []APIProductAdditionalProperty
+	if err := v2.DecodeCollection(body, &props); err != nil {
+		return nil, err
+	}
+	return props, nil
+}
+
+// DeleteAPIProduct deletes an API product by name. A tenant test in
+// September 2026 answered 204.
 func (c *Client) DeleteAPIProduct(ctx context.Context, name string) error {
 	path := v2.BuildPath(apiProductsEntitySet, v2.KeyPredicate(name), "")
 	return c.odata.Delete(ctx, path)
@@ -217,54 +243,15 @@ func (c *Client) DeleteAPIProduct(ctx context.Context, name string) error {
 
 // APIProductAdditionalProperty is the wire representation of an
 // APIProductAdditionalProperties entity: a custom name/value attribute
-// attached to an API product, confirmed via SAP's own worked Create and
-// Update examples. Identity is the composite (EntityID, Name) key —
-// EntityID is the owning product's name, confirmed directly from the
-// worked examples' "entityId": "SampleProduct" pairing with an APIProduct
-// also named "SampleProduct".
+// attached to an API product. Identity is the composite (EntityID, Name)
+// key, where EntityID is the owning product's name.
+//
+// SAP does not accept a separate create: a tenant test in September 2026
+// answered POST APIProductAdditionalProperties with 405 "CREATE operation
+// not supported on APIProductAdditionalProperty entity". The product's
+// properties are read through APIProducts('<name>')/additionalProperties.
 type APIProductAdditionalProperty struct {
 	EntityID string `json:"entityId"`
 	Name     string `json:"name"`
 	Value    string `json:"value"`
-}
-
-// CreateAPIProductAdditionalProperty adds a custom attribute to an existing
-// API product.
-func (c *Client) CreateAPIProductAdditionalProperty(ctx context.Context, prop APIProductAdditionalProperty) error {
-	payload, err := json.Marshal(prop)
-	if err != nil {
-		return fmt.Errorf("apimanagementclassic: encoding API product additional property: %w", err)
-	}
-	_, err = c.odata.Post(ctx, apiProductAdditionalPropertiesEntity, payload)
-	return err
-}
-
-// UpdateAPIProductAdditionalProperty changes an existing custom attribute's
-// value. EntityID and Name (the composite key) are immutable.
-func (c *Client) UpdateAPIProductAdditionalProperty(ctx context.Context, entityID, name, value string) error {
-	payload, err := json.Marshal(struct {
-		Value string `json:"value"`
-	}{Value: value})
-	if err != nil {
-		return fmt.Errorf("apimanagementclassic: encoding API product additional property: %w", err)
-	}
-
-	predicate, err := v2.CompositeKeyPredicate("entityId", entityID, "name", name)
-	if err != nil {
-		return err
-	}
-	path := v2.BuildPath(apiProductAdditionalPropertiesEntity, predicate, "")
-	_, err = c.odata.Put(ctx, path, payload)
-	return err
-}
-
-// DeleteAPIProductAdditionalProperty removes a custom attribute from an API
-// product.
-func (c *Client) DeleteAPIProductAdditionalProperty(ctx context.Context, entityID, name string) error {
-	predicate, err := v2.CompositeKeyPredicate("entityId", entityID, "name", name)
-	if err != nil {
-		return err
-	}
-	path := v2.BuildPath(apiProductAdditionalPropertiesEntity, predicate, "")
-	return c.odata.Delete(ctx, path)
 }

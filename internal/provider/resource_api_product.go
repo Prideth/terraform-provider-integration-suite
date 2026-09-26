@@ -3,11 +3,17 @@ package provider
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/apimanagementclassic"
@@ -49,87 +55,120 @@ func (r *apiProductResource) Metadata(_ context.Context, req resource.MetadataRe
 	resp.TypeName = req.ProviderTypeName + "_api_product"
 }
 
+// replaceString, replaceComputedString and the other helpers below keep the
+// schema readable: SAP answers every update of an API product with 405, so
+// every attribute forces a new product.
+func replaceString() []planmodifier.String {
+	return []planmodifier.String{stringplanmodifier.RequiresReplace()}
+}
+
+func replaceComputedString() []planmodifier.String {
+	return []planmodifier.String{stringplanmodifier.UseStateForUnknown(), stringplanmodifier.RequiresReplace()}
+}
+
+func replaceComputedBool() []planmodifier.Bool {
+	return []planmodifier.Bool{boolplanmodifier.UseStateForUnknown(), boolplanmodifier.RequiresReplace()}
+}
+
+func replaceInt64() []planmodifier.Int64 {
+	return []planmodifier.Int64{int64planmodifier.RequiresReplace()}
+}
+
 func (r *apiProductResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manages a Classic API Management API Product (APIProducts): a bundle of one " +
-			"or more API Proxies published together for subscription. Backed by the API Portal's " +
-			"Management.svc OData API, confirmed field-for-field against SAP's own documented Create " +
-			"(POST) and Update (PUT) worked examples.\n\n" +
-			"api_proxy_names is only ever sent on Create: SAP's documented Update payload never " +
-			"includes the apiProxies association, so this provider treats it as immutable after " +
-			"creation (RequiresReplace) rather than guess at an unconfirmed way to add or remove " +
-			"proxies from an existing product. Referenced proxies are expected to already exist — " +
-			"this provider does not implement sapintegrationsuite_api_proxy in this phase (see " +
-			"docs/guides/classic-api-management.md), so api_proxy_names currently only accepts names " +
-			"of proxies created through the SAP Integration Suite UI.\n\n" +
-			"additional_properties (SAP's custom Product attributes) has its own confirmed, " +
-			"independent Create/Update/Delete lifecycle (APIProductAdditionalProperties, composite " +
-			"key entityId+name) and is reconciled by this resource as a set of {name, value} pairs; " +
-			"SAP documents limits of 255 characters for a name, 1024 for a value, and 18 attributes " +
-			"per product, none of which this provider validates itself, since SAP may change them.",
+		Description: "Manages a Classic API Management API product (APIProducts): a bundle of one " +
+			"or more API proxies that application developers subscribe to.\n\n" +
+			"An API product cannot be changed after it is created. A tenant test in September " +
+			"2026 answered PUT, PATCH and MERGE on an existing product with 405 \"UPDATE operation " +
+			"not supported on APIProduct entity\". Every attribute therefore forces a new product: " +
+			"Terraform deletes the product and creates it again. Applications subscribed to the old " +
+			"product lose that subscription, so review any plan that replaces a product.\n\n" +
+			"SAP requires at least one linked API proxy. The proxies must already exist; this " +
+			"provider does not manage API proxies.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:      true,
-				Description:   "Always equal to name — SAP's confirmed OData key for this entity (APIProducts('<name>')).",
+				Description:   "Always equal to name, SAP's key for this entity (APIProducts('<name>')).",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"name": schema.StringAttribute{
 				Required:      true,
-				Description:   "The API product's name.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Description:   "The API product's name. It is the product's key and cannot be changed.",
+				PlanModifiers: replaceString(),
 			},
 			"version": schema.StringAttribute{
-				Optional:    true,
-				Description: "The product's version identifier, for example \"1\" (SAP's confirmed example value).",
+				Optional: true,
+				Computed: true,
+				Description: "The product's version, for example \"1\". When left out, SAP sets one " +
+					"itself (\"1\" on the tested tenant).",
+				PlanModifiers: replaceComputedString(),
 			},
-			"title":       schema.StringAttribute{Optional: true},
-			"description": schema.StringAttribute{Optional: true},
+			"title": schema.StringAttribute{
+				Optional:      true,
+				Computed:      true,
+				Description:   "The title shown in the API business hub enterprise.",
+				PlanModifiers: replaceComputedString(),
+			},
+			"description": schema.StringAttribute{
+				Optional:      true,
+				Description:   "A longer description of the product.",
+				PlanModifiers: replaceString(),
+			},
 			"scope": schema.StringAttribute{
-				Optional:    true,
-				Description: "SAP's confirmed example always sends this field, as an empty string when unused.",
+				Optional: true,
+				Description: "OAuth scopes the product grants, as SAP expects them. Sent as an empty " +
+					"string when left out.",
+				PlanModifiers: replaceString(),
 			},
 			"status_code": schema.StringAttribute{
 				Optional: true,
-				Description: "The product's status. The only value this provider found confirmed in " +
-					"a worked example is \"PUBLISHED\"; not validated against a closed enum, since " +
-					"SAP's full set of accepted values is not confirmed.",
+				Computed: true,
+				Default:  stringdefault.StaticString("PUBLISHED"),
+				Description: "The product's status. SAP requires one on create; without it the create " +
+					"fails inside SAP. Defaults to \"PUBLISHED\", the value confirmed on a tenant.",
+				PlanModifiers: replaceString(),
 			},
 			"is_published": schema.BoolAttribute{
-				Optional:    true,
-				Computed:    true,
-				Description: "Whether the product is published (visible for subscription).",
+				Optional:      true,
+				Computed:      true,
+				Description:   "Whether the product is published for subscription. When left out, SAP decides.",
+				PlanModifiers: replaceComputedBool(),
 			},
 			"is_restricted": schema.BoolAttribute{
-				Optional:    true,
-				Computed:    true,
-				Description: "Whether subscription to this product is restricted (requires approval).",
+				Optional:      true,
+				Computed:      true,
+				Description:   "Whether a subscription to this product needs approval. When left out, SAP decides.",
+				PlanModifiers: replaceComputedBool(),
 			},
 			"quota_count": schema.Int64Attribute{
 				Optional: true,
-				Description: "Request quota count. SAP's own worked examples send -99 for \"no " +
-					"quota\" in one place and null in another; this provider sends whatever is " +
-					"configured (including a negative sentinel) and null when unset, without " +
-					"interpreting the value itself.",
+				Description: "How many requests the quota allows per interval. SAP's own examples send " +
+					"-99 for \"no quota\"; the provider sends the value as configured and null when unset.",
+				PlanModifiers: replaceInt64(),
 			},
 			"quota_interval": schema.Int64Attribute{
-				Optional:    true,
-				Description: "Request quota interval, paired with quota_count and quota_time_unit.",
+				Optional:      true,
+				Description:   "The quota interval, counted in quota_time_unit.",
+				PlanModifiers: replaceInt64(),
 			},
 			"quota_time_unit": schema.StringAttribute{
-				Optional:    true,
-				Description: "Request quota time unit, paired with quota_count and quota_interval.",
+				Optional:      true,
+				Description:   "The unit of quota_interval, as SAP expects it (for example \"minute\").",
+				PlanModifiers: replaceString(),
 			},
 			"api_proxy_names": schema.ListAttribute{
-				Optional:    true,
+				Required:    true,
 				ElementType: types.StringType,
-				Description: "Names of already-existing API Proxies to associate with this product " +
-					"at creation time. See the resource description above for why this is " +
-					"RequiresReplace.",
+				Description: "Names of existing API proxies bundled in this product. SAP rejects a " +
+					"product without one (\"At least one API Proxy should be linked to an API Product\").",
+				Validators:    []validator.List{listvalidator.SizeAtLeast(1)},
 				PlanModifiers: []planmodifier.List{listplanmodifier.RequiresReplace()},
 			},
 			"additional_properties": schema.SetNestedAttribute{
-				Optional:    true,
-				Description: "Custom name/value attributes attached to this product. Order carries no meaning, hence a set.",
+				Optional: true,
+				Description: "Custom name/value attributes sent with the product when it is created. " +
+					"Order carries no meaning, hence a set.",
+				PlanModifiers: []planmodifier.Set{setplanmodifier.RequiresReplace()},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"name":  schema.StringAttribute{Required: true},
@@ -180,19 +219,44 @@ func apiProductToClient(plan apiProductModel) apimanagementclassic.APIProduct {
 		v := plan.QuotaTimeUnit.ValueString()
 		product.QuotaTimeUnit = &v
 	}
-	return product
-}
-
-func apiProductAdditionalPropertiesFromPlan(name string, props []apiProductAdditionalPropertyModel) []apimanagementclassic.APIProductAdditionalProperty {
-	result := make([]apimanagementclassic.APIProductAdditionalProperty, 0, len(props))
-	for _, p := range props {
-		result = append(result, apimanagementclassic.APIProductAdditionalProperty{
-			EntityID: name,
+	for _, p := range plan.AdditionalProperties {
+		product.AdditionalProperties = append(product.AdditionalProperties, apimanagementclassic.APIProductAdditionalProperty{
+			EntityID: product.Name,
 			Name:     p.Name.ValueString(),
 			Value:    p.Value.ValueString(),
 		})
 	}
-	return result
+	return product
+}
+
+// applyAPIProduct copies what SAP returned into the model. The linked proxy
+// names and additional properties are not part of SAP's product response;
+// Read fetches them separately, and Create keeps the planned values.
+func applyAPIProduct(m *apiProductModel, found *apimanagementclassic.APIProduct) {
+	m.ID = types.StringValue(found.Name)
+	m.Name = types.StringValue(found.Name)
+	m.Version = stringOrNull(found.Version)
+	m.Title = stringOrNull(found.Title)
+	m.Description = stringOrNull(found.Description)
+	m.Scope = stringOrNull(found.Scope)
+	m.StatusCode = stringOrNull(found.StatusCode)
+	m.IsPublished = types.BoolValue(found.IsPublished)
+	m.IsRestricted = types.BoolValue(found.IsRestricted)
+	if found.QuotaCount != nil {
+		m.QuotaCount = types.Int64Value(*found.QuotaCount)
+	} else {
+		m.QuotaCount = types.Int64Null()
+	}
+	if found.QuotaInterval != nil {
+		m.QuotaInterval = types.Int64Value(*found.QuotaInterval)
+	} else {
+		m.QuotaInterval = types.Int64Null()
+	}
+	if found.QuotaTimeUnit != nil {
+		m.QuotaTimeUnit = types.StringValue(*found.QuotaTimeUnit)
+	} else {
+		m.QuotaTimeUnit = types.StringNull()
+	}
 }
 
 func (r *apiProductResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -208,14 +272,7 @@ func (r *apiProductResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 
-	for _, prop := range apiProductAdditionalPropertiesFromPlan(created.Name, plan.AdditionalProperties) {
-		if err := r.client.CreateAPIProductAdditionalProperty(ctx, prop); err != nil {
-			resp.Diagnostics.AddError("Failed to create Classic API Management API product additional property", diagnosticDetail(err))
-			return
-		}
-	}
-
-	plan.ID = types.StringValue(created.Name)
+	applyAPIProduct(&plan, created)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -236,98 +293,70 @@ func (r *apiProductResource) Read(ctx context.Context, req resource.ReadRequest,
 		return
 	}
 
-	state.Name = types.StringValue(found.Name)
-	state.Version = stringOrNull(found.Version)
-	state.Title = stringOrNull(found.Title)
-	state.Description = stringOrNull(found.Description)
-	state.Scope = stringOrNull(found.Scope)
-	state.StatusCode = stringOrNull(found.StatusCode)
-	state.IsPublished = types.BoolValue(found.IsPublished)
-	state.IsRestricted = types.BoolValue(found.IsRestricted)
-	if found.QuotaCount != nil {
-		state.QuotaCount = types.Int64Value(*found.QuotaCount)
-	} else {
-		state.QuotaCount = types.Int64Null()
+	applyAPIProduct(&state, found)
+
+	proxyNames, err := r.client.GetAPIProductProxyNames(ctx, found.Name)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to read the API proxies linked to a Classic API Management API product", diagnosticDetail(err))
+		return
 	}
-	if found.QuotaInterval != nil {
-		state.QuotaInterval = types.Int64Value(*found.QuotaInterval)
-	} else {
-		state.QuotaInterval = types.Int64Null()
+	state.APIProxyNames = keepListOrder(state.APIProxyNames, proxyNames)
+
+	props, err := r.client.GetAPIProductAdditionalProperties(ctx, found.Name)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to read the additional properties of a Classic API Management API product", diagnosticDetail(err))
+		return
 	}
-	if found.QuotaTimeUnit != nil {
-		state.QuotaTimeUnit = types.StringValue(*found.QuotaTimeUnit)
-	} else {
-		state.QuotaTimeUnit = types.StringNull()
-	}
-	if len(found.ApiProxyNames) > 0 {
-		state.APIProxyNames = found.ApiProxyNames
-	}
-	// additional_properties are not returned by GET APIProducts itself
-	// (SAP's confirmed response shape does not embed them); this provider
-	// leaves whatever Terraform already has in state for that attribute
-	// rather than guess at a separate list-fetch call this project could
-	// not confirm.
+	state.AdditionalProperties = apiProductPropertiesToModel(props)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (r *apiProductResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan, state apiProductModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
+// keepListOrder returns the prior list when it holds the same names as
+// SAP's answer, so that a different order from SAP does not show up as a
+// change (and with it a replacement). Otherwise SAP's answer wins.
+func keepListOrder(prior, current []string) []string {
+	if len(prior) != len(current) {
+		return current
 	}
-
-	if err := r.client.UpdateAPIProduct(ctx, apiProductToClient(plan)); err != nil {
-		resp.Diagnostics.AddError("Failed to update Classic API Management API product", diagnosticDetail(err))
-		return
+	seen := make(map[string]int, len(current))
+	for _, name := range current {
+		seen[name]++
 	}
-
-	if err := reconcileAPIProductAdditionalProperties(ctx, r.client, plan.ID.ValueString(), state.AdditionalProperties, plan.AdditionalProperties); err != nil {
-		resp.Diagnostics.AddError("Failed to update Classic API Management API product additional properties", diagnosticDetail(err))
-		return
+	for _, name := range prior {
+		if seen[name] == 0 {
+			return current
+		}
+		seen[name]--
 	}
-
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	return prior
 }
 
-// reconcileAPIProductAdditionalProperties diffs the prior and desired
-// additional_properties sets and issues the minimal Create/Update/Delete
-// calls to converge, using each confirmed operation's own composite key.
-func reconcileAPIProductAdditionalProperties(ctx context.Context, client *apimanagementclassic.Client, entityID string, before, after []apiProductAdditionalPropertyModel) error {
-	beforeByName := make(map[string]string, len(before))
-	for _, p := range before {
-		beforeByName[p.Name.ValueString()] = p.Value.ValueString()
+// apiProductPropertiesToModel maps SAP's properties to the set attribute;
+// no properties map to null, matching a configuration that leaves the
+// attribute out.
+func apiProductPropertiesToModel(props []apimanagementclassic.APIProductAdditionalProperty) []apiProductAdditionalPropertyModel {
+	if len(props) == 0 {
+		return nil
 	}
-	afterByName := make(map[string]string, len(after))
-	for _, p := range after {
-		afterByName[p.Name.ValueString()] = p.Value.ValueString()
+	result := make([]apiProductAdditionalPropertyModel, 0, len(props))
+	for _, p := range props {
+		result = append(result, apiProductAdditionalPropertyModel{
+			Name:  types.StringValue(p.Name),
+			Value: types.StringValue(p.Value),
+		})
 	}
+	return result
+}
 
-	for name, value := range afterByName {
-		oldValue, existed := beforeByName[name]
-		switch {
-		case !existed:
-			if err := client.CreateAPIProductAdditionalProperty(ctx, apimanagementclassic.APIProductAdditionalProperty{
-				EntityID: entityID, Name: name, Value: value,
-			}); err != nil {
-				return err
-			}
-		case oldValue != value:
-			if err := client.UpdateAPIProductAdditionalProperty(ctx, entityID, name, value); err != nil {
-				return err
-			}
-		}
-	}
-	for name := range beforeByName {
-		if _, stillPresent := afterByName[name]; !stillPresent {
-			if err := client.DeleteAPIProductAdditionalProperty(ctx, entityID, name); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+// Update is unreachable: every attribute forces replacement, because SAP
+// answers every update of an API product with 405.
+func (r *apiProductResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	resp.Diagnostics.AddError(
+		"Update not supported",
+		"sapintegrationsuite_api_product does not support in-place updates; "+
+			"Terraform should have replaced this resource instead of updating it.",
+	)
 }
 
 func (r *apiProductResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

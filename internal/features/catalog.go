@@ -1311,25 +1311,29 @@ var Catalog = []Feature{
 		Domain: "api_management_classic",
 		Name:   "API Product (classic API Management)",
 		Description: "A classic API Management API product bundling one or more API proxies for " +
-			"subscription, with optional custom attributes and request quotas.",
+			"subscription, with optional custom attributes and request quotas. Replaced, never " +
+			"updated in place.",
 		SupportStatus:   StatusSupported,
 		ResourceTypes:   []string{"sapintegrationsuite_api_product"},
 		DataSourceTypes: []string{"sapintegrationsuite_api_product"},
 		PublicAPI:       true,
 		APIProtocol:     "OData V2 (Management.svc)",
 		Limitations: []string{
-			"api_proxy_names is only sent on Create: SAP's own documented Update (PUT) worked " +
-				"example never includes the apiProxies association, so this provider treats it as " +
-				"RequiresReplace rather than guess at an unconfirmed way to add or remove proxies " +
-				"from an existing product.",
-			"Referenced API proxies are expected to already exist through some other means (the SAP " +
-				"Integration Suite UI, or a future sapintegrationsuite_api_proxy once its Create " +
-				"mechanism is confirmed — see api_management.classic.api_proxy).",
-			"DELETE is inferred from the consistent key-predicate DELETE convention confirmed " +
-				"directly for APIProviders and CertificateStoreReferences within this same " +
-				"Management.svc API family, not independently verified for APIProducts specifically.",
+			"No update: a tenant test in September 2026 answered PUT, PATCH and MERGE on an " +
+				"existing product with 405 \"UPDATE operation not supported on APIProduct entity\". " +
+				"Every attribute forces a new product, which drops the subscriptions of the old one.",
+			"At least one existing API proxy is required (SAP: \"At least one API Proxy should be " +
+				"linked to an API Product\"). Proxies are created in the SAP Integration Suite UI; see " +
+				"api_management.classic.api_proxy.",
+			"status_code is required by SAP on create and defaults to PUBLISHED; DRAFT creates an " +
+				"unpublished product. Both were confirmed on a tenant.",
+			"Additional properties can only be sent inside the create request, each with the " +
+				"product's name as entityId; a separate POST APIProductAdditionalProperties answers 405.",
+			"Linked proxies and additional properties are read through the apiProxies and " +
+				"additionalProperties navigation properties, since the product itself only returns " +
+				"__deferred links.",
 		},
-		Operations: Operations{Create: true, Read: true, Update: true, Delete: true, Import: true},
+		Operations: Operations{Create: true, Read: true, Update: false, Delete: true, Import: true},
 	},
 	{
 		Key:    "api_management.classic.certificate_store_reference",

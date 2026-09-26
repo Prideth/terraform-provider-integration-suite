@@ -1,16 +1,13 @@
-# Requires provider.api_management to be configured. api_proxy_names
-# references already-existing API Proxies by name (created through the SAP
-# Integration Suite UI — sapintegrationsuite_api_proxy is not yet
-# implemented, see docs/guides/classic-api-management.md) and is
-# RequiresReplace, since no confirmed way exists to change it after
-# creation.
+# Requires provider.api_management to be configured. The proxies in
+# api_proxy_names must already exist; create them in the SAP Integration
+# Suite UI. SAP cannot change a product after it is created, so changing any
+# argument here makes Terraform delete the product and create a new one.
+# Applications subscribed to the old product lose their subscription.
 resource "sapintegrationsuite_api_product" "sample" {
-  name         = "SampleProduct"
-  version      = "1"
-  title        = "SampleProduct"
-  description  = "Sample product bundling the SampleAPI proxy"
-  status_code  = "PUBLISHED"
-  is_published = true
+  name        = "SampleProduct"
+  title       = "Sample Product"
+  description = "Sample product bundling the SampleAPI proxy"
+  status_code = "PUBLISHED"
 
   api_proxy_names = ["SampleAPI"]
 

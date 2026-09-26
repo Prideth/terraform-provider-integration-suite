@@ -45,7 +45,7 @@ Do not conflate these: a feature can be fully supported by this provider and sti
 | `api_gateway.mcp_server` | api_gateway | unsupported (no_public_api) | No | — | — | — | — | — | — | — |
 | `api_gateway.reusable_api_artifact` | api_gateway | unsupported (no_public_api) | No | — | — | — | — | — | — | — |
 | `api_gateway.runtime_profile` | api_gateway | unsupported (no_public_api) | No | — | — | — | — | — | — | — |
-| `api_management.classic.api_product` | api_management_classic | supported | Yes | Yes | Yes | Yes | Yes | Yes | — | Resource + Data Source |
+| `api_management.classic.api_product` | api_management_classic | supported | Yes | Yes | Yes | — | Yes | Yes | — | Resource + Data Source |
 | `api_management.classic.api_provider` | api_management_classic | partial (unsafe_terraform_lifecycle) | Yes | Yes | Yes | — | Yes | Yes | — | Resource + Data Source |
 | `api_management.classic.api_proxy` | api_management_classic | unsupported (public_api_incomplete) | Yes | — | — | — | — | — | — | — |
 | `api_management.classic.api_proxy_deployment` | api_management_classic | unsupported (public_api_incomplete) | Yes | — | — | — | — | — | — | — |

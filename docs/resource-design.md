@@ -1540,27 +1540,25 @@ is genuinely "is this the right shape for a Terraform resource," not "does an AP
     other three documented connection types (On Premise, Open Connectors, Cloud Integration)
     have no confirmed field-level JSON mapping this provider could find.
 
-### API Product — resource, full CRUD
+### API Product — resource, create/read/delete only
 
 1. **Who creates it**: a practitioner, bundling API Proxies for subscription.
 2. **Configuration vs. runtime state**: configuration.
 3. **Identity**: `name`.
-4–7. **Create / Read / Update / Delete public**: Create and Update confirmed verbatim (complete
-   worked JSON bodies for both `POST` and `PUT`); Delete inferred from this API family's
-   consistent key-predicate DELETE convention (confirmed directly for `APIProviders` and
-   `CertificateStoreReferences`, not independently verified for `APIProducts` itself).
-8. **Drift-detectable fields**: every top-level field. `additional_properties` is reconciled
-   through its own confirmed sub-entity (`APIProductAdditionalProperties`) via a diff against
-   prior state, not re-sent wholesale on every Update.
-9. **A field this provider deliberately treats as immutable despite looking mutable**:
-   `api_proxy_names`. SAP's confirmed Update (`PUT`) payload never includes the `apiProxies`
-   field at all — only Create's payload does — so this provider does not assume an omitted field
-   on Update means "leave unchanged" (a common OData convention, but not one this provider
-   verified holds for deep-insert associations specifically) and instead makes the field
-   `RequiresReplace`, the conservative reading.
-10. **Import**: supported.
+4–7. **Create / Read / Update / Delete public**: Create, Read and Delete confirmed on a tenant
+   (September 2026). Update is not available: SAP answers `PUT`, `PATCH` and `MERGE` with 405,
+   although its user guide still shows a `PUT` example.
+8. **Drift-detectable fields**: every top-level field, plus the linked proxies and additional
+   properties, which are read through the `apiProxies` and `additionalProperties` navigation
+   properties because the product itself only returns `__deferred` links.
+9. **Replace-only**: every attribute is `RequiresReplace`. Additional properties are sent inside
+   the create request, each with the product's name as `entityId`; SAP rejects creating them on
+   their own with 405. Replacing a product drops its subscriptions, which the resource
+   documentation warns about.
+10. **Import**: supported. Import reads the linked proxies and properties, so a matching
+    configuration plans no change.
 14. **Resource / Data Source / unsupported / out of scope**: **Resource + Data Source,
-    `supported`** — the best-evidenced full-CRUD resource this phase produced.
+    `supported`**.
 
 ### Certificate Store Reference — resource, full CRUD, best-evidenced object this phase
 
