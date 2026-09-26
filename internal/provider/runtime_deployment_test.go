@@ -34,13 +34,19 @@ func TestWaitForRuntimeArtifact_Started(t *testing.T) {
 }
 
 // TestWaitForRuntimeArtifact_Error covers a deployment that SAP reports as
-// failed: waitForRuntimeArtifact must return an error carrying SAP's
-// ErrorInformation rather than treating ERROR as a transient state to keep
-// polling through.
+// failed: waitForRuntimeArtifact must return an error carrying SAP's error
+// text rather than treating ERROR as a transient state to keep polling
+// through. The tenant $metadata declares ErrorInformation as a navigation
+// property to a media entity, so the status read carries only a __deferred
+// link and the text comes from ErrorInformation/$value.
 func TestWaitForRuntimeArtifact_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"d": {"Id": "company-codes", "Version": "1.0.0", "Status": "ERROR", "ErrorInformation": "invalid mapping schema"}}`))
+		if strings.HasSuffix(r.URL.Path, "/ErrorInformation/$value") {
+			_, _ = w.Write([]byte("invalid mapping schema\n"))
+			return
+		}
+		_, _ = w.Write([]byte(`{"d": {"Id": "company-codes", "Version": "1.0.0", "Status": "ERROR", "ErrorInformation": {"__deferred": {"uri": "https://host/api/v1/IntegrationRuntimeArtifacts('company-codes')/ErrorInformation"}}}}`))
 	}))
 	defer server.Close()
 
@@ -51,7 +57,29 @@ func TestWaitForRuntimeArtifact_Error(t *testing.T) {
 		t.Fatal("expected an error for a deployment reported as ERROR")
 	}
 	if !strings.Contains(err.Error(), "invalid mapping schema") {
-		t.Errorf("error = %q, want it to contain SAP's ErrorInformation", err.Error())
+		t.Errorf("error = %q, want it to contain SAP's error information", err.Error())
+	}
+}
+
+// When the error text cannot be read, the deployment still fails with a
+// generic reason instead of hiding the failure behind the read error.
+func TestWaitForRuntimeArtifact_ErrorWithoutDetail(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/ErrorInformation/$value") {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error": {"code": "NOT_FOUND", "message": {"value": "no error information"}}}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"d": {"Id": "company-codes", "Version": "1.0.0", "Status": "ERROR"}}`))
+	}))
+	defer server.Close()
+
+	client := cloudintegration.New(http.DefaultClient, server.URL)
+
+	_, err := waitForRuntimeArtifact(context.Background(), client, "company-codes")
+	if err == nil || !strings.Contains(err.Error(), "without further detail") {
+		t.Fatalf("error = %v, want the generic deployment failure", err)
 	}
 }
 

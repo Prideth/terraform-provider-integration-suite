@@ -32,11 +32,7 @@ func waitForRuntimeArtifact(ctx context.Context, client *cloudintegration.Client
 			case cloudintegration.StatusStarted:
 				return artifact, nil
 			case cloudintegration.StatusError:
-				errInfo := artifact.ErrorInfo
-				if errInfo == "" {
-					errInfo = "SAP reported status ERROR without further detail on the runtime artifact"
-				}
-				return nil, fmt.Errorf("deployment failed: %s", errInfo)
+				return nil, deploymentFailure(ctx, client, id)
 			}
 		} else {
 			var apiErr *apierror.Error
@@ -58,6 +54,17 @@ func waitForRuntimeArtifact(ctx context.Context, client *cloudintegration.Client
 		case <-timer.C:
 		}
 	}
+}
+
+// deploymentFailure builds the error for a deployment SAP reports as ERROR.
+// The reason is a separate media entity; reading it is best effort, since
+// the deployment failed either way.
+func deploymentFailure(ctx context.Context, client *cloudintegration.Client, id string) error {
+	errInfo, err := client.GetRuntimeArtifactErrorInformation(ctx, id)
+	if err != nil || errInfo == "" {
+		errInfo = "SAP reported status ERROR without further detail on the runtime artifact"
+	}
+	return fmt.Errorf("deployment failed: %s", errInfo)
 }
 
 // pollBackoff computes an exponential backoff with full jitter for status

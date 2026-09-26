@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -82,14 +83,20 @@ func TestAPIKeyValueMapResource_Configure_RequiresAPIManagementClient(t *testing
 
 func TestAPIKeyValueMapResource_CreateReadDelete(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodPost:
+		// SAP returns the entries only as a __deferred link (tenant test,
+		// September 2026); they are read through the navigation property.
+		const kvm = `{"d": {"name": "kvm1", "scope": "APIPROXY", "scopeId": "proxy1", "isEncrypted": false, "genericKeyMapEntryValues": {"__deferred": {"uri": "x"}}}}`
+		switch {
+		case r.Method == http.MethodPost:
 			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"d": {"name": "kvm1", "scope": "APIPROXY", "scopeId": "proxy1", "isEncrypted": false, "genericKeyMapEntryValues": [{"name": "default", "value": "secret", "mapName": "kvm1", "scope": "APIPROXY", "scopeId": "proxy1"}]}}`))
-		case http.MethodGet:
+			_, _ = w.Write([]byte(kvm))
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/genericKeyMapEntryValues"):
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"d": {"name": "kvm1", "scope": "APIPROXY", "scopeId": "proxy1", "isEncrypted": false, "genericKeyMapEntryValues": [{"name": "default", "value": "secret", "mapName": "kvm1", "scope": "APIPROXY", "scopeId": "proxy1"}]}}`))
-		case http.MethodDelete:
+			_, _ = w.Write([]byte(`{"d": {"results": [{"name": "default", "value": "secret", "mapName": "kvm1", "scope": "APIPROXY", "scopeId": "proxy1"}]}}`))
+		case r.Method == http.MethodGet:
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(kvm))
+		case r.Method == http.MethodDelete:
 			w.WriteHeader(http.StatusNoContent)
 		}
 	}))

@@ -18,17 +18,19 @@ func TestWireContractAgainstMetadata(t *testing.T) {
 	}{
 		{apiProvidersEntitySet, APIProvider{}},
 		{apiProductsEntitySet, APIProduct{}},
-		{apiProductsEntitySet, apiProductWire{}},
 		{apiProductsEntitySet, apiProductReadWire{}},
 		{apiProductAdditionalPropertiesEntity, APIProductAdditionalProperty{}},
 		{certificateStoreReferencesEntitySet, CertificateStoreReference{}},
 		{genericKeyMapEntriesEntitySet, KeyValueMap{}},
-		{genericKeyMapEntriesEntitySet, keyValueMapWire{}},
+		{genericKeyMapEntriesEntitySet, keyValueMapReadWire{}},
 		{"GenericKeyMapEntryValues", keyValueMapEntryValueWire{}},
 	}
 	for _, s := range structs {
 		m.AssertStruct(t, s.entitySet, s.value)
 	}
+	// Create bodies with deep inserts; never decoded.
+	m.AssertWriteStruct(t, apiProductsEntitySet, apiProductWire{})
+	m.AssertWriteStruct(t, genericKeyMapEntriesEntitySet, keyValueMapWire{})
 
 	m.AssertKey(t, apiProvidersEntitySet, "name", "Edm.String")
 	m.AssertKey(t, apiProductsEntitySet, "name", "Edm.String")

@@ -18,7 +18,7 @@ func TestClient_CreateKeyValueMap(t *testing.T) {
 		body, _ := io.ReadAll(r.Body)
 		postBody = body
 		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(`{"d": {"name": "apim.oc.instance.token", "scope": "APIPROXY", "scopeId": "SampleAPI", "isEncrypted": false, "genericKeyMapEntryValues": [{"name": "default", "mapName": "apim.oc.instance.token", "value": "secret", "scopeId": "SampleAPI", "scope": "APIPROXY"}]}}`))
+		_, _ = w.Write([]byte(`{"d": {"name": "apim.oc.instance.token", "scope": "APIPROXY", "scopeId": "SampleAPI", "isEncrypted": false, "genericKeyMapEntryValues": {"__deferred": {"uri": "x"}}}}`))
 	}))
 	defer server.Close()
 
@@ -33,7 +33,7 @@ func TestClient_CreateKeyValueMap(t *testing.T) {
 		t.Fatalf("CreateKeyValueMap() error: %v", err)
 	}
 	if len(created.Entries) != 1 || created.Entries[0].Value != "secret" {
-		t.Errorf("Entries = %v", created.Entries)
+		t.Errorf("Entries = %v, want the sent entry (SAP answers with only a __deferred link)", created.Entries)
 	}
 
 	var decoded map[string]interface{}
@@ -49,16 +49,17 @@ func TestClient_GetDeleteKeyValueMap(t *testing.T) {
 	var lastMethod string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		lastMethod = r.Method
-		want := "/apiportal/api/1.0/Management.svc/GenericKeyMapEntries(name='kvm1',scope='APIPROXY',scopeId='SampleAPI')"
-		if r.URL.Path != want {
-			t.Errorf("path = %q, want %q", r.URL.Path, want)
-		}
-		switch r.Method {
-		case http.MethodGet:
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"d": {"name": "kvm1", "scope": "APIPROXY", "scopeId": "SampleAPI", "isEncrypted": false, "genericKeyMapEntryValues": []}}`))
-		case http.MethodDelete:
+		mapPath := "/apiportal/api/1.0/Management.svc/GenericKeyMapEntries(name='kvm1',scope='APIPROXY',scopeId='SampleAPI')"
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == mapPath:
+			// As a tenant returned it in September 2026: entries only as a link.
+			_, _ = w.Write([]byte(`{"d": {"name": "kvm1", "scope": "APIPROXY", "scopeId": "SampleAPI", "isEncrypted": false, "genericKeyMapEntryValues": {"__deferred": {"uri": "x"}}}}`))
+		case r.Method == http.MethodGet && r.URL.Path == mapPath+"/genericKeyMapEntryValues":
+			_, _ = w.Write([]byte(`{"d": {"results": [{"name": "default", "mapName": "kvm1", "value": "v1", "scope": "APIPROXY", "scopeId": "SampleAPI"}]}}`))
+		case r.Method == http.MethodDelete && r.URL.Path == mapPath:
 			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
 	}))
 	defer server.Close()
@@ -71,6 +72,9 @@ func TestClient_GetDeleteKeyValueMap(t *testing.T) {
 	}
 	if kvm.Name != "kvm1" {
 		t.Errorf("Name = %q, want kvm1", kvm.Name)
+	}
+	if len(kvm.Entries) != 1 || kvm.Entries[0].Name != "default" || kvm.Entries[0].Value != "v1" {
+		t.Errorf("Entries = %v, want default=v1 from genericKeyMapEntryValues", kvm.Entries)
 	}
 
 	if err := client.DeleteKeyValueMap(context.Background(), "kvm1", "APIPROXY", "SampleAPI"); err != nil {

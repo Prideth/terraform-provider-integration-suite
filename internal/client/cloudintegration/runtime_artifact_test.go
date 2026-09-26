@@ -13,7 +13,7 @@ import (
 func TestClient_GetRuntimeArtifact(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"d": {"Id": "metering", "Version": "1.0.0", "Status": "STARTED"}}`))
+		_, _ = w.Write([]byte(`{"d": {"Id": "metering", "Version": "1.0.0", "Name": "Metering", "Type": "INTEGRATION_FLOW", "Status": "STARTED", "DeployedOn": "/Date(1790424405369)/", "ErrorInformation": {"__deferred": {"uri": "x"}}}}`))
 	}))
 	defer server.Close()
 
@@ -82,5 +82,25 @@ func TestClient_UndeployRuntimeArtifact_NotFoundIsError(t *testing.T) {
 
 	if err := client.UndeployRuntimeArtifact(context.Background(), "metering"); err == nil {
 		t.Fatal("expected an error for a 404 response")
+	}
+}
+
+func TestClient_GetRuntimeArtifactErrorInformation(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		want := "/api/v1/IntegrationRuntimeArtifacts('metering')/ErrorInformation/$value"
+		if r.URL.Path != want {
+			t.Errorf("path = %q, want %q", r.URL.Path, want)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("  Mapping step failed\n"))
+	}))
+	defer server.Close()
+
+	info, err := New(http.DefaultClient, server.URL).GetRuntimeArtifactErrorInformation(context.Background(), "metering")
+	if err != nil {
+		t.Fatalf("GetRuntimeArtifactErrorInformation() error: %v", err)
+	}
+	if info != "Mapping step failed" {
+		t.Errorf("info = %q, want the trimmed text", info)
 	}
 }

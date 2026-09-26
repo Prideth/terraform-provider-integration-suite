@@ -19,7 +19,6 @@ func TestWireContractAgainstMetadata(t *testing.T) {
 		{accessPoliciesEntitySet, AccessPolicy{}},
 		{accessPoliciesEntitySet, accessPolicyLink{}},
 		{artifactReferencesEntitySet, AccessPolicyReference{}},
-		{artifactReferencesEntitySet, accessPolicyReferenceCreate{}},
 		{accessPolicyRuntimeAssignmentsEntitySet, AccessPolicyRuntimeAssignment{}},
 		{customTagConfigurationsEntitySet, customTagConfigurationWriteRequest{}},
 		{integrationAdapterDesigntimeArtifactsEntitySet, IntegrationAdapter{}},
@@ -42,6 +41,8 @@ func TestWireContractAgainstMetadata(t *testing.T) {
 	for _, s := range structs {
 		m.AssertStruct(t, s.entitySet, s.value)
 	}
+	// Create body that links the policy (deep link); never decoded.
+	m.AssertWriteStruct(t, artifactReferencesEntitySet, accessPolicyReferenceCreate{})
 
 	m.AssertKey(t, accessPoliciesEntitySet, "Id", "Edm.Int64")
 	m.AssertKey(t, artifactReferencesEntitySet, "Id", "Edm.Int64")

@@ -4,6 +4,7 @@
 package edmx
 
 import (
+	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"os"
@@ -210,19 +211,64 @@ func (m *Model) EntityTypeOf(t *testing.T, entitySet string) *EntityType {
 	return et
 }
 
-// AssertStruct checks that every JSON field of v, including fields of embedded
-// structs, is a property or navigation property of the entity set's type.
+// AssertStruct checks a struct the provider decodes from SAP's responses:
+// every JSON field of v, including fields of embedded structs, must be a
+// property of the entity set's type. A field may map a navigation property
+// only when its Go type can decode what SAP returns for one: a
+// {"__deferred": ...} link without $expand, {"results": [...]} with it.
+// That means a struct with a "results" field (v2.ExpandedCollection) or
+// json.RawMessage; a plain slice or string fails on every real response.
 func (m *Model) AssertStruct(t *testing.T, entitySet string, v any) {
+	t.Helper()
+	m.assertFields(t, entitySet, v, true)
+}
+
+// AssertWriteStruct checks a request body that is only ever encoded, never
+// decoded, for example a create with a deep insert. Navigation properties
+// may take any shape there.
+func (m *Model) AssertWriteStruct(t *testing.T, entitySet string, v any) {
+	t.Helper()
+	m.assertFields(t, entitySet, v, false)
+}
+
+func (m *Model) assertFields(t *testing.T, entitySet string, v any, decoded bool) {
 	t.Helper()
 	et := m.EntityTypeOf(t, entitySet)
 	if et == nil {
 		return
 	}
-	for _, field := range JSONFields(reflect.TypeOf(v)) {
-		if _, ok := et.Properties[field]; !ok {
-			t.Errorf("%T: JSON field %q is not a property of %s (entity set %s)", v, field, et.Name, entitySet)
+	for _, field := range jsonFields(reflect.TypeOf(v)) {
+		p, ok := et.Properties[field.name]
+		if !ok {
+			t.Errorf("%T: JSON field %q is not a property of %s (entity set %s)", v, field.name, et.Name, entitySet)
+			continue
+		}
+		if decoded && p.Navigation && !decodesNavigation(field.typ) {
+			t.Errorf("%T: JSON field %q maps the navigation property %s.%s as %s, which cannot decode SAP's "+
+				"{\"__deferred\": ...} or {\"results\": [...]} object; drop it from the read struct or use "+
+				"v2.ExpandedCollection with $expand", v, field.name, et.Name, field.name, field.typ)
 		}
 	}
+}
+
+// decodesNavigation reports whether a Go type can hold a navigation
+// property's JSON object.
+func decodesNavigation(typ reflect.Type) bool {
+	for typ.Kind() == reflect.Pointer {
+		typ = typ.Elem()
+	}
+	if typ == reflect.TypeOf(json.RawMessage(nil)) {
+		return true
+	}
+	if typ.Kind() != reflect.Struct {
+		return false
+	}
+	for _, f := range jsonFields(typ) {
+		if f.name == "results" || f.name == "__deferred" {
+			return true
+		}
+	}
+	return false
 }
 
 // AssertKey checks the entity set's key properties and their EDM types, given
@@ -270,10 +316,24 @@ func (m *Model) AssertFunctionImport(t *testing.T, name, httpMethod string, para
 // JSONFields lists the JSON names of a struct type's exported fields, flattening
 // embedded structs the way encoding/json does and skipping "-" tags.
 func JSONFields(typ reflect.Type) []string {
+	fields := jsonFields(typ)
+	names := make([]string, 0, len(fields))
+	for _, f := range fields {
+		names = append(names, f.name)
+	}
+	return names
+}
+
+type jsonField struct {
+	name string
+	typ  reflect.Type
+}
+
+func jsonFields(typ reflect.Type) []jsonField {
 	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
 	}
-	var names []string
+	var fields []jsonField
 	for i := 0; i < typ.NumField(); i++ {
 		f := typ.Field(i)
 		tag := f.Tag.Get("json")
@@ -282,7 +342,7 @@ func JSONFields(typ reflect.Type) []string {
 			continue
 		}
 		if f.Anonymous && name == "" {
-			names = append(names, JSONFields(f.Type)...)
+			fields = append(fields, jsonFields(f.Type)...)
 			continue
 		}
 		if !f.IsExported() {
@@ -291,9 +351,9 @@ func JSONFields(typ reflect.Type) []string {
 		if name == "" {
 			name = f.Name
 		}
-		names = append(names, name)
+		fields = append(fields, jsonField{name: name, typ: f.Type})
 	}
-	return names
+	return fields
 }
 
 // resolveBase copies inherited key and properties from the BaseType chain

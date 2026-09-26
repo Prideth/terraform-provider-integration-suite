@@ -94,6 +94,16 @@ All notable changes to this project are documented in this file.
   - Refresh and import read the linked proxies and the properties from SAP,
     so drift in both is detected. The data source's `api_proxy_names` was
     always empty and is now filled.
+- `sapintegrationsuite_api_key_value_map` and its data source failed to
+  create or read a map on a real API Portal for the same reason: SAP returns
+  `genericKeyMapEntryValues` as a `__deferred` link. The entries are now read
+  through `GenericKeyMapEntries(...)/genericKeyMapEntryValues`.
+- Every `*_deployment` resource read the deployment status into a structure
+  that expected `ErrorInformation` as text. The tenant `$metadata` declares
+  it only as a link to a separate media entity, so a status read would fail
+  as soon as SAP includes that link. The status read now leaves it out, and
+  a failed deployment reports SAP's error text from
+  `IntegrationRuntimeArtifacts('<id>')/ErrorInformation/$value`.
 
 ### Added
 

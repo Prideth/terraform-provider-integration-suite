@@ -2,6 +2,7 @@ package cloudintegration
 
 import (
 	"context"
+	"strings"
 
 	v2 "github.com/Prideth/terraform-provider-sap-integration-suite/internal/client/odata/v2"
 )
@@ -18,19 +19,19 @@ const runtimeArtifactsEntitySet = "IntegrationRuntimeArtifacts"
 // entity: the deployed state of a design-time artifact (integration flow,
 // value mapping, ...).
 //
-// ErrorInfo is best-effort: SAP's monitoring UI sources failure detail from
-// a separate error-information endpoint rather than always inlining it on
-// this entity, so ErrorInfo may be empty even when Status is StatusError.
-// Callers must not assume it is populated; this needs verification against
-// a live tenant before being relied on for anything beyond a best-effort
-// diagnostic message.
+// The tenant $metadata declares ErrorInformation on this entity only as a
+// navigation property to RuntimeArtifactErrorInformation, a media entity
+// (m:HasStream). A read returns it as a {"__deferred": ...} link, never as
+// text, so it is not part of this struct; GetRuntimeArtifactErrorInformation
+// reads the error text.
 type RuntimeArtifact struct {
 	ID         string `json:"Id"`
 	Version    string `json:"Version"`
+	Name       string `json:"Name,omitempty"`
+	Type       string `json:"Type,omitempty"`
 	Status     string `json:"Status"`
 	DeployedBy string `json:"DeployedBy,omitempty"`
 	DeployedOn string `json:"DeployedOn,omitempty"`
-	ErrorInfo  string `json:"ErrorInformation,omitempty"`
 }
 
 // Runtime deployment status values reported by IntegrationRuntimeArtifacts.
@@ -58,6 +59,20 @@ func (c *Client) GetRuntimeArtifact(ctx context.Context, id string) (*RuntimeArt
 		return nil, err
 	}
 	return &artifact, nil
+}
+
+// GetRuntimeArtifactErrorInformation reads why a deployment failed: the
+// content of the ErrorInformation media entity, addressed with the standard
+// OData $value path. SAP returns the text as it is, so the body is returned
+// trimmed and without decoding.
+func (c *Client) GetRuntimeArtifactErrorInformation(ctx context.Context, id string) (string, error) {
+	path := v2.BuildPath(runtimeArtifactsEntitySet, v2.KeyPredicate(id), "") + "/ErrorInformation/$value"
+
+	body, err := c.odata.Get(ctx, path)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(body)), nil
 }
 
 // UndeployRuntimeArtifact removes the runtime deployment of a design-time

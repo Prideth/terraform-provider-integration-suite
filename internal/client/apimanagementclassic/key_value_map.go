@@ -75,22 +75,30 @@ func (m KeyValueMap) toWire() keyValueMapWire {
 	return wire
 }
 
-func keyValueMapFromWire(wire keyValueMapWire) KeyValueMap {
-	m := KeyValueMap{
+// keyValueMapReadWire is the map as SAP returns it. genericKeyMapEntryValues
+// comes back as a {"__deferred": {"uri": ...}} link, not a list (tenant
+// test, September 2026), so it is left out here and the entries are read
+// through the navigation property instead.
+type keyValueMapReadWire struct {
+	Name        string `json:"name"`
+	ScopeID     string `json:"scopeId"`
+	Scope       string `json:"scope"`
+	IsEncrypted bool   `json:"isEncrypted"`
+}
+
+func keyValueMapFromWire(wire keyValueMapReadWire) KeyValueMap {
+	return KeyValueMap{
 		Name:        wire.Name,
 		Scope:       wire.Scope,
 		ScopeID:     wire.ScopeID,
 		IsEncrypted: wire.IsEncrypted,
 	}
-	for _, entry := range wire.GenericKeyMapEntryVals {
-		m.Entries = append(m.Entries, KeyValueMapEntry{Name: entry.Name, Value: entry.Value})
-	}
-	return m
 }
 
 // CreateKeyValueMap creates a new key value map together with its initial
 // set of entries in a single call, matching SAP's own confirmed worked
-// example.
+// example. SAP answers 201 with the map but only a link to its entries, so
+// the returned map carries the entries that were sent.
 func (c *Client) CreateKeyValueMap(ctx context.Context, kvm KeyValueMap) (*KeyValueMap, error) {
 	payload, err := json.Marshal(kvm.toWire())
 	if err != nil {
@@ -102,18 +110,18 @@ func (c *Client) CreateKeyValueMap(ctx context.Context, kvm KeyValueMap) (*KeyVa
 		return nil, err
 	}
 
-	var wire keyValueMapWire
+	var wire keyValueMapReadWire
 	if err := v2.DecodeEntity(body, &wire); err != nil {
 		return nil, err
 	}
 	result := keyValueMapFromWire(wire)
+	result.Entries = kvm.Entries
 	return &result, nil
 }
 
 // GetKeyValueMap reads a single key value map, identified by its composite
-// (name, scope, scopeId) key, by the same convention this API family uses
-// consistently elsewhere (single-quoted key predicates on Create's identity
-// fields).
+// (name, scope, scopeId) key, and then its entries through the
+// genericKeyMapEntryValues navigation property.
 func (c *Client) GetKeyValueMap(ctx context.Context, name, scope, scopeID string) (*KeyValueMap, error) {
 	predicate, err := v2.CompositeKeyPredicate("name", name, "scope", scope, "scopeId", scopeID)
 	if err != nil {
@@ -126,11 +134,23 @@ func (c *Client) GetKeyValueMap(ctx context.Context, name, scope, scopeID string
 		return nil, err
 	}
 
-	var wire keyValueMapWire
+	var wire keyValueMapReadWire
 	if err := v2.DecodeEntity(body, &wire); err != nil {
 		return nil, err
 	}
 	result := keyValueMapFromWire(wire)
+
+	body, err = c.odata.Get(ctx, path+"/genericKeyMapEntryValues")
+	if err != nil {
+		return nil, err
+	}
+	var entries []keyValueMapEntryValueWire
+	if err := v2.DecodeCollection(body, &entries); err != nil {
+		return nil, err
+	}
+	for _, entry := range entries {
+		result.Entries = append(result.Entries, KeyValueMapEntry{Name: entry.Name, Value: entry.Value})
+	}
 	return &result, nil
 }
 

@@ -1,6 +1,7 @@
 package edmx
 
 import (
+	"encoding/json"
 	"reflect"
 	"sort"
 	"testing"
@@ -84,5 +85,32 @@ func TestJSONFields_FlattensEmbeddedAndSkipsDash(t *testing.T) {
 	got := JSONFields(reflect.TypeOf(outer{}))
 	if !reflect.DeepEqual(got, []string{"A", "B", "C"}) {
 		t.Errorf("JSONFields = %v, want [A B C]", got)
+	}
+}
+
+// A navigation property arrives as {"__deferred": ...} or, with $expand,
+// {"results": [...]}. Plain strings and slices, as used by the API product,
+// key value map and runtime artifact reads before September 2026, cannot
+// decode either and must be rejected in read structs.
+func TestDecodesNavigation(t *testing.T) {
+	type expanded struct {
+		Results []string `json:"results"`
+	}
+	cases := []struct {
+		name string
+		v    any
+		want bool
+	}{
+		{"string", "", false},
+		{"slice", []struct{ Name string }{}, false},
+		{"plain struct", struct{ Name string }{}, false},
+		{"expanded collection", expanded{}, true},
+		{"pointer to expanded collection", &expanded{}, true},
+		{"raw JSON", json.RawMessage(nil), true},
+	}
+	for _, c := range cases {
+		if got := decodesNavigation(reflect.TypeOf(c.v)); got != c.want {
+			t.Errorf("%s: decodesNavigation = %v, want %v", c.name, got, c.want)
+		}
 	}
 }

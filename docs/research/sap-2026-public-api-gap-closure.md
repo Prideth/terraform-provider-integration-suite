@@ -89,7 +89,10 @@ that need uploaded content (integration flows, mappings, script collections) wer
 - Classic API products: SAP's user guide shows a `PUT` update and a separate
   `APIProductAdditionalProperties` create, but the tenant answers both with 405. The product
   read returns `__deferred` links, which the client had tried to decode as lists, so create
-  and read had failed on every tenant.
+  and read had failed on every tenant. The same mistake affected key value map entries and
+  the deployment status (`ErrorInformation`, a link to a media entity). The contract tests
+  now reject any read struct that maps a navigation property to a type that cannot hold
+  SAP's `__deferred` or `results` object.
 
 ## Breaking changes
 
